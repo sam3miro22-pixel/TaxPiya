@@ -1,0 +1,17 @@
+{
+  "name": "taxpiya",
+  "private": true,
+  "scripts": {
+    "build:firebase": "node scripts/build-firebase.mjs",
+    "firebase:deploy:hosting": "firebase deploy --only hosting --config firebase/firebase.json",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules --config firebase/firebase.json",
+    "firebase:deploy": "firebase deploy --config firebase/firebase.json"
+  },
+  "dependencies": {
+    "firebase": "^11.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "firebase-tools": "^13.35.0"
+  }
+}

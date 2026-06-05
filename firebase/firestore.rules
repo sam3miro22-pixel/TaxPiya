@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+
+    match /conductores/{conductorId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /viajes/{viajeId} {
+      allow read: if isSignedIn() && (
+        resource.data.pasajero_uid == request.auth.uid ||
+        resource.data.conductor_uid == request.auth.uid
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.pasajero_uid == request.auth.uid ||
+        resource.data.conductor_uid == request.auth.uid
+      );
+    }
+
+    match /viajes/{viajeId}/mensajes/{msgId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /push_tokens/{tokenId} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}
