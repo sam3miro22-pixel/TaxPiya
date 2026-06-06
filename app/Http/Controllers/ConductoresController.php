@@ -485,51 +485,75 @@ public function rechazarViaje(Request $request)
 
 public function marcarLlegada(Request $req)
 {
-    $userId  = auth()->id();
-    $viajeId = (int) $req->input('viaje_id');
-
-    $conductor = DB::table('conductores')->where('user_id', $userId)->first();
-    if (!$conductor) {
-        return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
-    }
-
-    $v = DB::table('viajes')->where('id', $viajeId)->first();
-    if (!$v || (int)$v->conductor_id !== (int)$conductor->id) {
-        return response()->json(['ok' => false, 'message' => 'Viaje no válido'], 404);
-    }
-
-    if (!in_array($v->estado, ['asignado', 'en_camino'])) {
-        return response()->json(['ok' => false, 'message' => "Estado no permite 'llego'"], 422);
-    }
-
-    DB::table('viajes')->where('id', $viajeId)->update([
-        'estado'   => 'llego',
-        'llego_at' => DB::raw('NOW()'),
-    ]);
-
-   
     try {
-        if (!empty($v->pasajero_id)) {
-            app(\App\Services\PushService::class)->notifyUsers(
-                [(int) $v->pasajero_id],
-                'Tu taxi ha llegado',
-                'El conductor está en el punto de recogida.',
-                [
-                    't'          => 'arrived',            
-                    'viaje_id'   => (string) $viajeId,
-                    'conductor'  => (string) $conductor->id,
-                ]
-            );
+        $userId  = auth()->id();
+        $viajeId = (int) $req->input('viaje_id');
+
+        $conductor = DB::table('conductores')->where('user_id', $userId)->first();
+        if (!$conductor) {
+            return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
         }
+
+        $v = DB::table('viajes')->where('id', $viajeId)->first();
+        if (!$v || (int)$v->conductor_id !== (int)$conductor->id) {
+            return response()->json(['ok' => false, 'message' => 'Viaje no válido'], 404);
+        }
+
+        if (!in_array($v->estado, ['asignado', 'en_camino'], true)) {
+            return response()->json(['ok' => false, 'message' => "Estado no permite 'llego'"], 422);
+        }
+
+        $now = now()->format('Y-m-d H:i:s');
+        $update = [
+            'estado'   => 'llego',
+            'llego_at' => $now,
+        ];
+        if (Schema::hasColumn('viajes', 'updated_at')) {
+            $update['updated_at'] = $now;
+        }
+
+        DB::table('viajes')->where('id', $viajeId)->update($update);
+
+        if (Schema::hasTable('viaje_estados_log')) {
+            DB::table('viaje_estados_log')->insert([
+                'viaje_id'      => $viajeId,
+                'from_estado'   => $v->estado,
+                'to_estado'     => 'llego',
+                'actor_tipo'    => 'conductor',
+                'actor_id'      => $userId,
+                'motivo_codigo' => 'llegada',
+                'motivo_texto'  => 'Conductor llegó al origen',
+                'app_origen'    => 'app_conductor',
+                'ip'            => $req->ip(),
+                'created_at'    => $now,
+            ]);
+        }
+
+        try {
+            if (!empty($v->pasajero_id)) {
+                app(\App\Services\PushService::class)->notifyUsers(
+                    [(int) $v->pasajero_id],
+                    'Tu taxi ha llegado',
+                    'El conductor está en el punto de recogida.',
+                    [
+                        't'          => 'arrived',
+                        'viaje_id'   => (string) $viajeId,
+                        'conductor'  => (string) $conductor->id,
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('FCM arrived (pasajero) falló', [
+                'viaje_id' => $viajeId,
+                'err'      => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['ok' => true, 'estado' => 'llego']);
     } catch (\Throwable $e) {
-        \Log::warning('FCM arrived (pasajero) falló', [
-            'viaje_id' => $viajeId,
-            'err'      => $e->getMessage(),
-        ]);
+        report($e);
+        return response()->json(['ok' => false, 'message' => 'No se pudo marcar llegada.'], 500);
     }
-
-
-    return response()->json(['ok' => true]);
 }
 
 
@@ -559,10 +583,14 @@ public function terminarViaje(Request $req)
 
     DB::transaction(function () use ($req, $v, $conductor, $userId) {
         $viajeId = (int) $v->id;
+        $now = now()->format('Y-m-d H:i:s');
         $updates = [
             'estado'       => 'terminado',
-            'terminado_at' => DB::raw('NOW()'),
+            'terminado_at' => $now,
         ];
+        if (Schema::hasColumn('viajes', 'updated_at')) {
+            $updates['updated_at'] = $now;
+        }
 
         if (is_null($v->tarifa_aplicada) && $req->filled('monto')) {
             $updates['tarifa_aplicada'] = (float) $req->input('monto');
@@ -592,7 +620,7 @@ public function terminarViaje(Request $req)
             ->where('id', $conductor->id)
             ->update([
                 'disponible'     => 1,
-                'last_online_at' => now(),
+                'last_online_at' => $now,
                 'total_viajes'   => DB::raw('total_viajes + 1'),
             ]);
 
@@ -607,7 +635,7 @@ if (Schema::hasTable('viaje_estados_log')) {
                 'motivo_texto'  => 'Viaje finalizado por el conductor',
                 'app_origen'    => 'app_conductor',
                 'ip'            => $req->ip(),
-                'created_at'    => now(),
+                'created_at'    => $now,
             ]);
         }
     });

@@ -663,10 +663,27 @@ function centerMapOnce(lat, lng, zoom = 16){
 
 function centerMapNow(){
   if (!map) return;
-  const p = window.__lastDriverPos;
-  if (!p) { showBanner?.('Aún sin posición', 'fa-location-crosshairs'); return; }
-  map.panTo(p);
-  map.setZoom(Math.max(15, map.getZoom() || 15));
+  const go = (p) => {
+    map.__centeredOnce = true;
+    map.panTo(p);
+    map.setZoom(Math.max(15, map.getZoom() || 15));
+    try { map._map?.invalidateSize?.(true); } catch (_) {}
+  };
+  if (window.__lastDriverPos) { go(window.__lastDriverPos); return; }
+  if (!navigator.geolocation) {
+    showBanner?.('Aún sin posición GPS', 'fa-location-crosshairs');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      window.__lastDriverPos = p;
+      putDriverMarker(p.lat, p.lng);
+      go(p);
+    },
+    () => showBanner?.('No se pudo obtener ubicación', 'fa-triangle-exclamation'),
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
 }
 document.getElementById('txd-recenter')?.addEventListener('click', centerMapNow);
 
@@ -1109,11 +1126,12 @@ document.getElementById('drv-act-llego')?.addEventListener('click', async ()=>{
       body: JSON.stringify({ viaje_id: window.currentViajeId })
     });
     const j = await r.json();
-    if (!r.ok || !j?.ok) throw 0;
+    if (!r.ok || !j?.ok) throw new Error(j?.message || 'Error');
     showBanner('Marcado como “Llegué”', 'fa-flag');
+    if (typeof checkDrvStateOnce === 'function') checkDrvStateOnce();
   }catch(e){
     showBanner('No se pudo marcar llegada', 'fa-triangle-exclamation');
-  }finally{ btn.innerHTML = old; }
+  }finally{ btn.disabled = false; btn.innerHTML = old; }
 });
 
 

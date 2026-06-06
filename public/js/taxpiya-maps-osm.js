@@ -250,33 +250,38 @@
 
   Geocoder.prototype.geocode = function (req, cb) {
     req = req || {};
+    const finish = (results, status) => {
+      if (typeof cb === 'function') {
+        cb(results, status);
+        return;
+      }
+      if (status !== 'OK') return Promise.reject(new Error(status));
+      return results;
+    };
+
     if (req.location) {
       const ll = toLatLng(req.location);
-      fetch(`${CFG.reverseUrl}?lat=${ll.lat()}&lng=${ll.lng()}`, {
+      return fetch(`${CFG.reverseUrl}?lat=${ll.lat()}&lng=${ll.lng()}`, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
       })
         .then((r) => r.json())
         .then((j) => {
-          if (!j.ok || !j.label) return cb([], 'ZERO_RESULTS');
-          cb(
-            [{ formatted_address: j.label, geometry: { location: ll } }],
-            'OK'
-          );
+          if (!j.ok || !j.label) return finish([], 'ZERO_RESULTS');
+          return finish([{ formatted_address: j.label, geometry: { location: ll } }], 'OK');
         })
-        .catch(() => cb([], 'ERROR'));
-      return;
+        .catch(() => finish([], 'ERROR'));
     }
 
     const q = req.address || '';
-    fetch(`${CFG.geocodeUrl}?q=${encodeURIComponent(q)}`, {
+    return fetch(`${CFG.geocodeUrl}?q=${encodeURIComponent(q)}`, {
       credentials: 'same-origin',
       headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     })
       .then((r) => r.json())
       .then((j) => {
-        if (!j.ok || !j.results?.length) return cb([], 'ZERO_RESULTS');
-        cb(
+        if (!j.ok || !j.results?.length) return finish([], 'ZERO_RESULTS');
+        return finish(
           j.results.map((r) => ({
             formatted_address: r.label,
             geometry: { location: LatLng(r.lat, r.lng) },
@@ -284,7 +289,7 @@
           'OK'
         );
       })
-      .catch(() => cb([], 'ERROR'));
+      .catch(() => finish([], 'ERROR'));
   };
 
   function DirectionsService() {}
@@ -294,16 +299,16 @@
     const d = toLatLng(req.destination);
     const url = `${CFG.routeUrl}?from_lat=${o.lat()}&from_lng=${o.lng()}&to_lat=${d.lat()}&to_lng=${d.lng()}`;
 
-    fetch(url, {
+    const run = fetch(url, {
       credentials: 'same-origin',
       headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     })
       .then((r) => r.json())
       .then((j) => {
-        if (!j.ok) return cb(null, 'ZERO_RESULTS');
+        if (!j.ok) return { res: null, status: 'ZERO_RESULTS' };
         const path = (j.path || []).map((p) => LatLng(p.lat, p.lng));
-        cb(
-          {
+        return {
+          res: {
             routes: [
               {
                 overview_path: path,
@@ -311,10 +316,20 @@
               },
             ],
           },
-          'OK'
-        );
+          status: 'OK',
+        };
       })
-      .catch(() => cb(null, 'ERROR'));
+      .catch(() => ({ res: null, status: 'ERROR' }));
+
+    if (typeof cb === 'function') {
+      run.then(({ res, status }) => cb(res, status));
+      return;
+    }
+
+    return run.then(({ res, status }) => {
+      if (status !== 'OK' || !res) throw new Error(status || 'ROUTE_ERROR');
+      return res;
+    });
   };
 
   function DirectionsRenderer(opts) {
