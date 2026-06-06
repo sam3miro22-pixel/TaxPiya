@@ -190,6 +190,11 @@ class SqlitePersistenceService
             return false;
         }
 
+        if (!$this->backupHasCriticalTables($binary)) {
+            Log::warning('SqlitePersistence: respaldo sin tablas críticas; se conserva BD local.');
+            return false;
+        }
+
         $target = $this->databasePath();
         $dir = dirname($target);
         if (!is_dir($dir)) {
@@ -305,5 +310,29 @@ class SqlitePersistenceService
     private function isValidSqliteBinary(string $binary): bool
     {
         return str_starts_with($binary, 'SQLite format 3');
+    }
+
+    private function backupHasCriticalTables(string $binary): bool
+    {
+        $tmp = sys_get_temp_dir() . '/taxpiya_validate_' . getmypid() . '.sqlite';
+        try {
+            file_put_contents($tmp, $binary);
+            $pdo = new \PDO('sqlite:' . $tmp, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+            $required = ['users', 'conductores', 'conductor_posicion_actual', 'viajes', 'vehiculos'];
+            foreach ($required as $table) {
+                $stmt = $pdo->prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1");
+                $stmt->execute([$table]);
+                if (!$stmt->fetchColumn()) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Throwable) {
+            return false;
+        } finally {
+            @unlink($tmp);
+            @unlink($tmp . '-wal');
+            @unlink($tmp . '-shm');
+        }
     }
 }

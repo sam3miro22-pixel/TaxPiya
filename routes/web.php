@@ -201,6 +201,48 @@ Route::middleware(['auth'])->group(function () {
         ]);
     })->name('api.conductor.wallet');
 
+    Route::get('/api/conductor/self-test', function () {
+        $userId = auth()->id();
+        $dbPath = (string) config('database.connections.sqlite.database');
+        $out = [
+            'user_id'      => $userId,
+            'db_path'      => $dbPath,
+            'db_exists'    => is_file($dbPath),
+            'db_writable'  => is_file($dbPath) ? is_writable($dbPath) : is_writable(dirname($dbPath)),
+        ];
+        try {
+            $conductor = DB::table('conductores')->where('user_id', $userId)->first();
+            $out['conductor'] = $conductor;
+            if (!$conductor) {
+                return response()->json($out + ['ok' => false, 'step' => 'no_conductor'], 404);
+            }
+            $cols = DB::select("PRAGMA table_info(conductores)");
+            $out['conductores_columns'] = array_column($cols, 'name');
+            DB::table('conductores')->where('id', $conductor->id)->update([
+                'disponible' => (int) ($conductor->disponible ?? 0),
+            ]);
+            $out['conductores_update'] = 'ok';
+            if (Schema::hasTable('conductor_posicion_actual')) {
+                $posCols = DB::select('PRAGMA table_info(conductor_posicion_actual)');
+                $out['posicion_columns'] = array_column($posCols, 'name');
+                DB::table('conductor_posicion_actual')->updateOrInsert(
+                    ['conductor_id' => $conductor->id],
+                    ['lat' => 4.711, 'lng' => -74.072, 'actualizada_at' => now()->format('Y-m-d H:i:s')]
+                );
+                $out['posicion_update'] = 'ok';
+            } else {
+                $out['posicion_update'] = 'missing_table';
+            }
+            return response()->json($out + ['ok' => true]);
+        } catch (\Throwable $e) {
+            return response()->json($out + [
+                'ok'      => false,
+                'error'   => $e->getMessage(),
+                'class'   => $e::class,
+            ], 500);
+        }
+    })->name('api.conductor.self-test');
+
     Route::get('/api/geocode', [MapProxyController::class, 'geocode'])->name('api.geocode');
     Route::get('/api/reverse-geocode', [MapProxyController::class, 'reverse'])->name('api.reverse-geocode');
     Route::get('/api/route', [MapProxyController::class, 'route'])->name('api.route');

@@ -18,6 +18,7 @@ use Exception;
 use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
 use App\Services\WalletService;
+use Illuminate\Validation\ValidationException;
 class ConductoresController extends Controller
 {
 	
@@ -53,6 +54,8 @@ public function disponible(Request $req)
             DB::table('conductores')->where('id', $conductor->id)->update($update);
 
             return response()->json(['ok' => true, 'disponible' => $on ? 1 : 0]);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             report($e);
             return response()->json(['ok' => false, 'message' => 'No se pudo cambiar tu estado. Intenta de nuevo.'], 500);
@@ -66,6 +69,10 @@ public function disponible(Request $req)
         $conductor = DB::table('conductores')->where('user_id', $userId)->select('id')->first();
         if (!$conductor) {
             return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
+        }
+
+        if (!Schema::hasTable('conductor_posicion_actual')) {
+            return response()->json(['ok' => false, 'message' => 'Tabla de posición no disponible. Contacta soporte.'], 503);
         }
 
         $req->validate([
@@ -143,6 +150,8 @@ public function disponible(Request $req)
         }
 
         return response()->json(['ok' => true]);
+    } catch (ValidationException $e) {
+        throw $e;
     } catch (\Throwable $e) {
         report($e);
         return response()->json(['ok' => false, 'message' => 'No se pudo guardar tu ubicación.'], 500);
