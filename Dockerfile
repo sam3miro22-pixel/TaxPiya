@@ -2,7 +2,7 @@ FROM php:8.3-fpm-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx supervisor git unzip curl \
-    libpng-dev libjpeg62-turbo-dev libfreetype6-dev libzip-dev libicu-dev \
+    libpng-dev libjpeg62-turbo-dev libfreetype6-dev libzip-dev libicu-dev libsqlite3-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip intl \
     && rm -rf /var/lib/apt/lists/*
