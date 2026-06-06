@@ -2907,6 +2907,6 @@ function refreshNearbyDrivers(){
 
 
 
-@include('components.google-maps-script', ['libraries' => 'places', 'callback' => 'initMap'])
+@include('components.osm-maps-script', ['callback' => 'initMap'])
 
 @endsection

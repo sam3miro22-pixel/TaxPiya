@@ -9,6 +9,7 @@ use App\Http\Controllers\TarifasController;
 use App\Http\Controllers\ConductoresController;
 use App\Http\Controllers\PushTokensController;
 use App\Http\Controllers\FirebaseAuthController;
+use App\Http\Controllers\MapProxyController;
 
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
@@ -109,6 +110,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/viaje/llego', [ConductoresController::class, 'marcarLlegada'])->name('viaje.llego');
     Route::post('/viaje/terminar', [ConductoresController::class, 'terminarViaje'])->name('viaje.terminar');
     Route::post('/api/push/register', [PushTokensController::class, 'register'])->name('push.register');
+
+    Route::get('/api/geocode', [MapProxyController::class, 'geocode'])->name('api.geocode');
+    Route::get('/api/reverse-geocode', [MapProxyController::class, 'reverse'])->name('api.reverse-geocode');
+    Route::get('/api/route', [MapProxyController::class, 'route'])->name('api.route');
 });
 
 

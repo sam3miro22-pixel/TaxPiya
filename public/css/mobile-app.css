@@ -146,6 +146,19 @@ body.with-login #page-wrapper {
   padding: 20px;
 }
 
+.txp-ac-list div:hover {
+  background: #f3f4f6;
+}
+
+.leaflet-container {
+  background: #0b132b;
+  font-family: inherit;
+}
+
+.txp-map-popup .leaflet-popup-content-wrapper {
+  border-radius: 10px;
+}
+
 @media (max-width: 576px) {
   .auth-wrap .glass-card {
     padding: 1.25rem !important;

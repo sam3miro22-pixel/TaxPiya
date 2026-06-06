@@ -1786,5 +1786,5 @@ window.requireBgConsent = (fn) => {
 };
 </script>
 
-@include('components.google-maps-script', ['callback' => 'initMap'])
+@include('components.osm-maps-script', ['callback' => 'initMap'])
 @endsection

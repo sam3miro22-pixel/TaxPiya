@@ -23,6 +23,13 @@ En Google Cloud Console → Credentials → API key `GOOGLE_MAPS_KEY`:
 
 ---
 
+## Mapas en la app (gratis)
+
+La app usa **OpenStreetMap + Leaflet** — no necesitas pagar ni configurar Google Maps.
+Las rutas y direcciones pasan por el backend (Nominatim + OSRM, servicios gratuitos).
+
+---
+
 ## Render — variables de entorno (copiar tal cual)
 
 ```
