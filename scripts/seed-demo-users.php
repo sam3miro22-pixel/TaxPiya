@@ -48,6 +48,8 @@ $users = [
 ];
 
 $pdo = new PDO('sqlite:' . $dbPath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$pdo->exec('PRAGMA busy_timeout = 15000');
+$pdo->exec('PRAGMA journal_mode = WAL');
 $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]);
 $now = date('Y-m-d H:i:s');
 

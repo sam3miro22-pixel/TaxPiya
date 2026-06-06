@@ -50,6 +50,12 @@ ok('Pasajero login page', $r['code'] === 200, "HTTP {$r['code']}");
 $r = req('GET', "{$base}/conductor/login");
 ok('Conductor login page', $r['code'] === 200, "HTTP {$r['code']}");
 
+$r = req('GET', "{$base}/empresa/login");
+ok('Empresa login page', $r['code'] === 200, "HTTP {$r['code']}");
+
+$r = req('GET', "{$base}/index/login");
+ok('Admin login page', $r['code'] === 200, "HTTP {$r['code']}");
+
 $r = req('GET', "{$base}/");
 ok('Home / redirect', in_array($r['code'], [200, 302], true), "HTTP {$r['code']}");
 
@@ -159,6 +165,62 @@ if (!empty($m2[1])) {
         ]);
         $wData = json_decode($walletApi['body'], true);
         ok('Conductor wallet API', ($wData['ok'] ?? false) === true, 'saldo=' . ($wData['saldo'] ?? '?'));
+    }
+}
+
+// Login admin demo
+$rAdmin = req('GET', "{$base}/index/login");
+preg_match('/name="_token" value="([^"]+)"/', $rAdmin['body'], $ma);
+preg_match_all('/Set-Cookie: ([^;\r\n]+)/i', $rAdmin['headers'], $cma);
+$cookieA = implode('; ', $cma[1] ?? []);
+if (!empty($ma[1])) {
+    $bodyA = http_build_query([
+        '_token'   => $ma[1],
+        'username' => '3001001001',
+        'password' => $password,
+    ]);
+    $loginA = req('POST', "{$base}/auth/login", [
+        'headers' => [
+            'Content-Type: application/x-www-form-urlencoded',
+            "Cookie: {$cookieA}",
+            'Referer: ' . "{$base}/index/login",
+        ],
+        'body' => $bodyA,
+    ]);
+    $aOk = in_array($loginA['code'], [200, 302], true) && !str_contains($loginA['body'], 'no correctos');
+    ok('Login admin demo (Laravel)', $aOk, "HTTP {$loginA['code']}");
+}
+
+// Login empresa demo
+$rEmp = req('GET', "{$base}/empresa/login");
+preg_match('/name="_token" value="([^"]+)"/', $rEmp['body'], $me);
+preg_match_all('/Set-Cookie: ([^;\r\n]+)/i', $rEmp['headers'], $cme);
+$cookieE = implode('; ', $cme[1] ?? []);
+if (!empty($me[1])) {
+    $bodyE = http_build_query([
+        '_token'   => $me[1],
+        'username' => '3209002001',
+        'password' => $password,
+        'app'      => 'empresa',
+    ]);
+    $loginE = req('POST', "{$base}/auth/login", [
+        'headers' => [
+            'Content-Type: application/x-www-form-urlencoded',
+            "Cookie: {$cookieE}",
+            'Referer: ' . "{$base}/empresa/login",
+        ],
+        'body' => $bodyE,
+    ]);
+    $eOk = in_array($loginE['code'], [200, 302], true) && !str_contains($loginE['body'], 'no correctos');
+    ok('Login empresa demo (Laravel)', $eOk, "HTTP {$loginE['code']}");
+
+    if ($eOk) {
+        preg_match_all('/Set-Cookie: ([^;\r\n]+)/i', $loginE['headers'], $cm4);
+        $sessionE = implode('; ', array_unique(array_merge($cme[1] ?? [], $cm4[1] ?? [])));
+        $dash = req('GET', "{$base}/empresa", [
+            'headers' => ["Cookie: {$sessionE}"],
+        ]);
+        ok('Empresa dashboard', $dash['code'] === 200 && str_contains($dash['body'], 'Flota'), "HTTP {$dash['code']}");
     }
 }
 
