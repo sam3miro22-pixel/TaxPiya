@@ -12,6 +12,7 @@ use App\Http\Controllers\FirebaseAuthController;
 use App\Http\Controllers\MapProxyController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SosController;
+use App\Http\Controllers\EmpresaPortalController;
 
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
@@ -44,6 +45,17 @@ Route::get('conductor/login', function () {
     return view('pages.index.conductor_login');
 })->name('conductor.login')->middleware(['redirect.to.home']);
 
+Route::get('empresa/login', function () {
+    return view('pages.index.empresa_login');
+})->name('empresa.login')->middleware(['redirect.to.home']);
+
+Route::get('empresa/afiliarse', [EmpresaPortalController::class, 'afiliarse'])
+    ->name('empresa.afiliarse')->middleware(['redirect.to.home']);
+Route::post('empresa/afiliarse', [EmpresaPortalController::class, 'afiliarseStore'])
+    ->name('empresa.afiliarse.store');
+Route::get('empresa/afiliarse/ok', [EmpresaPortalController::class, 'afiliarseOk'])
+    ->name('empresa.afiliarse.ok')->middleware(['redirect.to.home']);
+
 
 Route::get('pasajero/registro', 'AuthController@register')
     ->name('pasajero.register')->middleware(['redirect.to.home']);
@@ -57,6 +69,13 @@ Route::post('conductor/aplicar', [HomeController::class, 'conductorAplicarStore'
     ->name('conductor.aplicar_store');
 
 Route::middleware(['auth'])->group(function () {
+
+    Route::get('/empresa', [EmpresaPortalController::class, 'dashboard'])->name('empresa.dashboard');
+    Route::get('/empresa/flota', [EmpresaPortalController::class, 'flota'])->name('empresa.flota');
+    Route::get('/empresa/flota/nuevo', [EmpresaPortalController::class, 'flotaNuevo'])->name('empresa.flota.nuevo');
+    Route::post('/empresa/flota', [EmpresaPortalController::class, 'flotaStore'])->name('empresa.flota.store');
+    Route::get('/empresa/viajes', [EmpresaPortalController::class, 'viajes'])->name('empresa.viajes');
+    Route::get('/empresa/cuenta', [EmpresaPortalController::class, 'cuenta'])->name('empresa.cuenta');
 
     Route::get('/pasajero/perfil', [HomeController::class, 'pasajeroPerfil'])->name('pasajero.perfil');
     Route::post('/pasajero/perfil', [HomeController::class, 'pasajeroPerfilUpdate'])->name('pasajero.perfil.update');

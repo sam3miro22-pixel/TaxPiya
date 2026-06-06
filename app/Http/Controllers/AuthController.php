@@ -28,7 +28,7 @@ class AuthController extends Controller{
 		$request->validate([
 			'username' => 'required',
 			'password' => 'required',
-			'app'      => 'nullable|in:pasajero,conductor',
+			'app'      => 'nullable|in:pasajero,conductor,empresa',
 		]);
 
 		$username = $request->input('username');
@@ -95,6 +95,27 @@ class AuthController extends Controller{
 					->withInput($request->only('username'));
 			}
 		}
+		elseif ($app === 'empresa') {
+			if (!$user->hasRole('Empresa')) {
+				Auth::logout();
+				$request->session()->invalidate();
+				$request->session()->regenerateToken();
+
+				return back()
+					->withErrors('Acceso exclusivo para empresas afiliadas.')
+					->withInput($request->only('username'));
+			}
+			$empresa = DB::table('empresas')->where('user_id', $user->id)->first();
+			if (!$empresa) {
+				Auth::logout();
+				$request->session()->invalidate();
+				$request->session()->regenerateToken();
+
+				return back()
+					->withErrors('Tu cuenta no tiene una empresa vinculada.')
+					->withInput($request->only('username'));
+			}
+		}
 		// Si 'app' viene null, no se aplica gateo (útil para panel/admin si lo usas aquí).
 
 		return $this->redirectIntended('/home', 'Inicio de sesión completado');
@@ -109,6 +130,7 @@ class AuthController extends Controller{
 		$user = Auth::user();
 		$goPasajero  = $user && $user->hasRole('Pasajero');
 		$goConductor = $user && $user->hasRole('Conductor');
+		$goEmpresa   = $user && $user->hasRole('Empresa');
 
 		Auth::logout();
 		$request->session()->invalidate();
@@ -119,6 +141,9 @@ class AuthController extends Controller{
 		}
 		if ($goConductor) {
 			return redirect()->route('conductor.login');
+		}
+		if ($goEmpresa) {
+			return redirect()->route('empresa.login');
 		}
 		return redirect()->route('index');
 	}

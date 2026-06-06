@@ -20,10 +20,10 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-if [ "${DB_CONNECTION:-sqlite}" != "sqlite" ]; then
-  if php artisan migrate:status >/dev/null 2>&1; then
-    php artisan migrate --force || true
-  fi
+if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
+  php artisan migrate --force 2>/dev/null || true
+elif php artisan migrate:status >/dev/null 2>&1; then
+  php artisan migrate --force || true
 fi
 
 # Primer respaldo tras arranque (asegura copia en nube si aún no existía)

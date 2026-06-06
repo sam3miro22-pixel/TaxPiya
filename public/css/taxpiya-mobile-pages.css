@@ -126,3 +126,65 @@ body#main #page-content { width: 100% !important; position: static !important; p
 }
 .txp-sos-fab:active { transform: scale(0.96); }
 .txp-sos-fab--confirm { background: linear-gradient(135deg, #f97316, #c2410c); }
+
+/* —— Portal Empresa / Flota —— */
+.txp-mobile-page--empresa {
+  background: linear-gradient(165deg, #0a0618 0%, #1a1035 45%, #251545 100%);
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+.txp-mobile-back--empresa { color: #c4b5fd; }
+.txp-mobile-btn--empresa {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #f5f3ff;
+}
+.txp-profile-photo--empresa {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #f5f3ff;
+}
+.txp-empresa-head { margin-bottom: 16px; }
+.txp-empresa-brand { display: flex; gap: 14px; align-items: center; }
+.txp-empresa-logo {
+  width: 52px; height: 52px; border-radius: 14px; object-fit: contain;
+  border: 2px solid rgba(167,139,250,.45);
+  box-shadow: 0 8px 24px rgba(124,58,237,.35);
+}
+.txp-empresa-tag {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: #c4b5fd;
+}
+.txp-empresa-sub { font-size: 0.88rem; color: rgba(255,255,255,.55); margin-top: 6px; }
+.txp-empresa-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;
+}
+.txp-empresa-stat {
+  background: rgba(124,58,237,.15); border: 1px solid rgba(167,139,250,.25);
+  border-radius: 16px; padding: 14px 8px; text-align: center;
+}
+.txp-empresa-stat__val { display: block; font-size: 1.5rem; font-weight: 800; color: #ddd6fe; }
+.txp-empresa-stat__lbl { font-size: 0.72rem; color: rgba(255,255,255,.5); }
+.txp-empresa-wallet { text-align: center; }
+.txp-empresa-wallet__amount { font-size: 2rem; font-weight: 800; color: #c4b5fd; margin: 6px 0; }
+.txp-empresa-taxi__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.txp-empresa-taxi__meta { font-size: 0.88rem; color: rgba(255,255,255,.65); margin-bottom: 8px; }
+.txp-empresa-badge {
+  font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.1); color: rgba(255,255,255,.7);
+}
+.txp-empresa-badge--online { background: rgba(34,197,94,.2); color: #86efac; }
+.txp-empresa-badge--off { background: rgba(248,113,113,.15); color: #fca5a5; }
+.txp-trip-badge--empresa { background: rgba(167,139,250,.2); color: #c4b5fd; }
+.txp-trip-price--empresa { color: #c4b5fd; }
+.txp-empresa-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: rgba(15, 8, 30, 0.92); backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(167,139,250,.2);
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+}
+.txp-empresa-nav__item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-decoration: none; color: rgba(255,255,255,.45); font-size: 0.68rem; font-weight: 600;
+  padding: 6px 4px; border-radius: 12px;
+}
+.txp-empresa-nav__item i { font-size: 1.15rem; }
+.txp-empresa-nav__item.is-active { color: #c4b5fd; background: rgba(124,58,237,.18); }

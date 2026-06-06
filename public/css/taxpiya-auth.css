@@ -61,6 +61,16 @@ html, body.txp-auth-body {
     linear-gradient(168deg, #030a0e 0%, #0a1a22 45%, #0f2830 100%);
 }
 
+.txp-auth-scene--empresa,
+.txp-auth-body--empresa .txp-auth-scene {
+  --txp-brand: #a78bfa;
+  --txp-brand-2: #7c3aed;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% -15%, rgba(124, 58, 237, 0.28), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 105% 85%, rgba(167, 139, 250, 0.14), transparent 52%),
+    linear-gradient(168deg, #080512 0%, #150a28 45%, #1f1040 100%);
+}
+
 /* Grid animado de fondo */
 .txp-auth-scene::before {
   content: '';
@@ -388,6 +398,11 @@ html, body.txp-auth-body {
   box-shadow: 0 12px 32px rgba(20, 184, 166, 0.38) !important;
 }
 
+.txp-auth-scene--empresa .txp-auth-btn--primary {
+  color: #f5f3ff !important;
+  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.42) !important;
+}
+
 .txp-auth-btn--ghost {
   background: rgba(255, 255, 255, 0.04) !important;
   color: var(--txp-text) !important;
@@ -455,6 +470,11 @@ html, body.txp-auth-body {
 .txp-auth-scene--conductor .txp-auth-link {
   color: #5eead4 !important;
   border-bottom-color: rgba(94, 234, 212, 0.45);
+}
+
+.txp-auth-scene--empresa .txp-auth-link {
+  color: #c4b5fd !important;
+  border-bottom-color: rgba(167, 139, 250, 0.45);
 }
 
 .txp-auth-link:hover {

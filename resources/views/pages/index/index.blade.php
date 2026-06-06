@@ -26,6 +26,9 @@
                 <a href="{{ url('/conductor/login') }}" class="btn btn-glass btn-lg btn-pill">
                     <i class="fa fa-taxi me-2"></i> Entrar como Conductor
                 </a>
+                <a href="{{ url('/empresa/login') }}" class="btn btn-glass btn-lg btn-pill txp-btn-empresa">
+                    <i class="fa fa-building me-2"></i> Entrar como Empresa / Flota
+                </a>
             </div>
 
             <div class="small text-white-50 mt-4">
@@ -142,6 +145,15 @@
         background: rgba(255,255,255,.14);
         border-color: rgba(255,255,255,.7);
         color: #fff;
+    }
+
+    .txp-btn-empresa{
+        border-color: rgba(167,139,250,.55);
+        background: rgba(124,58,237,.12);
+    }
+    .txp-btn-empresa:hover{
+        background: rgba(124,58,237,.22);
+        border-color: rgba(167,139,250,.85);
     }
 
     .shadow-xl{ box-shadow: 0 28px 70px rgba(0,0,0,.5)!important; }

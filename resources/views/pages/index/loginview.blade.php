@@ -2,7 +2,8 @@
     $app = $app ?? null;
     $isConductor = ($app === 'conductor');
     $isPasajero  = ($app === 'pasajero');
-    $isAdmin     = (!$isConductor && !$isPasajero);
+    $isEmpresa   = ($app === 'empresa');
+    $isAdmin     = (!$isConductor && !$isPasajero && !$isEmpresa);
 
     if ($isConductor) {
         $roleLabel = 'Conductor';
@@ -10,6 +11,9 @@
     } elseif ($isPasajero) {
         $roleLabel = 'Pasajero';
         $subtitle  = 'Ingresa para solicitar tu taxi fácilmente.';
+    } elseif ($isEmpresa) {
+        $roleLabel = 'Empresa / Flota';
+        $subtitle  = 'Administra tus taxis, conductores y viajes.';
     } else {
         $roleLabel = 'Admin';
         $subtitle  = 'Acceso para administradores y personal operativo.';
@@ -31,8 +35,8 @@
 <form name="loginForm" action="{{ route('auth.login') }}" class="txp-auth-form page-form" method="post" novalidate>
     @csrf
 
-    @if($isConductor || $isPasajero)
-        <input type="hidden" name="app" value="{{ $isConductor ? 'conductor' : 'pasajero' }}">
+    @if($isConductor || $isPasajero || $isEmpresa)
+        <input type="hidden" name="app" value="{{ $isConductor ? 'conductor' : ($isEmpresa ? 'empresa' : 'pasajero') }}">
     @endif
 
     <div class="txp-auth-field">
@@ -77,6 +81,10 @@
 @if($isConductor)
     <p class="txp-auth-foot">
         ¿Quieres ser conductor? <a href="{{ route('conductor.aplicar') }}">Envía tu solicitud</a>
+    </p>
+@elseif($isEmpresa)
+    <p class="txp-auth-foot">
+        ¿Aún no estás afiliado? <a href="{{ route('empresa.afiliarse') }}">Solicitar afiliación</a>
     </p>
 @elseif($isAdmin)
     <p class="txp-auth-foot">Acceso restringido a personal autorizado.</p>

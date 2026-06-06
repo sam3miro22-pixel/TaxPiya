@@ -25,6 +25,9 @@ class HomeController extends Controller{
 		elseif($user->hasRole('conductor')){
 			return view("pages.home.conductor");
 		}
+		elseif($user->hasRole('empresa')){
+			return redirect()->route('empresa.dashboard');
+		}
 		else{
 			return view("pages.home.index");
 		}
