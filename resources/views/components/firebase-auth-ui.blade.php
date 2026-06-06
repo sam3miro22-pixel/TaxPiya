@@ -27,7 +27,6 @@
     </div>
     <div id="txp-firebase-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
 </div>
-@include('components.firebase-auth')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const wrap = document.querySelector('.txp-firebase-auth');

@@ -3,17 +3,18 @@
     $pageTitle = 'Crear cuenta (Pasajero)';
 @endphp
 
-@extends($layout)
+@extends('layouts.auth')
 @section('title', $pageTitle)
 
 @section('content')
 <div class="txp-auth-scene txp-auth-scene--scroll">
     <div class="txp-auth-orb txp-auth-orb--1"></div>
     <div class="txp-auth-orb txp-auth-orb--2"></div>
+    <div class="txp-auth-orb txp-auth-orb--3"></div>
     <div class="txp-auth-card">
         <div class="txp-auth-header">
             <div class="txp-auth-logo-wrap">
-                <img src="{{ asset('images/logo.png') }}" width="82" height="82" class="txp-auth-logo" alt="Taxpiya">
+                <x-taxpiya-logo />
             </div>
             <h1 class="txp-auth-title">Únete como <span>Pasajero</span></h1>
             <p class="txp-auth-subtitle">Crea tu cuenta y pide taxi en segundos.</p>
@@ -111,7 +112,6 @@
             </div>
             <div id="txp-register-fb-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
         </div>
-        @include('components.firebase-auth')
         <script>
         document.addEventListener('DOMContentLoaded', function () {
           if (!window.TaxpiyaFirebase) return;
@@ -143,10 +143,6 @@
         @endif
     </div>
 </div>
-@endsection
-
-@section('pagecss')
-<link rel="stylesheet" href="{{ asset('css/taxpiya-auth.css') }}">
 @endsection
 
 @section('pagejs')

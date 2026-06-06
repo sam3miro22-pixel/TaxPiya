@@ -18,7 +18,7 @@
 
 <div class="txp-auth-header">
     <div class="txp-auth-logo-wrap">
-        <img src="{{ asset('images/logo.png') }}" width="82" height="82" class="txp-auth-logo" alt="Taxpiya">
+        <x-taxpiya-logo :conductor="$isConductor" />
     </div>
     <h1 class="txp-auth-title">Bienvenido <span>{{ $roleLabel }}</span></h1>
     <p class="txp-auth-subtitle">{{ $subtitle }}</p>

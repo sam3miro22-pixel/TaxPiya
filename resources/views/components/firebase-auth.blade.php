@@ -11,5 +11,5 @@
   };
   window.TAXPIYA_FIREBASE_SYNC_URL = @json(route('auth.firebase.sync'));
 </script>
-<script src="{{ asset('js/firebase-auth.bundle.js') }}" defer></script>
+<script src="{{ secure_asset('js/firebase-auth.bundle.js') }}" defer></script>
 @endif
