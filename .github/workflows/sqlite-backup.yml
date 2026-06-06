@@ -10,7 +10,7 @@ on:
       - '.github/workflows/sqlite-backup.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   backup:
@@ -23,7 +23,7 @@ jobs:
         run: |
           if [ -z "$TAXPIYA_APP_KEY" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Falta secret TAXPIYA_APP_KEY en el repo TaxPiya"
+            echo "Falta secret TAXPIYA_APP_KEY"
             exit 0
           fi
           DUMP_KEY=$(php -r "echo substr(hash('sha256', getenv('TAXPIYA_APP_KEY').'taxpiya-dump'), 0, 40);")
@@ -50,15 +50,44 @@ jobs:
             echo "Falta secret TAXPIYA_GH_PAT"
             exit 1
           fi
-          OWNER="sam3miro22-pixel"
-          REPO="taxpiya-db-backup"
-          PATH_FILE="taxpiya.sqlite"
-          API="https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH_FILE}"
-          SHA=$(curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" "$API" | jq -r '.sha // empty')
-          B64=$(base64 -w0 taxpiya.sqlite)
-          MSG="TaxPiya backup $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          JSON=$(jq -n --arg msg "$MSG" --arg content "$B64" --arg sha "$SHA" \
-            '{message:$msg, content:$content} + (if ($sha|length)>0 then {sha:$sha} else {} end)')
-          curl -fsS -X PUT -H "Authorization: Bearer ${GH_TOKEN}" -H "Content-Type: application/json" \
-            -d "$JSON" "$API"
-          echo "Backup subido a ${OWNER}/${REPO}"
+          python3 <<'PY'
+          import base64, json, os, urllib.error, urllib.request
+
+          owner = "sam3miro22-pixel"
+          repo = "taxpiya-db-backup"
+          path = "taxpiya.sqlite"
+          token = os.environ["GH_TOKEN"]
+          api = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "TaxPiya-Backup",
+          }
+
+          sha = ""
+          req = urllib.request.Request(api, headers=headers)
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  data = json.loads(resp.read().decode())
+                  sha = data.get("sha") or ""
+          except urllib.error.HTTPError as e:
+              if e.code != 404:
+                  raise
+
+          with open("taxpiya.sqlite", "rb") as fh:
+              content = base64.b64encode(fh.read()).decode("ascii")
+
+          payload = {
+              "message": "TaxPiya backup",
+              "content": content,
+          }
+          if sha:
+              payload["sha"] = sha
+
+          body = json.dumps(payload).encode("utf-8")
+          put = urllib.request.Request(api, data=body, headers={**headers, "Content-Type": "application/json"}, method="PUT")
+          with urllib.request.urlopen(put, timeout=120) as resp:
+              print("Upload OK", resp.status)
+          PY
+          echo "Backup subido a sam3miro22-pixel/taxpiya-db-backup"
