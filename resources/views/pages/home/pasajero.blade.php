@@ -11,6 +11,7 @@
    
     <div id="map" class="map-canvas"></div>
 
+    <div id="txp-ui-layer" class="txp-ui-layer">
    
     <div class="top-controls">
         
@@ -74,59 +75,6 @@
 </div>
 
 
-
-<div id="txp-sheet-viaje" class="txp-sheet" aria-hidden="true">
-  <div class="txp-sheet-backdrop"></div>
-  <div class="txp-sheet-dialog" role="dialog" aria-modal="true" aria-labelledby="txpSheetTitulo">
-    <div class="txp-sheet-handle"></div>
-
-    <h6 id="txpSheetTitulo" class="m-0 mb-2 fw-bold">Confirmar solicitud</h6>
-
-    <div class="txp-resumen">
-      <div class="txp-par">
-        <span class="txp-dot origen"></span>
-        <div class="txp-col">
-          <div class="txp-lab">Origen</div>
-          <div id="txp-origen-txt" class="txp-val">—</div>
-        </div>
-      </div>
-      <div class="txp-par">
-        <span class="txp-dot destino"></span>
-        <div class="txp-col">
-          <div class="txp-lab">Destino</div>
-          <div id="txp-destino-txt" class="txp-val">—</div>
-        </div>
-      </div>
-      <div class="txp-meta">
-        <span id="txp-dist">—</span> · <span id="txp-dura">—</span>
-      </div>
-    </div>
-
-    <div class="txp-card txp-ride">
-      <div class="txp-ride-left">
-        <span class="txp-ride-icon"><i class="fa-solid fa-taxi"></i></span>
-        <div>
-          <div class="txp-ride-title">Taxi — Tarifa fija</div>
-          <div class="txp-ride-sub">Pago en efectivo</div>
-        </div>
-      </div>
-      <div class="txp-ride-right">
-        <div id="txp-tarifa" class="txp-precio">—</div>
-      </div>
-    </div>
-
-    
-
-    <div class="txp-acciones">
-      <button id="txp-btn-confirmar" class="btn btn-brand btn-xxl w-100">
-        <i class="fa-solid fa-check me-2"></i> Confirmar solicitud
-      </button>
-      <button class="btn btn-light w-100 mt-2" type="button" data-close>Cerrar</button>
-    </div>
-  </div>
-</div>
-
-
    
     <div id="geo-accuracy" class="geo-badge" style="display:none;"></div>
 
@@ -156,6 +104,54 @@
       <span class="tip">Cerrar sesión</span>
     </a>
   </nav>
+</div>
+
+</div>{{-- /txp-ui-layer --}}
+
+
+<div id="txp-sheet-viaje" class="txp-sheet" aria-hidden="true">
+  <div class="txp-sheet-backdrop"></div>
+  <div class="txp-sheet-dialog" role="dialog" aria-modal="true" aria-labelledby="txpSheetTitulo">
+    <div class="txp-sheet-handle"></div>
+    <h6 id="txpSheetTitulo" class="m-0 mb-2 fw-bold">Confirmar solicitud</h6>
+    <div class="txp-resumen">
+      <div class="txp-par">
+        <span class="txp-dot origen"></span>
+        <div class="txp-col">
+          <div class="txp-lab">Origen</div>
+          <div id="txp-origen-txt" class="txp-val">—</div>
+        </div>
+      </div>
+      <div class="txp-par">
+        <span class="txp-dot destino"></span>
+        <div class="txp-col">
+          <div class="txp-lab">Destino</div>
+          <div id="txp-destino-txt" class="txp-val">—</div>
+        </div>
+      </div>
+      <div class="txp-meta">
+        <span id="txp-dist">—</span> · <span id="txp-dura">—</span>
+      </div>
+    </div>
+    <div class="txp-card txp-ride">
+      <div class="txp-ride-left">
+        <span class="txp-ride-icon"><i class="fa-solid fa-taxi"></i></span>
+        <div>
+          <div class="txp-ride-title">Taxi — Tarifa fija</div>
+          <div class="txp-ride-sub">Pago en efectivo</div>
+        </div>
+      </div>
+      <div class="txp-ride-right">
+        <div id="txp-tarifa" class="txp-precio">—</div>
+      </div>
+    </div>
+    <div class="txp-acciones">
+      <button id="txp-btn-confirmar" class="btn btn-brand btn-xxl w-100">
+        <i class="fa-solid fa-check me-2"></i> Confirmar solicitud
+      </button>
+      <button class="btn btn-light w-100 mt-2" type="button" data-close>Cerrar</button>
+    </div>
+  </div>
 </div>
 
 
@@ -240,23 +236,65 @@
 
 @section('pagecss')
 <style>
-/* Ocultar navegación para pantalla completa */
+/* Pantalla completa pasajero — mapa debajo, UI encima */
 .navbar, .topbar, .footer, #sidebar { display: none !important; }
+body#main { padding-top: 0 !important; overflow: hidden; }
+body#main #page-wrapper,
+body#main #main-content,
+body#main #page-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  position: static !important;
+  min-height: 100dvh;
+}
 
 :root{
     --txp-bg-1:#0b132b; --txp-bg-2:#1c2541; --txp-bg-3:#3a506b;
     --txp-brand:#ffd166; --txp-brand-2:#ff9f1c; --txp-white:#fff;
+    --txp-ui-z: 800;
+    --txp-sheet-z: 3000;
+    --qm-gap: 64px;
 }
 
-#txp-map-root{ position:fixed; inset:0; background:#000; overflow:hidden; z-index:1; }
-.map-canvas{ position:absolute; inset:0; }
+#txp-map-root{
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  background: #0b132b;
+  overflow: hidden;
+  z-index: 0;
+}
+
+#txp-map-root #map,
+#txp-map-root .map-canvas,
+#txp-map-root .leaflet-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1 !important;
+}
+
+.txp-ui-layer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--txp-ui-z);
+  pointer-events: none;
+}
+.txp-ui-layer > * { pointer-events: auto; }
 
 .top-controls{
     position:absolute; left:0; right:0; top:0;
     display:flex; flex-direction:column; align-items:center; gap:10px;
-    padding:16px 12px 8px; z-index:3;
+    padding: max(12px, env(safe-area-inset-top)) 12px 8px;
+    z-index: var(--txp-ui-z);
     background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
+    pointer-events: none;
 }
+.top-controls .search-wrap { pointer-events: auto; }
 .brand-wrap{ display:flex; justify-content:center; }
 .brand-logo{
     width:64px; height:64px; object-fit:contain;
@@ -296,7 +334,7 @@
 
 
 .fab{
-    position:absolute; right:16px; bottom:110px; z-index:3;
+    position:absolute; right:16px; bottom:110px; z-index: var(--txp-ui-z);
     width:52px; height:52px; border-radius:50%;
     border:0; background:rgba(255,255,255,.95); color:#111;
     display:flex; align-items:center; justify-content:center;
@@ -305,7 +343,7 @@
 
 
 .bottom-cta{
-    position:absolute; left:0; right:0; bottom:0; z-index:3;
+    position:absolute; left:0; right:0; bottom:0; z-index: var(--txp-ui-z);
     display:flex; justify-content:center;
     padding: 18px 16px 28px;
     background: linear-gradient(0deg, rgba(0,0,0,.65), rgba(0,0,0,0));
@@ -335,7 +373,7 @@
 
 
 .geo-badge{
-  position: absolute; left: 16px; bottom: 28px; z-index: 3;
+  position: absolute; left: 16px; bottom: 28px; z-index: var(--txp-ui-z);
   background: rgba(0,0,0,.55); color: #fff; backdrop-filter: blur(6px);
   border: 1px solid rgba(255,255,255,.15);
   border-radius: 10px; padding: 6px 10px; font-size: 12px;
@@ -363,20 +401,13 @@
 }
 
 
-.geo-badge{ z-index: 3; }
-
-
-:root{
-  --txp-brand: #ffd166;
-  --txp-brand-2: #ff9f1c;
-  --qm-gap: 64px;           /* separación vertical entre botones */
-}
+.geo-badge{ z-index: var(--txp-ui-z); }
 
 .quick-menu{
   position: absolute;
-  right: 16px;              /* margen con el borde */
+  right: 16px;
   bottom: 22px;
-  z-index: 4;
+  z-index: calc(var(--txp-ui-z) + 1);
 }
 
 
@@ -457,7 +488,7 @@
 }
 
 
-.txp-sheet{position:fixed;inset:0;display:none;z-index:1000}
+.txp-sheet{position:fixed;inset:0;display:none;z-index:var(--txp-sheet-z)}
 .txp-sheet[aria-hidden="false"]{display:block}
 .txp-sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(2px)}
 .txp-sheet-dialog{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;
@@ -491,7 +522,7 @@
 
 
 .txp-searching{
-  position:fixed; inset:0; z-index:1100; display:none;
+  position:fixed; inset:0; z-index:calc(var(--txp-sheet-z) + 1); display:none;
   background:rgba(8,12,22,.45); backdrop-filter: blur(2px);
   align-items:center; justify-content:center;
 }
@@ -586,7 +617,7 @@
   display: flex; align-items: center; gap: 6px;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
   transition: opacity .25s, transform .25s;
-  opacity:0; pointer-events:none; z-index: 1000;
+  opacity:0; pointer-events:none; z-index: calc(var(--txp-sheet-z) + 2);
 }
 .txp-banner.show{ opacity:1; pointer-events:auto; transform: translate(-50%,0); }
 
@@ -2206,6 +2237,18 @@ window.initMap = function(){
     disableDefaultUI: true,
     styles: txpMapStyle,
     gestureHandling: 'greedy'
+  });
+
+  const resizeMap = () => {
+    try {
+      if (map?._map?.invalidateSize) map._map.invalidateSize(true);
+    } catch (_) {}
+  };
+  setTimeout(resizeMap, 100);
+  setTimeout(resizeMap, 600);
+  window.addEventListener('resize', resizeMap);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) setTimeout(resizeMap, 150);
   });
 
   geocoder = new google.maps.Geocoder();

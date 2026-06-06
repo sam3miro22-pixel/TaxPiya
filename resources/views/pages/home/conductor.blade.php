@@ -8,7 +8,7 @@
 <div id="txd-map-root">
   <div id="map" class="map-canvas"></div>
 
- 
+  <div id="txp-ui-layer" class="txp-ui-layer">
   <div class="top-controls">
     <div class="d-flex align-items-center justify-content-center position-relative">
       <div class="brand-wrap">
@@ -73,6 +73,8 @@
       </a>
     </nav>
   </div>
+
+  </div>{{-- /txp-ui-layer --}}
 
 
   <div id="drv-sheet-solicitud" class="txp-sheet" aria-hidden="true">
@@ -197,24 +199,35 @@
 <style>
 
 .navbar, .topbar, .footer, #sidebar { display: none !important; }
-
+body#main { padding-top: 0 !important; overflow: hidden; }
+body#main #page-wrapper,
+body#main #main-content,
+body#main #page-content {
+  padding: 0 !important; margin: 0 !important;
+  width: 100% !important; position: static !important; min-height: 100dvh;
+}
 
 :root{
   --txp-bg-1:#0b132b;
   --txp-brand:#ffd166;
   --txp-brand-2:#ff9f1c;
   --qm-gap:64px;
+  --txp-ui-z: 800;
+  --txp-sheet-z: 3000;
 }
 
 
-#txd-map-root{ position:fixed; inset:0; background:#000; overflow:hidden; z-index:1; }
-.map-canvas{ position:absolute; inset:0; }
-
+#txd-map-root{ position:fixed !important; inset:0 !important; width:100vw !important; height:100dvh !important; background:#000; overflow:hidden; z-index:0; }
+#txd-map-root #map, #txd-map-root .map-canvas, #txd-map-root .leaflet-container {
+  position:absolute !important; inset:0 !important; width:100% !important; height:100% !important; z-index:1 !important;
+}
+.txp-ui-layer { position:absolute; inset:0; z-index:var(--txp-ui-z); pointer-events:none; }
+.txp-ui-layer > * { pointer-events:auto; }
 
 .top-controls{
   position:absolute; left:0; right:0; top:0;
   display:flex; flex-direction:column; align-items:center;
-  padding:16px 12px 8px; z-index:3;
+  padding: max(12px, env(safe-area-inset-top)) 12px 8px; z-index:var(--txp-ui-z);
   background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
 }
 .brand-logo{
@@ -224,7 +237,7 @@
 
 
 .bottom-cta{
-  position:absolute; left:0; right:0; bottom:72px; z-index:3;
+  position:absolute; left:0; right:0; bottom:72px; z-index:var(--txp-ui-z);
   display:flex; justify-content:center; padding:0 16px;
 }
 .btn-brand{
@@ -319,7 +332,7 @@
 }
 
 
-.txp-sheet{position:fixed; inset:0; display:none; z-index:1000;}
+.txp-sheet{position:fixed; inset:0; display:none; z-index:var(--txp-sheet-z);}
 .txp-sheet[aria-hidden="false"]{display:block;}
 .txp-sheet-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.35); backdrop-filter:blur(2px);}
 .txp-sheet-dialog{

@@ -65,9 +65,14 @@
 
     setTimeout(() => {
       try {
-        this._map.invalidateSize();
+        this._map.invalidateSize(true);
       } catch (e) {}
     }, 400);
+    setTimeout(() => {
+      try {
+        this._map.invalidateSize(true);
+      } catch (e) {}
+    }, 1200);
 
     this._listeners = {};
     this.__centeredOnce = false;
