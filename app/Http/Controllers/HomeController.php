@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use App\Services\WalletService;
 /**
  * Home Page Controller
  * @category  Controller
@@ -34,7 +35,28 @@ class HomeController extends Controller{
 		if (!$user || !$user->hasRole('Pasajero')) {
 			return redirect()->route('home');
 		}
-		return view('pages.pasajero.perfil', ['user' => $user]);
+		return view('pages.pasajero.perfil', ['user' => $user, 'saved' => session('profile_saved')]);
+	}
+
+	function pasajeroPerfilUpdate(Request $request){
+		$user = auth()->user();
+		if (!$user || !$user->hasRole('Pasajero')) {
+			return redirect()->route('home');
+		}
+
+		$data = $request->validate([
+			'name'       => 'required|string|max:120',
+			'fotoperfil' => 'nullable|string|max:255',
+		]);
+
+		$update = ['name' => $data['name']];
+		if (!empty($data['fotoperfil'])) {
+			$update['fotoperfil'] = $data['fotoperfil'];
+		}
+
+		DB::table('users')->where('id', $user->id)->update($update);
+
+		return redirect()->route('pasajero.perfil')->with('profile_saved', true);
 	}
 
 	function pasajeroViajes(){
@@ -60,6 +82,117 @@ class HomeController extends Controller{
 			? DB::table('vehiculos')->where('conductor_id', $conductor->id)->first()
 			: null;
 		return view('pages.conductor.cuenta', compact('user', 'conductor', 'vehiculo'));
+	}
+
+	function conductorViajes(){
+		$user = auth()->user();
+		if (!$user || !$user->hasRole('Conductor')) {
+			return redirect()->route('home');
+		}
+		$conductor = DB::table('conductores')->where('user_id', $user->id)->first();
+		if (!$conductor) {
+			return redirect()->route('home');
+		}
+		$viajes = DB::table('viajes')
+			->where('conductor_id', $conductor->id)
+			->orderByDesc('id')
+			->limit(50)
+			->get();
+		return view('pages.conductor.viajes', ['viajes' => $viajes]);
+	}
+
+	function conductorWallet(WalletService $wallet){
+		$user = auth()->user();
+		if (!$user || !$user->hasRole('Conductor')) {
+			return redirect()->route('home');
+		}
+		$conductor = DB::table('conductores')->where('user_id', $user->id)->first();
+		if (!$conductor) {
+			return redirect()->route('home');
+		}
+
+		$wallet->ensureSaldoRow((int) $conductor->id);
+		$saldo = $wallet->getSaldo((int) $conductor->id);
+		$movimientos = DB::table('wallet_movimientos')
+			->where('conductor_id', $conductor->id)
+			->where('anulado', 0)
+			->orderByDesc('id')
+			->limit(30)
+			->get();
+
+		return view('pages.conductor.wallet', compact('saldo', 'movimientos'));
+	}
+
+	function conductorAplicar(){
+		return view('pages.index.conductor_aplicar');
+	}
+
+	function conductorAplicarStore(Request $request){
+		$data = $request->validate([
+			'name'            => 'required|string|max:120',
+			'telefono'        => 'required|string|max:20',
+			'email'           => 'nullable|email|max:120',
+			'licencia_numero' => 'required|string|max:64',
+			'placa'           => 'nullable|string|max:16',
+			'marca'           => 'nullable|string|max:64',
+			'linea'           => 'nullable|string|max:64',
+		]);
+
+		$exists = DB::table('users')->where('telefono', $data['telefono'])->first();
+		if ($exists) {
+			$conductorExists = DB::table('conductores')->where('user_id', $exists->id)->exists();
+			if ($conductorExists) {
+				return back()->withInput()->with('error', 'Ya existe una solicitud o cuenta de conductor con este celular.');
+			}
+		}
+
+		$now = now()->format('Y-m-d H:i:s');
+		$userId = $exists ? (int) $exists->id : null;
+
+        if (!$userId) {
+            $email = $data['email'] ?? ($data['telefono'] . '@conductor.taxpiya.local');
+            $userId = DB::table('users')->insertGetId([
+                'name'         => $data['name'],
+                'telefono'     => $data['telefono'],
+                'email'        => $email,
+                'password'     => bcrypt(str()->random(16)),
+                'estado'       => 0,
+                'user_role_id' => 3,
+            ]);
+        } else {
+            DB::table('users')->where('id', $userId)->update([
+                'name'         => $data['name'],
+                'email'        => $data['email'] ?? $exists->email,
+                'user_role_id' => 3,
+            ]);
+        }
+
+        $conductorId = DB::table('conductores')->insertGetId([
+            'user_id'             => $userId,
+            'estado_operitivo'    => 0,
+            'disponible'          => 0,
+            'total_viajes'        => 0,
+            'licencia_numero'     => $data['licencia_numero'],
+            'verificacion_estado' => 'pendiente',
+            'verificacion_nivel'  => 0,
+            'verificacion_notas'  => 'Solicitud desde app móvil — pendiente revisión admin',
+            'created_at'          => $now,
+            'updated_at'          => $now,
+        ]);
+
+        if (!empty($data['placa'])) {
+            DB::table('vehiculos')->insert([
+                'conductor_id'        => $conductorId,
+                'placa'               => strtoupper($data['placa']),
+                'marca'               => $data['marca'] ?? null,
+                'linea'               => $data['linea'] ?? null,
+                'categoria'           => 'taxi',
+                'estado_vehiculo'     => 'inactivo',
+                'verificacion_estado' => 'pendiente',
+            ]);
+        }
+
+		return redirect()->route('conductor.aplicar')->with('success', 'Solicitud enviada. Un administrador revisará tus datos y activará tu cuenta.');
 	}
 	
 }

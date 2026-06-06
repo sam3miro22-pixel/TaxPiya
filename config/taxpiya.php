@@ -41,4 +41,33 @@ return [
         'use_firebase_auth' => env('TAXPIYA_USE_FIREBASE_AUTH', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Wallet / billetera conductores
+    |--------------------------------------------------------------------------
+    */
+    'wallet' => [
+        'commission_percent'    => (float) env('TAXPIYA_WALLET_COMMISSION_PERCENT', 10),
+        'commission_min'        => (float) env('TAXPIYA_WALLET_COMMISSION_MIN', 500),
+        'fee_accept'            => (float) env('TAXPIYA_WALLET_FEE_ACCEPT', 0),
+        'default_min_operativo' => (float) env('TAXPIYA_WALLET_MIN_OPERATIVO', 5000),
+        'demo_initial_balance'  => (float) env('TAXPIYA_WALLET_DEMO_BALANCE', 100000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Persistencia SQLite (Render — respaldo gratis en GitHub, sin pagar)
+    |--------------------------------------------------------------------------
+    */
+    'persistence' => [
+        'enabled'          => env('TAXPIYA_GITHUB_BACKUP', true),
+        'backup_minutes'   => (int) env('TAXPIYA_GITHUB_BACKUP_MINUTES', 5),
+        'github_token'     => env('GITHUB_BACKUP_TOKEN', ''),
+        'github_owner'     => env('GITHUB_BACKUP_OWNER', 'sam3miro22-pixel'),
+        'github_repo'      => env('GITHUB_BACKUP_REPO', 'taxpiya-db-backup'),
+        'github_path'      => env('GITHUB_BACKUP_PATH', 'taxpiya.sqlite'),
+        'public_restore_fallback' => env('TAXPIYA_GITHUB_PUBLIC_RESTORE', true),
+        'dump_key'         => env('TAXPIYA_DUMP_KEY', substr(hash('sha256', (string) env('APP_KEY', '') . 'taxpiya-dump'), 0, 40)),
+    ],
+
 ];

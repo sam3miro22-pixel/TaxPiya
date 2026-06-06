@@ -1,0 +1,64 @@
+name: TaxPiya SQLite backup (gratis)
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sqlite-backup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute dump key
+        id: keys
+        env:
+          TAXPIYA_APP_KEY: ${{ secrets.TAXPIYA_APP_KEY }}
+        run: |
+          if [ -z "$TAXPIYA_APP_KEY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Falta secret TAXPIYA_APP_KEY en el repo TaxPiya"
+            exit 0
+          fi
+          DUMP_KEY=$(php -r "echo substr(hash('sha256', getenv('TAXPIYA_APP_KEY').'taxpiya-dump'), 0, 40);")
+          echo "dump_key=$DUMP_KEY" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Download SQLite from Render
+        if: steps.keys.outputs.skip == 'false'
+        env:
+          DUMP_KEY: ${{ steps.keys.outputs.dump_key }}
+        run: |
+          curl -fsS --retry 3 --retry-delay 30 --max-time 180 \
+            "https://taxpiya.onrender.com/api/internal/sqlite-dump?key=${DUMP_KEY}" \
+            -o taxpiya.sqlite
+          test -s taxpiya.sqlite
+          head -c 16 taxpiya.sqlite | grep -q 'SQLite format 3'
+
+      - name: Upload to backup repo
+        if: steps.keys.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.TAXPIYA_GH_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Falta secret TAXPIYA_GH_PAT"
+            exit 1
+          fi
+          OWNER="sam3miro22-pixel"
+          REPO="taxpiya-db-backup"
+          PATH_FILE="taxpiya.sqlite"
+          API="https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH_FILE}"
+          SHA=$(curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" "$API" | jq -r '.sha // empty')
+          B64=$(base64 -w0 taxpiya.sqlite)
+          MSG="TaxPiya backup $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          JSON=$(jq -n --arg msg "$MSG" --arg content "$B64" --arg sha "$SHA" \
+            '{message:$msg, content:$content} + (if ($sha|length)>0 then {sha:$sha} else {} end)')
+          curl -fsS -X PUT -H "Authorization: Bearer ${GH_TOKEN}" -H "Content-Type: application/json" \
+            -d "$JSON" "$API"
+          echo "Backup subido a ${OWNER}/${REPO}"

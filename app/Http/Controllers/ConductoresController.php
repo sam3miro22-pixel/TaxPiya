@@ -16,6 +16,7 @@ use App\Exports\ConductoresViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
 use App\Support\DatabaseGeometry;
+use App\Services\WalletService;
 class ConductoresController extends Controller
 {
 	
@@ -28,6 +29,14 @@ public function disponible(Request $req)
         }
 
         $on = $req->boolean('disponible');
+
+        if ($on) {
+            $walletCheck = app(WalletService::class)->canOperate((int) $conductor->id);
+            if (!$walletCheck['ok']) {
+                return response()->json(['ok' => false, 'message' => $walletCheck['message']], 402);
+            }
+        }
+
         DB::table('conductores')->where('id', $conductor->id)->update([
             'disponible' => $on ? 1 : 0,
         ]);
@@ -211,6 +220,11 @@ public function aceptarViaje(Request $request)
         return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 403);
     }
 
+    $walletCheck = app(WalletService::class)->canOperate((int) $conductor->id);
+    if (!$walletCheck['ok']) {
+        return response()->json(['ok' => false, 'message' => $walletCheck['message']], 402);
+    }
+
     $viajeId    = (int) $request->viaje_id;
     $vehiculoId = DB::table('vehiculos')->where('conductor_id', $conductor->id)->value('id');
 
@@ -273,6 +287,16 @@ public function aceptarViaje(Request $request)
 
     if ($updated === 0) {
         return response()->json(['ok' => false, 'message' => 'Otro conductor tomó el viaje'], 409);
+    }
+
+    try {
+        app(WalletService::class)->debitoAceptacion(
+            (int) $conductor->id,
+            $viajeId,
+            $viajeResult->moneda ?? 'COP'
+        );
+    } catch (\Throwable $e) {
+        \Log::warning('Wallet debito_aceptacion falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
     }
 
     $v = $viajeResult;
@@ -470,11 +494,28 @@ public function terminarViaje(Request $req)
             ->where('id', $viajeId)
             ->update($updates);
 
+        $viajeActualizado = DB::table('viajes')->where('id', $viajeId)->first();
+        $tarifa = (float) ($viajeActualizado->tarifa_aplicada ?? $viajeActualizado->tarifa_final ?? $viajeActualizado->tarifa_estimada ?? 0);
+
+        if ($tarifa > 0) {
+            try {
+                app(WalletService::class)->debitoTerminoViaje(
+                    (int) $conductor->id,
+                    $viajeId,
+                    $tarifa,
+                    $viajeActualizado->moneda ?? 'COP'
+                );
+            } catch (\Throwable $e) {
+                \Log::warning('Wallet debito_termino falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
+            }
+        }
+
         DB::table('conductores')
             ->where('id', $conductor->id)
             ->update([
                 'disponible'     => 1,
                 'last_online_at' => now(),
+                'total_viajes'   => DB::raw('total_viajes + 1'),
             ]);
 
 if (Schema::hasTable('viaje_estados_log')) {

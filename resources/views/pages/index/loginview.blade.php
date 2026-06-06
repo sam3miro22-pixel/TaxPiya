@@ -76,7 +76,7 @@
 
 @if($isConductor)
     <p class="txp-auth-foot">
-        ¿Sin acceso? Solicítalo al administrador de Taxpiya.
+        ¿Quieres ser conductor? <a href="{{ route('conductor.aplicar') }}">Envía tu solicitud</a>
     </p>
 @elseif($isAdmin)
     <p class="txp-auth-foot">Acceso restringido a personal autorizado.</p>

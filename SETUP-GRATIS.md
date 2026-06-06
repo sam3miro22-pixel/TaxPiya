@@ -5,7 +5,8 @@
 | Componente | Servicio | Costo |
 |--------------|----------|-------|
 | Backend Laravel | **Render Free** | $0 |
-| Base de datos | **SQLite incluida en el repo** | $0 |
+| Base de datos | **SQLite** + respaldo **GitHub** (repo `taxpiya-db-backup`) | $0 |
+| Persistencia Render | Auto backup/restore cada 5 min | $0 |
 | Usuarios / login | **Firebase Auth** (Google + correo) | $0 |
 | Tiempo real viajes | **Firestore** (espejo de viajes) | $0 |
 | Push | **Firebase FCM** | $0 |
@@ -32,6 +33,13 @@ LOG_CHANNEL=stderr
 
 DB_CONNECTION=sqlite
 DB_DATABASE=/var/www/html/database/taxpiya.sqlite
+
+TAXPIYA_GITHUB_BACKUP=true
+TAXPIYA_GITHUB_BACKUP_MINUTES=5
+GITHUB_BACKUP_OWNER=sam3miro22-pixel
+GITHUB_BACKUP_REPO=taxpiya-db-backup
+GITHUB_BACKUP_PATH=taxpiya.sqlite
+GITHUB_BACKUP_TOKEN=
 
 JWT_SECRET=tUQE3gB0xYP6WwATu4slJGbDMy1SXCc2ahKRi8rI
 JWT_DURATION=240
@@ -94,3 +102,7 @@ Habilita proveedores: **Email/Password** y **Google**
 ## Nota plan Free Render
 
 Tras 15 min sin uso la app duerme; el primer acceso tarda ~1 minuto.
+
+**Los datos ya NO se pierden en redeploys** — respaldo automático vía **GitHub Actions** (gratis). Detalle: [PERSISTENCIA-DATOS.md](./PERSISTENCIA-DATOS.md)
+
+No necesitas Firebase Storage ni pagar nada extra.

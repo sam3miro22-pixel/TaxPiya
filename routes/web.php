@@ -11,9 +11,29 @@ use App\Http\Controllers\PushTokensController;
 use App\Http\Controllers\FirebaseAuthController;
 use App\Http\Controllers\MapProxyController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\SosController;
 
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
+
+Route::get('/api/internal/sqlite-dump', function (Request $request) {
+    if (config('database.default') !== 'sqlite') {
+        abort(404);
+    }
+    $expected = (string) config('taxpiya.persistence.dump_key', '');
+    $provided = (string) $request->query('key', '');
+    if ($expected === '' || !hash_equals($expected, $provided)) {
+        abort(403);
+    }
+    $path = config('database.connections.sqlite.database');
+    if (!is_file($path)) {
+        abort(404);
+    }
+    return response()->file($path, [
+        'Content-Type'        => 'application/x-sqlite3',
+        'Content-Disposition' => 'attachment; filename="taxpiya.sqlite"',
+    ]);
+})->middleware('throttle:12,1')->name('api.internal.sqlite-dump');
 
 Route::get('pasajero/login', function () {
     return view('pages.index.pasajero_login');
@@ -31,11 +51,19 @@ Route::get('pasajero/registro', 'AuthController@register')
 Route::post('pasajero/registro', 'AuthController@register_store')
     ->name('pasajero.register_store');
 
+Route::get('conductor/aplicar', [HomeController::class, 'conductorAplicar'])
+    ->name('conductor.aplicar')->middleware(['redirect.to.home']);
+Route::post('conductor/aplicar', [HomeController::class, 'conductorAplicarStore'])
+    ->name('conductor.aplicar_store');
+
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/pasajero/perfil', [HomeController::class, 'pasajeroPerfil'])->name('pasajero.perfil');
+    Route::post('/pasajero/perfil', [HomeController::class, 'pasajeroPerfilUpdate'])->name('pasajero.perfil.update');
     Route::get('/pasajero/viajes', [HomeController::class, 'pasajeroViajes'])->name('pasajero.viajes');
     Route::get('/conductor/cuenta', [HomeController::class, 'conductorCuenta'])->name('conductor.cuenta');
+    Route::get('/conductor/viajes', [HomeController::class, 'conductorViajes'])->name('conductor.viajes');
+    Route::get('/conductor/wallet', [HomeController::class, 'conductorWallet'])->name('conductor.wallet');
 
     Route::get('/api/nearby-drivers', function (Request $req) {
         $lat = (float) $req->query('lat');
@@ -115,6 +143,24 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/viaje/llego', [ConductoresController::class, 'marcarLlegada'])->name('viaje.llego');
     Route::post('/viaje/terminar', [ConductoresController::class, 'terminarViaje'])->name('viaje.terminar');
     Route::post('/api/push/register', [PushTokensController::class, 'register'])->name('push.register');
+    Route::post('/api/sos/reportar', [SosController::class, 'reportar'])->name('sos.reportar');
+
+    Route::get('/api/conductor/wallet', function () {
+        $userId = auth()->id();
+        $conductor = DB::table('conductores')->where('user_id', $userId)->first();
+        if (!$conductor) {
+            return response()->json(['ok' => false], 404);
+        }
+        $wallet = app(\App\Services\WalletService::class);
+        $wallet->ensureSaldoRow((int) $conductor->id);
+        $saldo = $wallet->getSaldo((int) $conductor->id);
+        return response()->json([
+            'ok'    => true,
+            'saldo' => (float) ($saldo->saldo_actual ?? 0),
+            'min'   => (float) ($saldo->min_operativo ?? 0),
+            'mon'   => $saldo->moneda ?? 'COP',
+        ]);
+    })->name('api.conductor.wallet');
 
     Route::get('/api/geocode', [MapProxyController::class, 'geocode'])->name('api.geocode');
     Route::get('/api/reverse-geocode', [MapProxyController::class, 'reverse'])->name('api.reverse-geocode');

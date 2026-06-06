@@ -55,11 +55,13 @@
         <i class="fa-solid fa-power-off"></i>
         <span class="tip">Conectarme</span>
       </button>
-      <button id="qmTrips" class="qm-item" style="--i:2" aria-label="Viajes">
+      <button id="qmTrips" class="qm-item" style="--i:2" aria-label="Viajes"
+              onclick="window.location.href='{{ route('conductor.viajes') }}'">
         <i class="fa-solid fa-route"></i>
         <span class="tip">Viajes</span>
       </button>
-      <button id="qmWallet" class="qm-item" style="--i:3" aria-label="Wallet">
+      <button id="qmWallet" class="qm-item" style="--i:3" aria-label="Wallet"
+              onclick="window.location.href='{{ route('conductor.wallet') }}'">
         <i class="fa-solid fa-wallet"></i>
         <span class="tip">Wallet</span>
       </button>
@@ -73,6 +75,8 @@
       </a>
     </nav>
   </div>
+
+  <button type="button" id="txp-sos-btn" class="txp-sos-fab" title="Emergencia SOS">SOS</button>
 
   </div>{{-- /txp-ui-layer --}}
 
@@ -330,6 +334,26 @@ body#main #page-content {
   :root{ --qm-gap:58px; }
   .qm-item .tip{ font-size:11px; }
 }
+
+.txp-sos-fab {
+  position: fixed;
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  bottom: calc(120px + env(safe-area-inset-bottom));
+  z-index: 850;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.txp-sos-fab:active { transform: scale(0.96); }
+.txp-sos-fab--confirm { background: linear-gradient(135deg, #f97316, #c2410c); }
 
 
 .txp-sheet{position:fixed; inset:0; display:none; z-index:var(--txp-sheet-z);}
@@ -820,9 +844,43 @@ window.initMap = function(){
     });
   }
 
-  document.getElementById('qmTrips')?.addEventListener('click', ()=>{ showBanner('Historial de viajes: próximamente', 'fa-route'); closeMenu(); });
-  document.getElementById('qmWallet')?.addEventListener('click', ()=>{ showBanner('Wallet: próximamente', 'fa-wallet'); closeMenu(); });
   document.getElementById('qmCuenta')?.addEventListener('click', ()=>{ closeMenu(); });
+})();
+
+(function(){
+  const SOS_URL = @json(route('sos.reportar'));
+  const btn = document.getElementById('txp-sos-btn');
+  let confirm = false;
+  btn?.addEventListener('click', async ()=>{
+    if (!confirm) {
+      confirm = true;
+      btn.classList.add('txp-sos-fab--confirm');
+      btn.textContent = 'OK?';
+      setTimeout(()=>{ confirm = false; btn.classList.remove('txp-sos-fab--confirm'); btn.textContent = 'SOS'; }, 4000);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+      const pos = await new Promise((res,rej)=> navigator.geolocation?.getCurrentPosition(res, rej, {timeout:8000}) || rej());
+      const body = new URLSearchParams({
+        _token: document.querySelector('meta[name="csrf-token"]')?.content || '',
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        viaje_id: window.currentViajeId || '',
+        descripcion: 'Alerta SOS conductor',
+      });
+      const r = await fetch(SOS_URL, { method:'POST', headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}, body, credentials:'same-origin' });
+      const j = await r.json();
+      showBanner?.(j.message || 'SOS enviado', 'fa-triangle-exclamation');
+    } catch(e) {
+      showBanner?.('SOS enviado (sin GPS)', 'fa-triangle-exclamation');
+      const body = new URLSearchParams({ _token: document.querySelector('meta[name="csrf-token"]')?.content || '', descripcion: 'Alerta SOS conductor' });
+      fetch(SOS_URL, { method:'POST', headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}, body, credentials:'same-origin' });
+    }
+    btn.disabled = false; btn.textContent = 'SOS'; confirm = false;
+    btn.classList.remove('txp-sos-fab--confirm');
+  });
 })();
 </script>
 

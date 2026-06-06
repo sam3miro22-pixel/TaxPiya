@@ -100,8 +100,18 @@ ok('Firebase Auth signIn pasajero', !empty($fbData['idToken']), $fbData['error']
 
 $idToken = $fbData['idToken'] ?? null;
 if ($idToken) {
+    $rCsrf = req('GET', "{$base}/pasajero/login");
+    preg_match('/name="_token" value="([^"]+)"/', $rCsrf['body'], $csrfM);
+    preg_match_all('/Set-Cookie: ([^;\r\n]+)/i', $rCsrf['headers'], $csrfCm);
+    $csrfCookie = implode('; ', $csrfCm[1] ?? []);
     $sync = req('POST', "{$base}/auth/firebase/sync", [
-        'headers' => ['Content-Type: application/json', 'Accept: application/json'],
+        'headers' => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            "X-CSRF-TOKEN: " . ($csrfM[1] ?? ''),
+            "Cookie: {$csrfCookie}",
+            'Referer: ' . "{$base}/pasajero/login",
+        ],
         'body'    => json_encode([
             'id_token' => $idToken,
             'app'      => 'pasajero',
@@ -135,8 +145,32 @@ if (!empty($m2[1])) {
     ]);
     $cOk = in_array($loginC['code'], [200, 302], true) && !str_contains($loginC['body'], 'no correctos');
     ok('Login conductor demo (Laravel)', $cOk, "HTTP {$loginC['code']}");
+
+    if ($cOk) {
+        preg_match_all('/Set-Cookie: ([^;\r\n]+)/i', $loginC['headers'], $cm3);
+        $sessionCookie = implode('; ', array_unique(array_merge($cm2[1] ?? [], $cm3[1] ?? [])));
+        $walletPage = req('GET', "{$base}/conductor/wallet", [
+            'headers' => ["Cookie: {$sessionCookie}"],
+        ]);
+        ok('Conductor wallet page', $walletPage['code'] === 200 && str_contains($walletPage['body'], 'Mi wallet'), "HTTP {$walletPage['code']}");
+
+        $walletApi = req('GET', "{$base}/api/conductor/wallet", [
+            'headers' => ["Cookie: {$sessionCookie}", 'Accept: application/json'],
+        ]);
+        $wData = json_decode($walletApi['body'], true);
+        ok('Conductor wallet API', ($wData['ok'] ?? false) === true, 'saldo=' . ($wData['saldo'] ?? '?'));
+    }
 }
 
+$rAplicar = req('GET', "{$base}/conductor/aplicar");
+ok('Conductor aplicar page', $rAplicar['code'] === 200 && str_contains($rAplicar['body'], 'Solicitar'), "HTTP {$rAplicar['code']}");
+
 $failed = array_filter($checks, fn ($c) => !$c['pass']);
+
+// Tarifa pública
+$tarifa = req('GET', "{$base}/tarifa-fija");
+$tarifaOk = $tarifa['code'] === 200 && str_contains($tarifa['body'], 'monto');
+ok('Tarifa fija API', $tarifaOk, "HTTP {$tarifa['code']}");
+
 echo "\n" . (count($failed) === 0 ? "TODOS OK (" . count($checks) . " checks)\n" : count($failed) . " fallos\n");
 exit(count($failed) === 0 ? 0 : 1);

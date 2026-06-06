@@ -92,10 +92,47 @@ foreach ($users as $u) {
         $pdo->prepare('INSERT OR REPLACE INTO conductor_posicion_actual (conductor_id,lat,lng,created_at,actualizada_at) VALUES (?,?,?,?,?)')
             ->execute([(int) $conductorId, $u['lat'], $u['lng'], $now, $now]);
         echo "Posición GPS registrada\n";
+
+        seedWallet($pdo, (int) $conductorId);
     }
 }
 
 echo "\nOK — contraseña para todos: {$password}\n";
+
+function seedWallet(PDO $pdo, int $conductorId): void
+{
+    $balance = (float) (getenv('TAXPIYA_WALLET_DEMO_BALANCE') ?: 100000);
+    $minOp = (float) (getenv('TAXPIYA_WALLET_MIN_OPERATIVO') ?: 5000);
+
+    $stmt = $pdo->prepare('SELECT saldo_actual FROM wallet_saldos WHERE conductor_id = ? LIMIT 1');
+    $stmt->execute([$conductorId]);
+    $existing = $stmt->fetchColumn();
+
+    if ($existing !== false && (float) $existing > 0) {
+        echo "Wallet ya tiene saldo ({$existing})\n";
+        return;
+    }
+
+    $idempotencia = "recarga_inicial_{$conductorId}";
+    $stmt = $pdo->prepare('SELECT id FROM wallet_movimientos WHERE idempotencia = ? AND anulado = 0 LIMIT 1');
+    $stmt->execute([$idempotencia]);
+    if ($stmt->fetchColumn()) {
+        echo "Wallet recarga inicial ya registrada\n";
+        return;
+    }
+
+    $pdo->prepare('INSERT OR IGNORE INTO wallet_saldos (conductor_id,saldo_actual,saldo_reservado,min_operativo,moneda,bloqueado,created_at,updated_at) VALUES (?,0,0,?,?,0,?,?)')
+        ->execute([$conductorId, $minOp, 'COP', $now = date('Y-m-d H:i:s'), $now]);
+
+    $pdo->prepare('INSERT INTO wallet_movimientos (conductor_id,sentido,motivo,monto,moneda,saldo_antes,saldo_despues,descripcion,idempotencia,anulado,created_at) VALUES (?,?,?,?,?,?,?,?,?,0,?)')
+        ->execute([$conductorId, 'credito', 'recarga', $balance, 'COP', 0, $balance, 'Saldo inicial demo TaxPiya', $idempotencia, $now]);
+
+    $movId = (int) $pdo->lastInsertId();
+    $pdo->prepare('UPDATE wallet_saldos SET saldo_actual=?, last_movimiento_id=?, last_movimiento_at=?, updated_at=? WHERE conductor_id=?')
+        ->execute([$balance, $movId, $now, $now, $conductorId]);
+
+    echo "Wallet demo: \${$balance} COP (min operativo \${$minOp})\n";
+}
 
 function firebaseSignUp(string $apiKey, string $email, string $password): string
 {

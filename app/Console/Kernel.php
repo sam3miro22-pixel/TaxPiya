@@ -12,7 +12,13 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $minutes = max(1, (int) config('taxpiya.persistence.backup_minutes', 5));
+
+        $schedule->command('taxpiya:sqlite-backup')
+            ->everyMinutes($minutes)
+            ->withoutOverlapping(10)
+            ->when(fn () => config('database.default') === 'sqlite'
+                && config('taxpiya.persistence.enabled', true));
     }
 
     /**

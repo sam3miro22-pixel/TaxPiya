@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: taxpiya
+    runtime: docker
+    plan: free
+    branch: main
+    healthCheckPath: /pasajero/login
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/www/html/database/taxpiya.sqlite
+      - key: TAXPIYA_GITHUB_BACKUP
+        value: "true"
+      - key: TAXPIYA_GITHUB_BACKUP_MINUTES
+        value: "5"
+      - key: GITHUB_BACKUP_OWNER
+        value: sam3miro22-pixel
+      - key: GITHUB_BACKUP_REPO
+        value: taxpiya-db-backup
+      - key: GITHUB_BACKUP_PATH
+        value: taxpiya.sqlite
+      - key: GITHUB_BACKUP_TOKEN
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: JWT_SECRET
+        sync: false
