@@ -766,7 +766,10 @@ async function setOnline(on){
       headers:{ 'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify({ disponible: !!on })
     });
-    const j = await r.json();
+    let j = {};
+    try { j = await r.json(); } catch (_) {
+      throw new Error(r.status >= 500 ? 'Error del servidor al conectar. Intenta de nuevo.' : 'No se pudo cambiar estado');
+    }
     if (!r.ok || !j.ok) throw new Error(j?.message || 'No se pudo cambiar estado');
 
     isOnline = !!j.disponible;

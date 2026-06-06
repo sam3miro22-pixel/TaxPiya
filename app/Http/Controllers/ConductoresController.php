@@ -16,32 +16,45 @@ use App\Exports\ConductoresViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
 use App\Support\DatabaseGeometry;
+use App\Support\GeoDistance;
 use App\Services\WalletService;
 class ConductoresController extends Controller
 {
 	
 public function disponible(Request $req)
     {
-        $userId = Auth::id();
-        $conductor = DB::table('conductores')->where('user_id', $userId)->first();
-        if (!$conductor) {
-            return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
-        }
-
-        $on = $req->boolean('disponible');
-
-        if ($on) {
-            $walletCheck = app(WalletService::class)->canOperate((int) $conductor->id);
-            if (!$walletCheck['ok']) {
-                return response()->json(['ok' => false, 'message' => $walletCheck['message']], 402);
+        try {
+            $userId = Auth::id();
+            $conductor = DB::table('conductores')->where('user_id', $userId)->first();
+            if (!$conductor) {
+                return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
             }
+
+            $on = filter_var($req->input('disponible'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($on === null) {
+                return response()->json(['ok' => false, 'message' => 'Parámetro disponible inválido'], 422);
+            }
+
+            if ($on) {
+                try {
+                    $walletCheck = app(WalletService::class)->canOperate((int) $conductor->id);
+                    if (!$walletCheck['ok']) {
+                        return response()->json(['ok' => false, 'message' => $walletCheck['message']], 402);
+                    }
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+
+            DB::table('conductores')->where('id', $conductor->id)->update([
+                'disponible' => $on ? 1 : 0,
+            ]);
+
+            return response()->json(['ok' => true, 'disponible' => $on ? 1 : 0]);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(['ok' => false, 'message' => 'No se pudo cambiar tu estado. Intenta de nuevo.'], 500);
         }
-
-        DB::table('conductores')->where('id', $conductor->id)->update([
-            'disponible' => $on ? 1 : 0,
-        ]);
-
-        return response()->json(['ok' => true, 'disponible' => $on ? 1 : 0]);
     }
 
   public function posicion(Request $req)
@@ -125,81 +138,115 @@ public function disponible(Request $req)
 
 public function solicitudPendiente(Request $request)
 {
-    $userId = Auth::id();
-    if (!$userId) {
-        return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
-    }
+    try {
+        $userId = Auth::id();
+        if (!$userId) {
+            return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
+        }
 
-    $conductor = DB::table('conductores')->where('user_id', $userId)->first();
-    if (!$conductor) {
-        return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
-    }
+        $conductor = DB::table('conductores')->where('user_id', $userId)->first();
+        if (!$conductor) {
+            return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
+        }
 
-    $pos = DB::table('conductor_posicion_actual')
-        ->where('conductor_id', $conductor->id)
-        ->first();
+        $pos = DB::table('conductor_posicion_actual')
+            ->where('conductor_id', $conductor->id)
+            ->first();
 
-    $radiusKm = config('taxpiya.search_radius_km', 8);
+        if (!$pos || !$pos->lat || !$pos->lng) {
+            return response()->json(['ok' => false, 'message' => 'Activa tu ubicación para recibir solicitudes'], 200);
+        }
 
-    $query = DB::table('viajes as v')
-        ->where('v.estado', 'buscando')
-        ->whereNull('v.conductor_id');
+        $driverLat = (float) $pos->lat;
+        $driverLng = (float) $pos->lng;
+        $radiusKm = (float) config('taxpiya.search_radius_km', 8);
 
-    if ($pos && $pos->lat && $pos->lng) {
-        $query->select([
+        $query = DB::table('viajes as v')
+            ->where('v.estado', 'buscando')
+            ->whereNull('v.conductor_id');
+
+        if (Schema::hasTable('viaje_estados_log')) {
+            $query->whereNotExists(function ($sub) use ($userId) {
+                $sub->from('viaje_estados_log as l')
+                    ->whereColumn('l.viaje_id', 'v.id')
+                    ->where('l.actor_tipo', 'conductor')
+                    ->where('l.actor_id', $userId)
+                    ->where('l.from_estado', 'buscando')
+                    ->where('l.to_estado', 'buscando');
+            });
+        }
+
+        $columns = [
             'v.id',
             'v.origen_lat', 'v.origen_lng', 'v.origen_texto',
             'v.destino_lat', 'v.destino_lng', 'v.destino_texto',
             'v.tarifa_aplicada', 'v.moneda', 'v.created_at',
-        ])->selectRaw(
-            '(6371 * acos( cos(radians(?)) * cos(radians(v.origen_lat)) * cos(radians(v.origen_lng) - radians(?)) + sin(radians(?)) * sin(radians(v.origen_lat)) ) ) as dist_km',
-            [$pos->lat, $pos->lng, $pos->lat]
-        )->having('dist_km', '<=', $radiusKm)
-          ->orderBy('dist_km');
-    }
+        ];
 
-    if (Schema::hasTable('viaje_estados_log')) {
-        $query->whereNotExists(function ($sub) use ($userId) {
-            $sub->from('viaje_estados_log as l')
-                ->whereColumn('l.viaje_id', 'v.id')
-                ->where('l.actor_tipo', 'conductor')
-                ->where('l.actor_id', $userId)
-                ->where('l.from_estado', 'buscando')
-                ->where('l.to_estado', 'buscando');
-        });
-    }
+        if (GeoDistance::usesSqlite()) {
+            [$minLat, $maxLat, $minLng, $maxLng] = GeoDistance::boundingBox($driverLat, $driverLng, $radiusKm);
+            $candidates = $query
+                ->whereBetween('v.origen_lat', [$minLat, $maxLat])
+                ->whereBetween('v.origen_lng', [$minLng, $maxLng])
+                ->select($columns)
+                ->orderByDesc('v.id')
+                ->limit(40)
+                ->get();
 
-    if (!$pos || !$pos->lat || !$pos->lng) {
-        return response()->json(['ok' => false, 'message' => 'Activa tu ubicación para recibir solicitudes'], 200);
-    }
+            $viaje = null;
+            $bestDist = PHP_FLOAT_MAX;
+            foreach ($candidates as $candidate) {
+                $dist = GeoDistance::km(
+                    $driverLat,
+                    $driverLng,
+                    (float) $candidate->origen_lat,
+                    (float) $candidate->origen_lng
+                );
+                if ($dist <= $radiusKm && $dist < $bestDist) {
+                    $bestDist = $dist;
+                    $viaje = $candidate;
+                }
+            }
+        } else {
+            $viaje = $query
+                ->select($columns)
+                ->selectRaw(
+                    '(6371 * acos( cos(radians(?)) * cos(radians(v.origen_lat)) * cos(radians(v.origen_lng) - radians(?)) + sin(radians(?)) * sin(radians(v.origen_lat)) ) ) as dist_km',
+                    [$driverLat, $driverLng, $driverLat]
+                )
+                ->having('dist_km', '<=', $radiusKm)
+                ->orderBy('dist_km')
+                ->orderByDesc('v.id')
+                ->first();
+        }
 
-    $viaje = $query
-        ->orderByDesc('v.id')
-        ->first();
+        if (!$viaje) {
+            return response()->json(['ok' => false, 'message' => 'Sin solicitudes'], 200);
+        }
 
-    if (!$viaje) {
+        return response()->json([
+            'ok' => true,
+            'viaje' => [
+                'id' => (int) $viaje->id,
+                'o'  => [
+                    'lat' => (float) $viaje->origen_lat,
+                    'lng' => (float) $viaje->origen_lng,
+                    'txt' => $viaje->origen_texto,
+                ],
+                'd'  => [
+                    'lat' => is_null($viaje->destino_lat) ? null : (float) $viaje->destino_lat,
+                    'lng' => is_null($viaje->destino_lng) ? null : (float) $viaje->destino_lng,
+                    'txt' => $viaje->destino_texto,
+                ],
+                'monto' => is_null($viaje->tarifa_aplicada) ? null : (float) $viaje->tarifa_aplicada,
+                'mon'   => $viaje->moneda,
+                'ts'    => $viaje->created_at,
+            ],
+        ]);
+    } catch (\Throwable $e) {
+        report($e);
         return response()->json(['ok' => false, 'message' => 'Sin solicitudes'], 200);
     }
-
-    return response()->json([
-        'ok' => true,
-        'viaje' => [
-            'id' => (int) $viaje->id,
-            'o'  => [
-                'lat' => (float) $viaje->origen_lat,
-                'lng' => (float) $viaje->origen_lng,
-                'txt' => $viaje->origen_texto,
-            ],
-            'd'  => [
-                'lat' => is_null($viaje->destino_lat) ? null : (float) $viaje->destino_lat,
-                'lng' => is_null($viaje->destino_lng) ? null : (float) $viaje->destino_lng,
-                'txt' => $viaje->destino_texto,
-            ],
-            'monto' => is_null($viaje->tarifa_aplicada) ? null : (float) $viaje->tarifa_aplicada,
-            'mon'   => $viaje->moneda,
-            'ts'    => $viaje->created_at,
-        ],
-    ]);
 }
 
 

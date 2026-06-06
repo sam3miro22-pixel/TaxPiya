@@ -13,6 +13,7 @@ use App\Http\Controllers\MapProxyController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SosController;
 use App\Http\Controllers\EmpresaPortalController;
+use App\Support\GeoDistance;
 
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
@@ -102,14 +103,33 @@ Route::middleware(['auth'])->group(function () {
                 'c.id as conductor_id',
                 'p.lat', 'p.lng', 'p.heading', 'p.velocidad_kmh',
                 'v.placa', 'v.marca', 'v.linea',
-            ])
-            ->selectRaw('(6371 * acos( cos(radians(?)) * cos(radians(p.lat)) * cos(radians(p.lng) - radians(?)) + sin(radians(?)) * sin(radians(p.lat)) ) ) as dist_km',
-                [$lat, $lng, $lat]
-            )
-            ->having('dist_km', '<=', $radiusKm)
-            ->orderBy('dist_km')
-            ->limit(50)
-            ->get();
+            ]);
+
+        if (GeoDistance::usesSqlite()) {
+            [$minLat, $maxLat, $minLng, $maxLng] = GeoDistance::boundingBox($lat, $lng, $radiusKm);
+            $drivers = $drivers
+                ->whereBetween('p.lat', [$minLat, $maxLat])
+                ->whereBetween('p.lng', [$minLng, $maxLng])
+                ->limit(80)
+                ->get()
+                ->map(function ($d) use ($lat, $lng) {
+                    $d->dist_km = GeoDistance::km($lat, $lng, (float) $d->lat, (float) $d->lng);
+                    return $d;
+                })
+                ->filter(fn ($d) => $d->dist_km <= $radiusKm)
+                ->sortBy('dist_km')
+                ->values()
+                ->take(50);
+        } else {
+            $drivers = $drivers
+                ->selectRaw('(6371 * acos( cos(radians(?)) * cos(radians(p.lat)) * cos(radians(p.lng) - radians(?)) + sin(radians(?)) * sin(radians(p.lat)) ) ) as dist_km',
+                    [$lat, $lng, $lat]
+                )
+                ->having('dist_km', '<=', $radiusKm)
+                ->orderBy('dist_km')
+                ->limit(50)
+                ->get();
+        }
 
         return response()->json($drivers);
     })->name('api.nearby-drivers');

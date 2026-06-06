@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +23,15 @@ class AppServiceProvider extends ServiceProvider
     {
         if ($this->app->environment('production') || str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
+        }
+
+        if (config('database.default') === 'sqlite') {
+            try {
+                DB::connection()->getPdo()->exec('PRAGMA busy_timeout = 15000');
+                DB::connection()->getPdo()->exec('PRAGMA journal_mode = WAL');
+            } catch (\Throwable $e) {
+                // ignore if DB not ready yet
+            }
         }
 
         view()->composer('*', function ($view)

@@ -35,8 +35,8 @@ class WalletService
             'min_operativo'      => (float) config('taxpiya.wallet.default_min_operativo', 5000),
             'moneda'             => $moneda,
             'bloqueado'          => 0,
-            'created_at'         => now(),
-            'updated_at'         => now(),
+            'created_at'         => now()->format('Y-m-d H:i:s'),
+            'updated_at'         => now()->format('Y-m-d H:i:s'),
         ]);
     }
 
