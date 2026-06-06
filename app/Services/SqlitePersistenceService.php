@@ -212,6 +212,13 @@ class SqlitePersistenceService
         @unlink($target . '-wal');
         @unlink($target . '-shm');
         @chmod($target, 0664);
+        if (function_exists('posix_getpwuid')) {
+            $www = posix_getpwnam('www-data');
+            if (is_array($www) && isset($www['uid'], $www['gid'])) {
+                @chown($target, (int) $www['uid']);
+                @chgrp($target, (int) $www['gid']);
+            }
+        }
 
         Log::info('SqlitePersistence: BD restaurada.', [
             'bytes'  => strlen($binary),

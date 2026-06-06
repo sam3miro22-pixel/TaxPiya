@@ -9,11 +9,32 @@ if [ -n "${FIREBASE_CREDENTIALS_JSON:-}" ]; then
 fi
 
 php artisan storage:link 2>/dev/null || true
-chmod -R 775 storage bootstrap/cache database 2>/dev/null || true
+
+fix_sqlite_perms() {
+  if [ "${DB_CONNECTION:-sqlite}" != "sqlite" ]; then
+    return 0
+  fi
+  mkdir -p database
+  chown -R www-data:www-data database storage bootstrap/cache 2>/dev/null || true
+  chmod -R 775 database storage bootstrap/cache 2>/dev/null || true
+  if [ -f database/taxpiya.sqlite ]; then
+    chown www-data:www-data database/taxpiya.sqlite 2>/dev/null || true
+    chmod 664 database/taxpiya.sqlite 2>/dev/null || true
+  fi
+  for f in database/taxpiya.sqlite-wal database/taxpiya.sqlite-shm; do
+    if [ -f "$f" ]; then
+      chown www-data:www-data "$f" 2>/dev/null || true
+      chmod 664 "$f" 2>/dev/null || true
+    fi
+  done
+}
+
+fix_sqlite_perms
 
 # Restaurar SQLite desde GitHub ANTES de cachear config (Render redeploys borran el disco)
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ] && [ "${TAXPIYA_GITHUB_BACKUP:-true}" != "false" ]; then
   php artisan taxpiya:sqlite-restore --no-interaction 2>/dev/null || true
+  fix_sqlite_perms
 fi
 
 php artisan config:cache
@@ -34,5 +55,7 @@ fi
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ] && [ "${TAXPIYA_GITHUB_BACKUP:-true}" != "false" ]; then
   php artisan taxpiya:sqlite-backup --no-interaction 2>/dev/null || true
 fi
+
+fix_sqlite_perms
 
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
