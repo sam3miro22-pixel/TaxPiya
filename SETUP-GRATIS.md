@@ -12,18 +12,7 @@
 
 No necesitas registrarte en ninguna web de base de datos.
 
-## Google Maps (obligatorio para mapas en la APK)
-
-En Google Cloud Console → Credentials → API key `GOOGLE_MAPS_KEY`:
-
-1. Habilita **Maps JavaScript API** y **Places API**
-2. Referrers HTTP permitidos:
-   - `https://taxpiya.onrender.com/*`
-   - `https://*.onrender.com/*`
-
----
-
-## Mapas en la app (gratis)
+## Mapas en la app (gratis — sin Google Maps)
 
 La app usa **OpenStreetMap + Leaflet** — no necesitas pagar ni configurar Google Maps.
 Las rutas y direcciones pasan por el backend (Nominatim + OSRM, servicios gratuitos).
