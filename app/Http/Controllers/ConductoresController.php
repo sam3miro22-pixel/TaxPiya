@@ -207,6 +207,9 @@ public function solicitudPendiente(Request $request)
             'v.destino_lat', 'v.destino_lng', 'v.destino_texto',
             'v.tarifa_aplicada', 'v.moneda', 'v.created_at',
         ];
+        if (Schema::hasColumn('viajes', 'radio_busqueda_m')) {
+            $columns[] = 'v.radio_busqueda_m';
+        }
 
         if (GeoDistance::usesSqlite()) {
             [$minLat, $maxLat, $minLng, $maxLng] = GeoDistance::boundingBox($driverLat, $driverLng, $radiusKm);
@@ -221,13 +224,16 @@ public function solicitudPendiente(Request $request)
             $viaje = null;
             $bestDist = PHP_FLOAT_MAX;
             foreach ($candidates as $candidate) {
+                $tripRadiusKm = isset($candidate->radio_busqueda_m) && (float) $candidate->radio_busqueda_m > 0
+                    ? ((float) $candidate->radio_busqueda_m / 1000)
+                    : $radiusKm;
                 $dist = GeoDistance::km(
                     $driverLat,
                     $driverLng,
                     (float) $candidate->origen_lat,
                     (float) $candidate->origen_lng
                 );
-                if ($dist <= $radiusKm && $dist < $bestDist) {
+                if ($dist <= $tripRadiusKm && $dist < $bestDist) {
                     $bestDist = $dist;
                     $viaje = $candidate;
                 }

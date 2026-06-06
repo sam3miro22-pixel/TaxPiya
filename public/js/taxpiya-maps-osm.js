@@ -180,6 +180,15 @@
     this._marker.setIcon(this._buildIcon(iconOpts));
   };
 
+  Marker.prototype.setOpacity = function (opacity) {
+    const el = this._marker.getElement();
+    if (el) el.style.opacity = String(opacity ?? 1);
+  };
+
+  Marker.prototype.setZIndex = function (zIndex) {
+    this._marker.setZIndexOffset(Number(zIndex) || 0);
+  };
+
   Marker.prototype.addListener = function (event, fn) {
     if (!this._listeners[event]) this._listeners[event] = [];
     this._listeners[event].push(fn);
@@ -209,6 +218,10 @@
     if (key === 'icons') {
       this._opts.icons = val;
     }
+  };
+
+  Polyline.prototype.setOpacity = function (opacity) {
+    this._layer.setStyle({ opacity: opacity ?? 1 });
   };
 
   function Circle(opts) {

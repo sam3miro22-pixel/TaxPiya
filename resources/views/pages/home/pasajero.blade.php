@@ -924,13 +924,16 @@ function startDriverSearch(){
   txpSearch.active = true; txpSearch.found = false; txpSearch.radius = 8;
   setPhase('buscando');
   setSearchingLabel('Buscando conductores disponibles…');
+  toggleCTA(false);
+  const solicitarBtn = document.getElementById('solicitar-btn');
+  if (solicitarBtn) solicitarBtn.style.display = 'none';
   txpShowSearching();
   pollOnce(); 
   txpSearch.intervalId = setInterval(() => { if (txpSearch.active) pollOnce(); }, txpSearch.pollMs);
   txpSearch.timeoutId  = setTimeout(() => {
     if (!txpSearch.found) {
       stopDriverSearch();
-     
+      showBanner?.('No hay conductores cerca. Intenta de nuevo.', 'fa-triangle-exclamation');
     }
   }, txpSearch.timeoutMs);
 }
@@ -959,8 +962,8 @@ async function pollOnce(){
     if (count > 0){
       txpSearch.found = true;
       setPhase('esperando_aceptacion');
-      setSearchingLabel('Conductor encontrado. Esperando aceptación…', 'fa-taxi');
-      highlightNearest(list, lat, lng);
+      setSearchingLabel('Hay conductores cerca. Esperando que uno acepte…', 'fa-taxi');
+      try { highlightNearest(list, lat, lng); } catch (_) {}
 
       if (txpSearch.intervalId){ clearInterval(txpSearch.intervalId); txpSearch.intervalId = null; }
       if (txpSearch.timeoutId){  clearTimeout(txpSearch.timeoutId);   txpSearch.timeoutId  = null; }
@@ -978,15 +981,14 @@ function highlightNearest(list, lat, lng){
     const dist = haversine(lat, lng, parseFloat(d.lat), parseFloat(d.lng));
     if (dist < bestD){ bestD = dist; best = d; }
   }
-  if (best && driverMarkers.has(best.conductor_id)){
-    const obj = driverMarkers.get(best.conductor_id);
-    if (obj?.halo) obj.halo.setOpacity(1);
-    if (obj?.car)  obj.car.setZIndex(700);
-    setTimeout(() => {
-      if (obj?.halo) obj.halo.setOpacity(0.8);
-      if (obj?.car)  obj.car.setZIndex(500);
-    }, 1000);
-  }
+  if (!best || !driverMarkers.has(best.conductor_id)) return;
+  const obj = driverMarkers.get(best.conductor_id);
+  if (obj?.halo && typeof obj.halo.setOpacity === 'function') obj.halo.setOpacity(1);
+  if (obj?.car && typeof obj.car.setZIndex === 'function') obj.car.setZIndex(700);
+  setTimeout(() => {
+    if (obj?.halo && typeof obj.halo.setOpacity === 'function') obj.halo.setOpacity(0.8);
+    if (obj?.car && typeof obj.car.setZIndex === 'function') obj.car.setZIndex(500);
+  }, 1000);
 }
 
 
@@ -2382,7 +2384,7 @@ function refreshDriverIconsByZoom() {
 
 window.initMap = function(){
   const mapEl = document.getElementById('map');
-  const initial = { lat: 4.7110, lng: -74.0721 };
+  const initial = { lat: 6.2476, lng: -75.5658 };
 
   map = new google.maps.Map(mapEl, {
     center: initial,

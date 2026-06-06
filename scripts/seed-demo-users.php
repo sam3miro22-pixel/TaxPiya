@@ -33,8 +33,8 @@ $users = [
         'telefono' => '3109001001',
         'role_id'  => 3,
         'conductor'=> true,
-        'lat'      => 4.7110,
-        'lng'      => -74.0721,
+        'lat'      => 6.2476,
+        'lng'      => -75.5658,
     ],
     [
         'name'     => 'Conductor Demo 2',
@@ -42,8 +42,8 @@ $users = [
         'telefono' => '3109001002',
         'role_id'  => 3,
         'conductor'=> true,
-        'lat'      => 4.7150,
-        'lng'      => -74.0680,
+        'lat'      => 6.2510,
+        'lng'      => -75.5600,
     ],
 ];
 
@@ -96,10 +96,25 @@ foreach ($users as $u) {
         echo "Posición GPS registrada\n";
 
         seedWallet($pdo, (int) $conductorId);
+        seedVehiculo($pdo, (int) $conductorId, $u['telefono']);
     }
 }
 
 echo "\nOK — contraseña para todos: {$password}\n";
+
+function seedVehiculo(PDO $pdo, int $conductorId, string $telefono): void
+{
+    $stmt = $pdo->prepare('SELECT id FROM vehiculos WHERE conductor_id = ? LIMIT 1');
+    $stmt->execute([$conductorId]);
+    if ($stmt->fetchColumn()) {
+        return;
+    }
+    $suffix = substr(preg_replace('/\D/', '', $telefono), -3);
+    $now = date('Y-m-d H:i:s');
+    $pdo->prepare('INSERT INTO vehiculos (conductor_id,placa,marca,linea,modelo_anio,color,categoria,asientos,estado_vehiculo,verificacion_estado,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([$conductorId, 'TXD' . $suffix, 'Chevrolet', 'Spark', 2020, 'Amarillo', 'taxi', 4, 'activo', 'verificado', $now, $now]);
+    echo "Vehículo demo registrado\n";
+}
 
 function seedWallet(PDO $pdo, int $conductorId): void
 {

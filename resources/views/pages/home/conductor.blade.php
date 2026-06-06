@@ -782,6 +782,9 @@ if (isOnline && window.__lastDriverPos){
 }
 if (isOnline) {
   if (window.Capacitor?.isNativePlatform?.()) { startBgWatcher(); } else { startWatch(); }
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => handlePosition(pos), () => {}, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  }
   startOfferPoll();
 } else {
   if (window.Capacitor?.isNativePlatform?.()) { stopBgWatcher(); } else { stopWatch(); }
@@ -796,7 +799,7 @@ if (isOnline) {
 window.initMap = function(){
   const mapEl = document.getElementById('map');
   map = new google.maps.Map(mapEl, {
-    center: { lat: 4.7110, lng: -74.0721 },
+    center: { lat: 6.2476, lng: -75.5658 },
     zoom: 14,
     disableDefaultUI: true,
     styles: txpMapStyle,
@@ -940,6 +943,8 @@ if (elD) elD.textContent = j.viaje.d?.txt || '—';
 const elM = document.getElementById('drv-monto');
 if (elM) elM.textContent = fmtCOP(j.viaje.monto ?? 0, j.viaje.mon || 'COP');
 
+    if (typeof playOfferSound === 'function') playOfferSound();
+    showBanner?.('Nueva solicitud de viaje', 'fa-taxi');
     drvSheet(true);
     startOfferCountdown();
   }catch(e){
@@ -1204,6 +1209,13 @@ default:
 document.addEventListener('DOMContentLoaded', ()=>{
   if (window.isOnline) {
     if (window.Capacitor?.isNativePlatform?.()) { startBgWatcher(); } else { startWatch(); }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => handlePosition(pos),
+        () => {},
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    }
     startOfferPoll();
   }
 
