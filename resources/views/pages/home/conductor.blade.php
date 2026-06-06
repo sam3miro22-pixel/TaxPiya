@@ -273,7 +273,7 @@ body#main #page-content {
   position:absolute;
   left: calc(env(safe-area-inset-left, 0px) + 16px);
   top:  calc(env(safe-area-inset-top, 0px) + 14px);
-  z-index: 6; /* por encima de la barra superior */
+  z-index: calc(var(--txp-ui-z) + 1);
 }
 .qm-toggle{
   width:54px;height:54px;border:0;border-radius:50%;
