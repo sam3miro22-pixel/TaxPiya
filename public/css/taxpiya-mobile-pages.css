@@ -1,0 +1,77 @@
+.txp-mobile-page {
+  min-height: 100dvh;
+  padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+  background: linear-gradient(165deg, #070b18 0%, #121f3d 50%, #1a2f55 100%);
+  color: #f8fafc;
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+
+body#main { padding-top: 0 !important; }
+body#main #main-content,
+body#main #page-content { width: 100% !important; position: static !important; padding: 0 !important; margin: 0 !important; }
+.navbar, .topbar, .footer, #sidebar { display: none !important; }
+
+.txp-mobile-head { margin-bottom: 20px; }
+.txp-mobile-head h1 { font-size: 1.5rem; font-weight: 800; margin: 8px 0 0; }
+.txp-mobile-back {
+  color: #ffd166;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.txp-mobile-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(12px);
+}
+
+.txp-profile-hero { text-align: center; padding: 24px 16px; }
+.txp-profile-photo {
+  width: 88px; height: 88px; border-radius: 22px; object-fit: cover;
+  margin: 0 auto 12px; display: block;
+  box-shadow: 0 12px 30px rgba(255, 140, 0, 0.25);
+}
+.txp-profile-photo--placeholder {
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #ffd166, #ff8c00);
+  color: #1a1208; font-size: 2rem;
+}
+.txp-profile-photo--driver {
+  background: linear-gradient(135deg, #5eead4, #0d9488);
+  color: #042f2e;
+}
+
+.txp-info-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.92rem;
+}
+.txp-info-row:last-child { border-bottom: 0; }
+.txp-info-row span { color: rgba(255,255,255,0.55); }
+
+.txp-mobile-actions { display: grid; gap: 10px; margin-top: 8px; }
+.txp-mobile-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 50px; border-radius: 999px; text-decoration: none; font-weight: 700;
+  background: linear-gradient(135deg, #ffd166, #ff8c00); color: #1a1208;
+}
+.txp-mobile-btn--ghost {
+  background: transparent; color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.25);
+}
+
+.txp-trip-card .txp-trip-top {
+  display: flex; justify-content: space-between; gap: 8px; margin-bottom: 10px;
+}
+.txp-trip-badge {
+  background: rgba(255, 209, 102, 0.18); color: #ffd166;
+  padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700;
+}
+.txp-trip-date { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+.txp-trip-line { font-size: 0.9rem; margin-bottom: 6px; }
+.txp-trip-price { font-size: 1.15rem; font-weight: 800; color: #ffd166; margin-top: 8px; }
+.txp-empty { text-align: center; color: rgba(255,255,255,0.7); padding: 28px 16px; }

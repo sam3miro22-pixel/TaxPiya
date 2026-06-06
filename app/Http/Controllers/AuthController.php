@@ -106,10 +106,21 @@ class AuthController extends Controller{
      */
 	public function logout(Request $request)
 	{
+		$user = Auth::user();
+		$goPasajero  = $user && $user->hasRole('Pasajero');
+		$goConductor = $user && $user->hasRole('Conductor');
+
 		Auth::logout();
 		$request->session()->invalidate();
 		$request->session()->regenerateToken();
-		return redirect('/');
+
+		if ($goPasajero) {
+			return redirect()->route('pasajero.login');
+		}
+		if ($goConductor) {
+			return redirect()->route('conductor.login');
+		}
+		return redirect()->route('index');
 	}
 
 	/**

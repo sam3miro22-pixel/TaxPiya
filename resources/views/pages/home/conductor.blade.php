@@ -63,11 +63,11 @@
         <i class="fa-solid fa-wallet"></i>
         <span class="tip">Wallet</span>
       </button>
-      <a href="#" class="qm-item" style="--i:4" aria-label="Cuenta">
+      <a href="{{ route('conductor.cuenta') }}" id="qmCuenta" class="qm-item" style="--i:4" aria-label="Cuenta">
         <i class="fa-solid fa-user"></i>
         <span class="tip">Cuenta</span>
       </a>
-      <a href="<?php print_link('auth/logout') ?>" class="qm-item" style="--i:5" aria-label="Salir">
+      <a href="{{ route('logout') }}" id="qmLogout" class="qm-item" style="--i:5" aria-label="Salir">
         <i class="fa-solid fa-right-from-bracket"></i>
         <span class="tip">Salir</span>
       </a>
@@ -820,8 +820,9 @@ window.initMap = function(){
     });
   }
 
-  document.getElementById('qmTrips')?.addEventListener('click', ()=>{ showBanner('Tus viajes: próximamente', 'fa-route'); closeMenu(); });
+  document.getElementById('qmTrips')?.addEventListener('click', ()=>{ showBanner('Historial de viajes: próximamente', 'fa-route'); closeMenu(); });
   document.getElementById('qmWallet')?.addEventListener('click', ()=>{ showBanner('Wallet: próximamente', 'fa-wallet'); closeMenu(); });
+  document.getElementById('qmCuenta')?.addEventListener('click', ()=>{ closeMenu(); });
 })();
 </script>
 

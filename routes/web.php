@@ -10,6 +10,7 @@ use App\Http\Controllers\ConductoresController;
 use App\Http\Controllers\PushTokensController;
 use App\Http\Controllers\FirebaseAuthController;
 use App\Http\Controllers\MapProxyController;
+use App\Http\Controllers\HomeController;
 
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
@@ -31,6 +32,10 @@ Route::post('pasajero/registro', 'AuthController@register_store')
     ->name('pasajero.register_store');
 
 Route::middleware(['auth'])->group(function () {
+
+    Route::get('/pasajero/perfil', [HomeController::class, 'pasajeroPerfil'])->name('pasajero.perfil');
+    Route::get('/pasajero/viajes', [HomeController::class, 'pasajeroViajes'])->name('pasajero.viajes');
+    Route::get('/conductor/cuenta', [HomeController::class, 'conductorCuenta'])->name('conductor.cuenta');
 
     Route::get('/api/nearby-drivers', function (Request $req) {
         $lat = (float) $req->query('lat');

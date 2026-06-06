@@ -1,6 +1,15 @@
 @inject('comp_model', 'App\Models\ComponentsData')
 @php
     $pageTitle = "Pasajero";
+    $recentDestinos = \Illuminate\Support\Facades\DB::table('viajes')
+        ->where('pasajero_id', auth()->id())
+        ->whereNotNull('destino_texto')
+        ->where('destino_texto', '!=', '')
+        ->orderByDesc('id')
+        ->limit(12)
+        ->pluck('destino_texto')
+        ->unique()
+        ->values();
 @endphp
 
 @extends($layout)
@@ -84,22 +93,22 @@
   </button>
 
   <nav class="qm-items">
-    <a href="#" class="qm-item" style="--i:1" aria-label="Tu Perfil">
+    <button type="button" id="qmPerfil" class="qm-item" style="--i:1" aria-label="Tu Perfil">
       <i class="fa-solid fa-user"></i>
       <span class="tip">Tu Perfil</span>
-    </a>
+    </button>
 
-    <a href="#" class="qm-item" style="--i:2" aria-label="Tus Viajes">
+    <button type="button" id="qmViajes" class="qm-item" style="--i:2" aria-label="Tus Viajes">
       <i class="fa-solid fa-route"></i>
       <span class="tip">Tus Viajes</span>
-    </a>
+    </button>
 
-    <a href="#" class="qm-item" style="--i:3" aria-label="Tus Direcciones">
+    <button type="button" id="qmDirecciones" class="qm-item" style="--i:3" aria-label="Tus Direcciones">
       <i class="fa-solid fa-location-dot"></i>
       <span class="tip">Tus Direcciones</span>
-    </a>
+    </button>
 
-    <a href="<?php print_link('auth/logout') ?>" class="qm-item" style="--i:4" aria-label="Cerrar sesión">
+    <a href="{{ route('logout') }}" id="qmLogout" class="qm-item" style="--i:4" aria-label="Cerrar sesión">
       <i class="fa-solid fa-right-from-bracket"></i>
       <span class="tip">Cerrar sesión</span>
     </a>
@@ -107,6 +116,26 @@
 </div>
 
 </div>{{-- /txp-ui-layer --}}
+
+
+<div id="txp-sheet-direcciones" class="txp-sheet" aria-hidden="true">
+  <div class="txp-sheet-backdrop" data-close-direcciones></div>
+  <div class="txp-sheet-dialog" role="dialog" aria-modal="true">
+    <div class="txp-sheet-handle"></div>
+    <h6 class="m-0 mb-3 fw-bold">Direcciones recientes</h6>
+    <div id="txp-direcciones-list" class="txp-direcciones-list">
+      @forelse($recentDestinos as $dest)
+        <button type="button" class="txp-dir-item" data-dest="{{ $dest }}">
+          <i class="fa-solid fa-location-dot"></i>
+          <span>{{ $dest }}</span>
+        </button>
+      @empty
+        <p class="txp-dir-empty mb-0">Aún no tienes direcciones guardadas. Tus destinos aparecerán aquí después de pedir viajes.</p>
+      @endforelse
+    </div>
+    <button type="button" class="btn btn-light w-100 mt-3" data-close-direcciones>Cerrar</button>
+  </div>
+</div>
 
 
 <div id="txp-sheet-viaje" class="txp-sheet" aria-hidden="true">
@@ -485,6 +514,23 @@ body#main #page-content {
   .quick-menu{ right: 12px; bottom: 18px; }
   :root{ --qm-gap: 58px; }
   .qm-item .tip{ font-size: 11px; }
+}
+
+.txp-direcciones-list { display: grid; gap: 8px; max-height: 50vh; overflow: auto; }
+.txp-dir-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06);
+  color: inherit; border-radius: 14px; padding: 12px 14px; text-align: left;
+  font-size: 0.92rem; cursor: pointer;
+}
+.txp-dir-item i { color: #ff9f1c; flex-shrink: 0; }
+.txp-dir-item:hover { background: rgba(255,209,102,0.12); border-color: rgba(255,209,102,0.35); }
+.txp-dir-empty { color: #94a3b8; font-size: 0.9rem; line-height: 1.45; }
+
+.qm-item {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
 }
 
 
@@ -1328,26 +1374,71 @@ toggleCTA && toggleCTA(true);
   (function(){
     const qm = document.getElementById('quickMenu');
     const btn = document.getElementById('qmToggle');
+    const urls = {
+      perfil: @json(route('pasajero.perfil')),
+      viajes: @json(route('pasajero.viajes')),
+    };
 
     function closeMenu(){
-      qm.classList.remove('open');
-      btn.setAttribute('aria-expanded','false');
+      qm?.classList.remove('open');
+      btn?.setAttribute('aria-expanded','false');
     }
-    btn.addEventListener('click', (e)=>{
+
+    btn?.addEventListener('click', (e)=>{
       e.stopPropagation();
       const open = !qm.classList.contains('open');
       qm.classList.toggle('open', open);
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
-   
+
+    document.getElementById('qmPerfil')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = urls.perfil;
+    });
+    document.getElementById('qmViajes')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = urls.viajes;
+    });
+    document.getElementById('qmDirecciones')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeMenu();
+      const sheet = document.getElementById('txp-sheet-direcciones');
+      if (sheet) sheet.setAttribute('aria-hidden', 'false');
+    });
+
+    document.querySelectorAll('[data-close-direcciones]').forEach((el) => {
+      el.addEventListener('click', () => {
+        document.getElementById('txp-sheet-direcciones')?.setAttribute('aria-hidden', 'true');
+      });
+    });
+
+    document.getElementById('txp-direcciones-list')?.addEventListener('click', (e) => {
+      const item = e.target.closest('.txp-dir-item');
+      if (!item) return;
+      const dest = item.dataset.dest || '';
+      const input = document.getElementById('dest-input');
+      if (input && dest) {
+        input.value = dest;
+        if (typeof geocodeText === 'function') {
+          geocodeText(dest, (loc, addr) => {
+            destLatLng = loc;
+            input.value = addr;
+            if (typeof centerTo === 'function') centerTo(loc);
+            if (typeof putDestinationMarker === 'function') putDestinationMarker(loc, addr);
+            if (typeof tryRoute === 'function') tryRoute();
+          });
+        }
+      }
+      document.getElementById('txp-sheet-direcciones')?.setAttribute('aria-hidden', 'true');
+    });
+
     document.addEventListener('click', (e)=>{
-      if(!qm.contains(e.target)) closeMenu();
+      if (qm && !qm.contains(e.target)) closeMenu();
     });
     document.addEventListener('keydown', (e)=>{
       if(e.key === 'Escape') closeMenu();
     });
   })();
- 
 </script>
 <script>
 
