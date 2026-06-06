@@ -1,136 +1,115 @@
 @inject('comp_model', 'App\Models\ComponentsData')
 @php
-    $pageTitle = "Crear cuenta (Pasajero)";
+    $pageTitle = 'Crear cuenta (Pasajero)';
 @endphp
 
 @extends($layout)
 @section('title', $pageTitle)
 
 @section('content')
-<div class="auth-bg min-vh-100 d-flex align-items-center justify-content-center px-3">
-    <div class="glass-card shadow-xl p-4 p-md-5" style="max-width: 520px; width:100%;">
-        <div class="text-center mb-4">
-            <img src="{{ asset('images/logo.png') }}" width="86" height="86"
-                 class="img-fluid rounded-3 logo-glow" alt="Taxpiya" />
-            <div class="h4 fw-bold mt-3">
-                Bienvenido <span class="text-brand">Pasajero</span>
+<div class="txp-auth-scene txp-auth-scene--scroll">
+    <div class="txp-auth-orb txp-auth-orb--1"></div>
+    <div class="txp-auth-orb txp-auth-orb--2"></div>
+    <div class="txp-auth-card">
+        <div class="txp-auth-header">
+            <div class="txp-auth-logo-wrap">
+                <img src="{{ asset('images/logo.png') }}" width="82" height="82" class="txp-auth-logo" alt="Taxpiya">
             </div>
-            <div class="small text-light-60">
-                Crea tu cuenta para pedir taxi fácil y seguro.
-            </div>
+            <h1 class="txp-auth-title">Únete como <span>Pasajero</span></h1>
+            <p class="txp-auth-subtitle">Crea tu cuenta y pide taxi en segundos.</p>
         </div>
 
         @if($errors->any())
-            <div class="alert alert-danger mb-3">{{ $errors->first() }}</div>
+            <div class="txp-auth-alert txp-auth-alert--error">{{ $errors->first() }}</div>
         @endif
 
-        <form id="users-userregister-form" role="form" novalidate
-              enctype="multipart/form-data"
-              class="form page-form needs-validation"
-              action="{{ route('auth.register_store') }}" method="post">
+        <form id="users-userregister-form" role="form" novalidate enctype="multipart/form-data"
+              class="form page-form" action="{{ route('auth.register_store') }}" method="post">
             @csrf
 
-            
-            <div class="mb-3">
-                <label class="form-label">Móvil <span class="text-danger">*</span></label>
-                <div class="icon-inside">
-                    <i class="fa-solid fa-phone"></i>
-                    <input id="ctrl-telefono" name="telefono" type="text"
-                           class="form-control input-elevated"
-                           placeholder="Escribe tu número de celular"
-                           value="{{ old('telefono') }}" required>
+            <div class="txp-auth-field">
+                <label class="txp-auth-label" for="ctrl-telefono">Móvil <span class="req">*</span></label>
+                <div class="txp-auth-input-wrap">
+                    <i class="fa-solid fa-phone txp-auth-input-icon"></i>
+                    <input id="ctrl-telefono" name="telefono" type="tel" class="txp-auth-input"
+                           placeholder="300 123 4567" value="{{ old('telefono') }}" required autocomplete="tel">
                 </div>
             </div>
 
-            
-            <div class="mb-3">
-                <label class="form-label">Contraseña <span class="text-danger">*</span></label>
-                <div class="icon-inside">
-                    <i class="fa-solid fa-lock"></i>
-                    <input id="ctrl-password" name="password" type="password"
-                           class="form-control input-elevated pe-5"
-                           placeholder="Mín. 6 caracteres" required>
-                    <button type="button" class="btn btn-sm btn-outline-dark-soft toggle-pass" tabindex="-1" aria-label="Ver contraseña">
-                        <i class="fa-solid fa-eye muted"></i>
+            <div class="txp-auth-field">
+                <label class="txp-auth-label" for="ctrl-password">Contraseña <span class="req">*</span></label>
+                <div class="txp-auth-input-wrap">
+                    <i class="fa-solid fa-lock txp-auth-input-icon"></i>
+                    <input id="ctrl-password" name="password" type="password" class="txp-auth-input"
+                           placeholder="Mínimo 6 caracteres" required autocomplete="new-password">
+                    <button type="button" class="txp-auth-eye txp-toggle-pass" tabindex="-1" aria-label="Ver contraseña">
+                        <i class="fa-solid fa-eye"></i>
                     </button>
                 </div>
             </div>
 
-            
-            <div class="mb-3">
-                <label class="form-label">Nombre <span class="text-danger">*</span></label>
-                <div class="icon-inside">
-                    <i class="fa-solid fa-user"></i>
-                    <input id="ctrl-name" name="name" type="text"
-                           class="form-control input-elevated"
-                           placeholder="Tu nombre y apellido"
-                           value="{{ old('name') }}" required
+            <div class="txp-auth-field">
+                <label class="txp-auth-label" for="ctrl-name">Nombre <span class="req">*</span></label>
+                <div class="txp-auth-input-wrap">
+                    <i class="fa-solid fa-user txp-auth-input-icon"></i>
+                    <input id="ctrl-name" name="name" type="text" class="txp-auth-input"
+                           placeholder="Tu nombre completo" value="{{ old('name') }}" required
                            data-url="componentsdata/users_name_value_exist/"
-                           data-loading-msg="Comprobando disponibilidad ..."
-                           data-available-msg="Disponible"
-                           data-unavailable-msg="No disponible">
+                           data-loading-msg="Comprobando..." data-available-msg="Disponible" data-unavailable-msg="No disponible">
                 </div>
                 <div class="check-status small mt-1"></div>
             </div>
 
-           
-            <div class="mb-3">
-                <label class="form-label">Email <span class="text-danger">*</span></label>
-                <div class="icon-inside">
-                    <i class="fa-solid fa-envelope"></i>
-                    <input id="ctrl-email" name="email" type="email"
-                           class="form-control input-elevated"
-                           placeholder="tucorreo@dominio.com"
-                           value="{{ old('email') }}" required
+            <div class="txp-auth-field">
+                <label class="txp-auth-label" for="ctrl-email">Email <span class="req">*</span></label>
+                <div class="txp-auth-input-wrap">
+                    <i class="fa-solid fa-envelope txp-auth-input-icon"></i>
+                    <input id="ctrl-email" name="email" type="email" class="txp-auth-input"
+                           placeholder="correo@ejemplo.com" value="{{ old('email') }}" required autocomplete="email"
                            data-url="componentsdata/users_email_value_exist/"
-                           data-loading-msg="Comprobando disponibilidad ..."
-                           data-available-msg="Disponible"
-                           data-unavailable-msg="No disponible">
+                           data-loading-msg="Comprobando..." data-available-msg="Disponible" data-unavailable-msg="No disponible">
                 </div>
                 <div class="check-status small mt-1"></div>
             </div>
 
-          
-            <div class="mb-4">
-                <label class="form-label">Foto de perfil (opcional)</label>
+            <div class="txp-auth-field">
+                <label class="txp-auth-label">Foto de perfil <span style="font-weight:400;opacity:.7">(opcional)</span></label>
                 <div id="ctrl-fotoperfil-holder">
-                    <div class="dropzone dz-light" input="#ctrl-fotoperfil" fieldname="fotoperfil"
+                    <div class="dropzone dz-light txp-auth-dropzone" input="#ctrl-fotoperfil" fieldname="fotoperfil"
                          uploadurl="{{ url('fileuploader/upload/fotoperfil') }}"
-                         data-multiple="false" dropmsg="Elige o arrastra tu foto aquí"
-                         btntext="Explorar" extensions=".jpg,.png,.gif,.jpeg"
+                         data-multiple="false" dropmsg="Toca para subir tu foto"
+                         btntext="Elegir foto" extensions=".jpg,.png,.gif,.jpeg"
                          filesize="50" maximum="1">
-                        <input name="fotoperfil" id="ctrl-fotoperfil"
-                               class="dropzone-input form-control" value="{{ old('fotoperfil') }}" type="text"/>
+                        <input name="fotoperfil" id="ctrl-fotoperfil" class="dropzone-input form-control" value="{{ old('fotoperfil') }}" type="text">
                         <div class="dz-file-limit text-danger small mt-2"></div>
                     </div>
                 </div>
             </div>
 
-           
-            <div class="d-grid mb-3">
-                <button class="btn btn-brand btn-lg" type="submit">
-                    <i class="fa-solid fa-user-plus me-2"></i> Crear cuenta
+            <div class="txp-auth-actions">
+                <button class="txp-auth-btn txp-auth-btn--primary" type="submit">
+                    <i class="fa-solid fa-user-plus"></i> Crear cuenta
                 </button>
             </div>
 
-            <div class="text-center small text-light-60">
+            <p class="txp-auth-foot">
                 ¿Ya tienes cuenta?
-                <a href="{{ route('pasajero.login') }}" class="link-light text-decoration-underline">Inicia sesión</a>
-            </div>
+                <a href="{{ route('pasajero.login') }}" class="txp-auth-link">Inicia sesión</a>
+            </p>
         </form>
 
         @if(config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
-        <div class="mt-4 pt-3 border-top border-light border-opacity-10">
-            <div class="text-center small text-light-60 mb-2">Registro rápido con Firebase</div>
+        <div class="txp-firebase-auth mt-2">
+            <div class="txp-auth-divider">Registro rápido</div>
             <div class="d-grid gap-2">
-                <button type="button" class="btn btn-light" id="txp-register-firebase-email">
-                    <i class="fa-solid fa-envelope me-2"></i> Crear con correo (Firebase)
+                <button type="button" class="txp-auth-btn txp-auth-btn--ghost" id="txp-register-firebase-email">
+                    <i class="fa-solid fa-envelope"></i> Crear con correo
                 </button>
-                <button type="button" class="btn btn-outline-light" id="txp-register-firebase-google">
-                    <i class="fa-brands fa-google me-2"></i> Crear con Google
+                <button type="button" class="txp-auth-btn txp-auth-btn--google" id="txp-register-firebase-google">
+                    <i class="fa-brands fa-google"></i> Crear con Google
                 </button>
             </div>
-            <div id="txp-register-fb-error" class="alert alert-danger mt-2 py-2 small" style="display:none;"></div>
+            <div id="txp-register-fb-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
         </div>
         @include('components.firebase-auth')
         <script>
@@ -167,101 +146,21 @@
 @endsection
 
 @section('pagecss')
-<style>
-
-.navbar-brand,.topbar,.navbar,.footer{display:none}
-
-
-.auth-bg{
-    background:
-      radial-gradient(60% 80% at 80% 0%, rgba(255,162,0,.15), transparent 60%),
-      radial-gradient(55% 70% at 0% 100%, rgba(255,209,102,.12), transparent 60%),
-      linear-gradient(180deg, #0b132b 0%, #1c2541 55%, #0b132b 100%);
-}
-
-
-:root{
-    --txp-brand:#ffd166; --txp-white:#fff;
-}
-
-.text-brand{ color: var(--txp-brand); }
-.text-light-60{ color: rgba(255,255,255,.72); }
-
-.glass-card{
-    background: linear-gradient(165deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 22px;
-}
-.logo-glow{ filter: drop-shadow(0 0 12px rgba(255, 209, 102, .45)); }
-
-
-.input-elevated{
-    background: rgba(255,255,255,.96);
-    border: 0;
-    border-radius: 14px;
-    padding: 12px 14px 12px 50px; 
-    color:#0b132b;
-    box-shadow: inset 0 2px 8px rgba(0,0,0,.06);
-}
-
-
-.icon-inside{ position: relative; }
-.icon-inside > i{
-    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-    width: 30px; height: 30px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(180deg, rgba(255,209,102,.35), rgba(255,159,28,.18));
-    color: #1a1a1a;               
-    box-shadow: 0 1px 3px rgba(0,0,0,.15);
-    z-index: 3;
-}
-
-
-.toggle-pass{
-    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-    border-radius: 10px; padding: 6px 9px;
-}
-.btn-outline-light-soft{
-    border: 1px solid rgba(255,255,255,.35);
-    color: rgba(255,255,255,.9);
-    background: rgba(255,255,255,.06);
-}
-
-
-.btn-brand{
-    background: linear-gradient(180deg, #ffd166, #ff9f1c);
-    color:#1a1a1a; font-weight: 700; border: none; border-radius: 999px;
-    box-shadow: 0 8px 24px rgba(255,159,28,.35);
-}
-.btn-brand:hover{ filter: brightness(1.03); }
-
-
-.dz-light{
-    background: rgba(255,255,255,.06);
-    border: 1px dashed rgba(255,255,255,.25) !important;
-    border-radius: 14px; padding: 16px;
-    color: rgba(255,255,255,.75);
-}
-</style>
+<link rel="stylesheet" href="{{ asset('css/taxpiya-auth.css') }}">
 @endsection
 
 @section('pagejs')
 <script>
-   
-    document.addEventListener('click', function(e){
-        if(e.target.closest('.toggle-pass')){
-            const btn = e.target.closest('.toggle-pass');
-            const input = document.getElementById('ctrl-password');
-            const icon = btn.querySelector('i');
-            if(input.type === 'password'){
-                input.type = 'text';
-                icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash');
-            }else{
-                input.type = 'password';
-                icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye');
-            }
-        }
-    });
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('.txp-toggle-pass');
+  if (!btn) return;
+  const input = document.getElementById('ctrl-password');
+  const icon = btn.querySelector('i');
+  if (!input || !icon) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  icon.classList.toggle('fa-eye', !show);
+  icon.classList.toggle('fa-eye-slash', show);
+});
 </script>
 @endsection

@@ -93,8 +93,12 @@
 		$page_name = request()->segment(1) ?? 'index';
 		$page_action = request()->segment(2) ?? 'index';
 		$body_class = "$page_name-$page_action";
+		$auth_routes = ['pasajero.login', 'conductor.login', 'auth.register', 'pasajero.register'];
+		$is_auth_page = request()->routeIs($auth_routes)
+			|| ($page_name === 'index' && in_array($page_action, ['login', 'register'], true));
+		$body_extra = $is_auth_page ? ' txp-auth-page' : '';
 	?>
-	<body id="<?php echo $body_id ?>" class="with-login <?php echo $body_class ?>">
+	<body id="<?php echo $body_id ?>" class="with-login <?php echo $body_class ?><?php echo $body_extra ?>">
 
 		<div id="page-wrapper">
 			
@@ -243,7 +247,7 @@
 		$('#sidebar, #main-content').toggleClass('active');
 	});
 	$(function () {
-		if ($('.auth-wrap').length) {
+		if ($('body').hasClass('txp-auth-page') || $('.auth-wrap').length) {
 			document.body.style.paddingTop = '0';
 			return;
 		}
@@ -257,6 +261,7 @@
 </script>
 		<script>
 			window.onload = (event) => {
+				if (document.body.classList.contains('txp-auth-page')) return;
 				@if (Session::has('success'))
 					let successAlert = document.getElementById('app-toast-success');
 					let bsAlert = new bootstrap.Toast(successAlert);

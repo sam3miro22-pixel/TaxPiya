@@ -2,30 +2,30 @@
     $fbApp = $app ?? null;
 @endphp
 @if(config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
-<div class="txp-firebase-auth mt-3" data-app="{{ $fbApp }}">
-    <div class="text-center small txp-text-70 mb-2">o continúa con</div>
+<div class="txp-firebase-auth" data-app="{{ $fbApp }}">
+    <div class="txp-auth-divider">o continúa con</div>
     <div class="d-grid gap-2">
-        <button type="button" class="btn btn-light btn-lg w-100 txp-btn-google" id="txp-firebase-google">
-            <i class="fa-brands fa-google me-2"></i> Google
+        <button type="button" class="txp-auth-btn txp-auth-btn--google" id="txp-firebase-google">
+            <i class="fa-brands fa-google"></i> Continuar con Google
         </button>
         @if($fbApp === 'pasajero')
-        <button type="button" class="btn btn-outline-light btn-lg w-100" id="txp-firebase-email-toggle">
-            <i class="fa-solid fa-envelope me-2"></i> Correo (Firebase)
+        <button type="button" class="txp-auth-btn txp-auth-btn--ghost" id="txp-firebase-email-toggle">
+            <i class="fa-solid fa-envelope"></i> Correo electrónico
         </button>
         @endif
     </div>
     <div id="txp-firebase-email-panel" class="mt-3" style="display:none;">
-        <div class="mb-2">
-            <input type="email" id="txp-fb-email" class="form-control txp-ipt" placeholder="Correo electrónico">
+        <div class="txp-auth-field mb-2">
+            <input type="email" id="txp-fb-email" class="txp-auth-input" style="padding-left:16px" placeholder="Correo electrónico">
         </div>
-        <div class="mb-2">
-            <input type="password" id="txp-fb-password" class="form-control txp-ipt" placeholder="Contraseña">
+        <div class="txp-auth-field mb-2">
+            <input type="password" id="txp-fb-password" class="txp-auth-input" style="padding-left:16px" placeholder="Contraseña">
         </div>
-        <button type="button" class="btn btn-brand w-100" id="txp-firebase-email-login">
+        <button type="button" class="txp-auth-btn txp-auth-btn--primary w-100" id="txp-firebase-email-login">
             Iniciar con Firebase
         </button>
     </div>
-    <div id="txp-firebase-error" class="alert alert-danger mt-2 py-2 small" style="display:none;"></div>
+    <div id="txp-firebase-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
 </div>
 @include('components.firebase-auth')
 <script>
