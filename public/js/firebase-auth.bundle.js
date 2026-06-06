@@ -21,6 +21,7 @@ var TaxpiyaFirebase = (() => {
   var firebase_auth_exports = {};
   __export(firebase_auth_exports, {
     completeGoogleRedirect: () => completeGoogleRedirect,
+    formatFirebaseError: () => formatFirebaseError,
     init: () => init,
     loginEmail: () => loginEmail,
     loginGoogle: () => loginGoogle,
@@ -18480,6 +18481,32 @@ This typically indicates that your device does not have a healthy Internet conne
     if (window.Capacitor?.isNativePlatform?.()) return true;
     return /Taxpiya(Pasajero|Driver)?\/Android/i.test(navigator.userAgent || "");
   }
+  function shouldUseGoogleRedirect() {
+    if (isNativeWebView()) return true;
+    if (typeof window === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+      return true;
+    }
+    const touch = (navigator.maxTouchPoints || 0) > 0;
+    const narrow = window.matchMedia?.("(max-width: 900px)")?.matches;
+    return touch && narrow;
+  }
+  function formatFirebaseError(err) {
+    const code = err?.code || "";
+    const msg = err?.message || String(err || "Error de autenticaci\xF3n");
+    if (code === "auth/unauthorized-domain" || msg.includes("auth/unauthorized-domain")) {
+      const host = typeof window !== "undefined" ? window.location.hostname : "este dominio";
+      return `Google no est\xE1 autorizado para ${host}. En Firebase Console \u2192 Authentication \u2192 Configuraci\xF3n \u2192 Dominios autorizados, agrega "${host}" y guarda.`;
+    }
+    if (code === "auth/popup-blocked") {
+      return "El navegador bloque\xF3 la ventana de Google. Intenta de nuevo o usa correo y contrase\xF1a.";
+    }
+    if (code === "auth/popup-closed-by-user") {
+      return "Cerraste la ventana de Google antes de completar el inicio de sesi\xF3n.";
+    }
+    return msg.replace(/^Firebase:\s*/i, "").replace(/^Error\s*\([^)]+\)\.\s*/i, "");
+  }
   async function syncWithLaravel(idToken, extra = {}) {
     const url = window.TAXPIYA_FIREBASE_SYNC_URL;
     if (!url) throw new Error("URL de sincronizaci\xF3n no configurada");
@@ -18521,36 +18548,53 @@ This typically indicates that your device does not have a healthy Internet conne
   }
   async function loginEmail(email, password, meta = {}) {
     if (!auth && !init()) throw new Error("Firebase no inicializado");
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    const token = await cred.user.getIdToken();
-    return syncWithLaravel(token, meta);
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const token = await cred.user.getIdToken();
+      return syncWithLaravel(token, meta);
+    } catch (e) {
+      throw new Error(formatFirebaseError(e));
+    }
   }
   async function registerEmail(email, password, profile = {}) {
     if (!auth && !init()) throw new Error("Firebase no inicializado");
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await upsertFirestoreProfile(cred.user, profile);
-    const token = await cred.user.getIdToken();
-    return syncWithLaravel(token, { ...profile, is_register: true });
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await upsertFirestoreProfile(cred.user, profile);
+      const token = await cred.user.getIdToken();
+      return syncWithLaravel(token, { ...profile, is_register: true });
+    } catch (e) {
+      throw new Error(formatFirebaseError(e));
+    }
   }
   async function loginGoogle(meta = {}) {
     if (!auth && !init()) throw new Error("Firebase no inicializado");
     const provider = new GoogleAuthProvider();
-    if (isNativeWebView()) {
-      await signInWithRedirect(auth, provider);
-      return { ok: true, redirect: true };
+    provider.setCustomParameters({ prompt: "select_account" });
+    try {
+      if (shouldUseGoogleRedirect()) {
+        await signInWithRedirect(auth, provider);
+        return { ok: true, redirect: true };
+      }
+      const cred = await signInWithPopup(auth, provider);
+      await upsertFirestoreProfile(cred.user, meta);
+      const token = await cred.user.getIdToken();
+      return syncWithLaravel(token, meta);
+    } catch (e) {
+      throw new Error(formatFirebaseError(e));
     }
-    const cred = await signInWithPopup(auth, provider);
-    await upsertFirestoreProfile(cred.user, meta);
-    const token = await cred.user.getIdToken();
-    return syncWithLaravel(token, meta);
   }
   async function completeGoogleRedirect(meta = {}) {
     if (!auth && !init()) return null;
-    const cred = await getRedirectResult(auth);
-    if (!cred?.user) return null;
-    await upsertFirestoreProfile(cred.user, meta);
-    const token = await cred.user.getIdToken();
-    return syncWithLaravel(token, meta);
+    try {
+      const cred = await getRedirectResult(auth);
+      if (!cred?.user) return null;
+      await upsertFirestoreProfile(cred.user, meta);
+      const token = await cred.user.getIdToken();
+      return syncWithLaravel(token, meta);
+    } catch (e) {
+      throw new Error(formatFirebaseError(e));
+    }
   }
   function onAuthChange(cb) {
     if (!auth && !init()) return () => {
@@ -18564,7 +18608,8 @@ This typically indicates that your device does not have a healthy Internet conne
       registerEmail,
       loginGoogle,
       completeGoogleRedirect,
-      onAuthChange
+      onAuthChange,
+      formatFirebaseError
     };
   }
   return __toCommonJS(firebase_auth_exports);

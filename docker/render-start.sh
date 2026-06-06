@@ -2,6 +2,8 @@
 set -e
 cd /var/www/html
 
+export APP_TIMEZONE="${APP_TIMEZONE:-America/Bogota}"
+
 if [ -n "${FIREBASE_CREDENTIALS_JSON:-}" ]; then
   mkdir -p storage/app/firebase
   printf '%s' "$FIREBASE_CREDENTIALS_JSON" > storage/app/firebase/service-account.json

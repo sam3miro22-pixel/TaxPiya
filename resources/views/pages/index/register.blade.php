@@ -116,7 +116,14 @@
           window.TaxpiyaFirebase.init();
           const err = document.getElementById('txp-register-fb-error');
           const form = document.getElementById('users-userregister-form');
-          const showErr = (m) => { if (err) { err.textContent = m; err.style.display = 'block'; } };
+          const showErr = (m) => {
+            if (!err) return;
+            const text = window.TaxpiyaFirebase?.formatFirebaseError
+              ? window.TaxpiyaFirebase.formatFirebaseError({ message: m })
+              : (m || 'Error');
+            err.textContent = text;
+            err.style.display = 'block';
+          };
           const hideErr = () => { if (err) err.style.display = 'none'; };
           const profile = () => ({
             app: 'pasajero',

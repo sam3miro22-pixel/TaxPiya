@@ -37,7 +37,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function showErr(msg) {
     if (!errEl) return;
-    errEl.textContent = msg || 'Error de autenticación';
+    const text = window.TaxpiyaFirebase?.formatFirebaseError
+      ? window.TaxpiyaFirebase.formatFirebaseError({ message: msg })
+      : (msg || 'Error de autenticación');
+    errEl.textContent = text;
     errEl.style.display = 'block';
   }
 

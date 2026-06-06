@@ -41,6 +41,34 @@ function isNativeWebView() {
   return /Taxpiya(Pasajero|Driver)?\/Android/i.test(navigator.userAgent || '');
 }
 
+function shouldUseGoogleRedirect() {
+  if (isNativeWebView()) return true;
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+    return true;
+  }
+  const touch = (navigator.maxTouchPoints || 0) > 0;
+  const narrow = window.matchMedia?.('(max-width: 900px)')?.matches;
+  return touch && narrow;
+}
+
+export function formatFirebaseError(err) {
+  const code = err?.code || '';
+  const msg = err?.message || String(err || 'Error de autenticación');
+  if (code === 'auth/unauthorized-domain' || msg.includes('auth/unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'este dominio';
+    return `Google no está autorizado para ${host}. En Firebase Console → Authentication → Configuración → Dominios autorizados, agrega "${host}" y guarda.`;
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'El navegador bloqueó la ventana de Google. Intenta de nuevo o usa correo y contraseña.';
+  }
+  if (code === 'auth/popup-closed-by-user') {
+    return 'Cerraste la ventana de Google antes de completar el inicio de sesión.';
+  }
+  return msg.replace(/^Firebase:\s*/i, '').replace(/^Error\s*\([^)]+\)\.\s*/i, '');
+}
+
 async function syncWithLaravel(idToken, extra = {}) {
   const url = window.TAXPIYA_FIREBASE_SYNC_URL;
   if (!url) throw new Error('URL de sincronización no configurada');
@@ -86,39 +114,57 @@ async function upsertFirestoreProfile(user, profile = {}) {
 
 export async function loginEmail(email, password, meta = {}) {
   if (!auth && !init()) throw new Error('Firebase no inicializado');
-  const cred = await signInWithEmailAndPassword(auth, email, password);
-  const token = await cred.user.getIdToken();
-  return syncWithLaravel(token, meta);
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const token = await cred.user.getIdToken();
+    return syncWithLaravel(token, meta);
+  } catch (e) {
+    throw new Error(formatFirebaseError(e));
+  }
 }
 
 export async function registerEmail(email, password, profile = {}) {
   if (!auth && !init()) throw new Error('Firebase no inicializado');
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  await upsertFirestoreProfile(cred.user, profile);
-  const token = await cred.user.getIdToken();
-  return syncWithLaravel(token, { ...profile, is_register: true });
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await upsertFirestoreProfile(cred.user, profile);
+    const token = await cred.user.getIdToken();
+    return syncWithLaravel(token, { ...profile, is_register: true });
+  } catch (e) {
+    throw new Error(formatFirebaseError(e));
+  }
 }
 
 export async function loginGoogle(meta = {}) {
   if (!auth && !init()) throw new Error('Firebase no inicializado');
   const provider = new GoogleAuthProvider();
-  if (isNativeWebView()) {
-    await signInWithRedirect(auth, provider);
-    return { ok: true, redirect: true };
+  provider.setCustomParameters({ prompt: 'select_account' });
+
+  try {
+    if (shouldUseGoogleRedirect()) {
+      await signInWithRedirect(auth, provider);
+      return { ok: true, redirect: true };
+    }
+    const cred = await signInWithPopup(auth, provider);
+    await upsertFirestoreProfile(cred.user, meta);
+    const token = await cred.user.getIdToken();
+    return syncWithLaravel(token, meta);
+  } catch (e) {
+    throw new Error(formatFirebaseError(e));
   }
-  const cred = await signInWithPopup(auth, provider);
-  await upsertFirestoreProfile(cred.user, meta);
-  const token = await cred.user.getIdToken();
-  return syncWithLaravel(token, meta);
 }
 
 export async function completeGoogleRedirect(meta = {}) {
   if (!auth && !init()) return null;
-  const cred = await getRedirectResult(auth);
-  if (!cred?.user) return null;
-  await upsertFirestoreProfile(cred.user, meta);
-  const token = await cred.user.getIdToken();
-  return syncWithLaravel(token, meta);
+  try {
+    const cred = await getRedirectResult(auth);
+    if (!cred?.user) return null;
+    await upsertFirestoreProfile(cred.user, meta);
+    const token = await cred.user.getIdToken();
+    return syncWithLaravel(token, meta);
+  } catch (e) {
+    throw new Error(formatFirebaseError(e));
+  }
 }
 
 export function onAuthChange(cb) {
@@ -126,7 +172,6 @@ export function onAuthChange(cb) {
   return onAuthStateChanged(auth, cb);
 }
 
-// IIFE global
 if (typeof window !== 'undefined') {
   window.TaxpiyaFirebase = {
     init,
@@ -135,5 +180,6 @@ if (typeof window !== 'undefined') {
     loginGoogle,
     completeGoogleRedirect,
     onAuthChange,
+    formatFirebaseError,
   };
 }
