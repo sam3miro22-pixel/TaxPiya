@@ -46,9 +46,11 @@ public function disponible(Request $req)
                 }
             }
 
-            DB::table('conductores')->where('id', $conductor->id)->update([
-                'disponible' => $on ? 1 : 0,
-            ]);
+            $update = ['disponible' => $on ? 1 : 0];
+            if (Schema::hasColumn('conductores', 'updated_at')) {
+                $update['updated_at'] = now()->format('Y-m-d H:i:s');
+            }
+            DB::table('conductores')->where('id', $conductor->id)->update($update);
 
             return response()->json(['ok' => true, 'disponible' => $on ? 1 : 0]);
         } catch (\Throwable $e) {
@@ -58,80 +60,94 @@ public function disponible(Request $req)
     }
 
   public function posicion(Request $req)
-{
-    $userId = Auth::id();
-    $conductor = DB::table('conductores')->where('user_id', $userId)->select('id')->first();
-    if (!$conductor) {
-        return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
-    }
-
-    $req->validate([
-        'lat'            => 'required|numeric',
-        'lng'            => 'required|numeric',
-        'heading'        => 'nullable|numeric',
-        'velocidad_kmh'  => 'nullable|numeric',
-    ]);
-
-    $lat = (float) $req->input('lat');
-    $lng = (float) $req->input('lng');
-
-    $data = DatabaseGeometry::stripNullGeometry([
-        'lat'       => $lat,
-        'lng'       => $lng,
-        'ubicacion' => DatabaseGeometry::pointRaw($lng, $lat),
-    ]);
-
-    if ($req->filled('heading')) {
-        $data['heading'] = (float) $req->input('heading');
-    }
-    if ($req->filled('velocidad_kmh')) {
-        $data['velocidad_kmh'] = (float) $req->input('velocidad_kmh');
-    }
-
-    if (Schema::hasColumn('conductor_posicion_actual', 'actualizada_at')) {
-        $data['actualizada_at'] = now();
-    }
-
-    $exists = DB::table('conductor_posicion_actual')
-        ->where('conductor_id', $conductor->id)
-        ->exists();
-
-    if ($exists) {
-        DB::table('conductor_posicion_actual')
-            ->where('conductor_id', $conductor->id)
-            ->update($data);
-    } else {
-        $insert = $data + ['conductor_id' => $conductor->id];
-
-        if (Schema::hasColumn('conductor_posicion_actual', 'created_at')) {
-            $insert['created_at'] = now();
+  {
+    try {
+        $userId = Auth::id();
+        $conductor = DB::table('conductores')->where('user_id', $userId)->select('id')->first();
+        if (!$conductor) {
+            return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
         }
 
-        DB::table('conductor_posicion_actual')->insert($insert);
-    }
-
-    DB::table('usuario_dispositivos')
-        ->where('user_id', $userId)
-        ->update([
-            'last_seen_at' => now(),
-            'last_ip'      => $req->ip(),
+        $req->validate([
+            'lat'            => 'required|numeric',
+            'lng'            => 'required|numeric',
+            'heading'        => 'nullable|numeric',
+            'velocidad_kmh'  => 'nullable|numeric',
         ]);
 
-    $viajeActivo = DB::table('viajes')
-        ->where('conductor_id', $conductor->id)
-        ->where('estado', 'asignado')
-        ->first();
+        $lat = (float) $req->input('lat');
+        $lng = (float) $req->input('lng');
+        $now = now()->format('Y-m-d H:i:s');
 
-    if ($viajeActivo) {
-        DB::table('viajes')->where('id', $viajeActivo->id)->update([
-            'estado'       => 'en_camino',
-            'en_camino_at' => now(),
-            'updated_at'   => now(),
-        ]);
+        $data = ['lat' => $lat, 'lng' => $lng];
+
+        if ($req->filled('heading') && Schema::hasColumn('conductor_posicion_actual', 'heading')) {
+            $data['heading'] = (float) $req->input('heading');
+        }
+        if ($req->filled('velocidad_kmh') && Schema::hasColumn('conductor_posicion_actual', 'velocidad_kmh')) {
+            $data['velocidad_kmh'] = (float) $req->input('velocidad_kmh');
+        }
+        if (Schema::hasColumn('conductor_posicion_actual', 'actualizada_at')) {
+            $data['actualizada_at'] = $now;
+        }
+
+        $exists = DB::table('conductor_posicion_actual')
+            ->where('conductor_id', $conductor->id)
+            ->exists();
+
+        if ($exists) {
+            DB::table('conductor_posicion_actual')
+                ->where('conductor_id', $conductor->id)
+                ->update($data);
+        } else {
+            $insert = $data + ['conductor_id' => $conductor->id];
+            if (Schema::hasColumn('conductor_posicion_actual', 'created_at')) {
+                $insert['created_at'] = $now;
+            }
+            DB::table('conductor_posicion_actual')->insert($insert);
+        }
+
+        if (Schema::hasTable('usuario_dispositivos')) {
+            try {
+                $deviceUpdate = [];
+                if (Schema::hasColumn('usuario_dispositivos', 'last_seen_at')) {
+                    $deviceUpdate['last_seen_at'] = $now;
+                }
+                if (Schema::hasColumn('usuario_dispositivos', 'last_ip')) {
+                    $deviceUpdate['last_ip'] = $req->ip();
+                }
+                if ($deviceUpdate !== []) {
+                    DB::table('usuario_dispositivos')
+                        ->where('user_id', $userId)
+                        ->update($deviceUpdate);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $viajeActivo = DB::table('viajes')
+            ->where('conductor_id', $conductor->id)
+            ->where('estado', 'asignado')
+            ->first();
+
+        if ($viajeActivo) {
+            $tripUpdate = ['estado' => 'en_camino'];
+            if (Schema::hasColumn('viajes', 'en_camino_at')) {
+                $tripUpdate['en_camino_at'] = $now;
+            }
+            if (Schema::hasColumn('viajes', 'updated_at')) {
+                $tripUpdate['updated_at'] = $now;
+            }
+            DB::table('viajes')->where('id', $viajeActivo->id)->update($tripUpdate);
+        }
+
+        return response()->json(['ok' => true]);
+    } catch (\Throwable $e) {
+        report($e);
+        return response()->json(['ok' => false, 'message' => 'No se pudo guardar tu ubicación.'], 500);
     }
-
-    return response()->json(['ok' => true]);
-}
+  }
 
 	
 

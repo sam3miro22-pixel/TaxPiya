@@ -1651,15 +1651,17 @@ const SCOPE = "{{ config('services.fcm.scope', env('FCM_SCOPE', 'dev')) }}";
   }
 
   if (isNative) initPush();
-  
-function handlePushData(data = {}) {
+  else {
+    console.log('[Push] omitido en web');
+  }
+
+  function handlePushData(data = {}) {
     const t   = (data.t || data.type || '').toString();
     const vId = data.viaje_id ? +data.viaje_id : null;
 
     try { navigator.vibrate?.(20); } catch(e){}
 
     if (t === 'offer') {
-      
       if (typeof playOfferSound === 'function') playOfferSound();
       if (typeof drvSheet === 'function') drvSheet(true);
       if (data.o_lat && data.o_lng) {
@@ -1671,7 +1673,6 @@ function handlePushData(data = {}) {
     }
 
     if (t === 'chat') {
-     
       if (vId) window.currentViajeId = window.currentViajeId || vId;
       if (typeof showBanner === 'function') showBanner('Nuevo mensaje del pasajero', 'fa-comments');
       if (typeof openChatSheet === 'function') openChatSheet?.();
@@ -1681,18 +1682,16 @@ function handlePushData(data = {}) {
     }
   }
 
+  if (isNative) {
+    PushNotifications.addListener("pushNotificationReceived", (n) => {
+      handlePushData(n?.data || {});
+    });
 
-PushNotifications.addListener("pushNotificationReceived", (n) => {
-  
-  handlePushData(n?.data || {});
-});
-
-
-PushNotifications.addListener("pushNotificationActionPerformed", (a) => {
-  const data = a?.notification?.data || a?.notification?.extra || {};
-  handlePushData(data || {});
-});
-
+    PushNotifications.addListener("pushNotificationActionPerformed", (a) => {
+      const data = a?.notification?.data || a?.notification?.extra || {};
+      handlePushData(data || {});
+    });
+  }
 
 document.getElementById('txd-chat')?.addEventListener('click', ()=>{
   const chatBtn = document.getElementById('txd-chat');
