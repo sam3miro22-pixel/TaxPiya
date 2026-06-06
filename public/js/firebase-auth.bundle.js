@@ -1792,6 +1792,9 @@ var TaxpiyaFirebase = (() => {
     }
     return app2;
   }
+  function getApps() {
+    return Array.from(_apps.values());
+  }
   function registerVersion(libraryKeyOrName, version4, variant) {
     var _a;
     let library = (_a = PLATFORM_LOG_STRING[libraryKeyOrName]) !== null && _a !== void 0 ? _a : libraryKeyOrName;
@@ -5739,6 +5742,9 @@ var TaxpiyaFirebase = (() => {
       }
       throw error;
     });
+  }
+  function setPersistence(auth2, persistence) {
+    return getModularInstance(auth2).setPersistence(persistence);
   }
   function onIdTokenChanged(auth2, nextOrObserver, error, completed) {
     return getModularInstance(auth2).onIdTokenChanged(nextOrObserver, error, completed);
@@ -18459,22 +18465,70 @@ This typically indicates that your device does not have a healthy Internet conne
   })();
 
   // resources/js/firebase-auth.js
+  var AUTH_META_KEY = "txp_fb_auth_meta";
+  var REDIRECT_FLAG_KEY = "txp_fb_redirect_pending";
   var app = null;
   var auth = null;
   var db = null;
+  var redirectBootStarted = false;
   function cfg() {
     return window.TAXPIYA_FIREBASE_CONFIG || {};
   }
-  function init() {
+  async function ensureInit() {
     const c = cfg();
     if (!c.apiKey) {
       console.warn("[TaxpiyaFirebase] Config no disponible");
       return false;
     }
-    app = initializeApp(c);
+    app = getApps().length ? getApp() : initializeApp(c);
     auth = getAuth(app);
-    db = getFirestore(app);
+    db = db || getFirestore(app);
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (_) {
+      try {
+        await setPersistence(auth, browserSessionPersistence);
+      } catch (e2) {
+        console.warn("[TaxpiyaFirebase] persistence:", e2);
+      }
+    }
+    if (typeof auth.authStateReady === "function") {
+      await auth.authStateReady();
+    }
     return true;
+  }
+  function saveAuthMeta(meta = {}) {
+    try {
+      sessionStorage.setItem(AUTH_META_KEY, JSON.stringify(meta || {}));
+      sessionStorage.setItem(REDIRECT_FLAG_KEY, "1");
+    } catch (_) {
+    }
+  }
+  function loadAuthMeta(fallback = {}) {
+    let meta = { ...fallback };
+    try {
+      const raw = sessionStorage.getItem(AUTH_META_KEY);
+      if (raw) meta = { ...meta, ...JSON.parse(raw) };
+      sessionStorage.removeItem(AUTH_META_KEY);
+    } catch (_) {
+    }
+    return meta;
+  }
+  function clearRedirectFlag() {
+    try {
+      sessionStorage.removeItem(REDIRECT_FLAG_KEY);
+    } catch (_) {
+    }
+  }
+  function isRedirectPending() {
+    try {
+      return sessionStorage.getItem(REDIRECT_FLAG_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+  function init() {
+    return ensureInit();
   }
   function isNativeWebView() {
     if (typeof window === "undefined") return false;
@@ -18523,7 +18577,8 @@ This typically indicates that your device does not have a healthy Internet conne
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      throw new Error(data.message || "No se pudo sincronizar la sesi\xF3n");
+      const detail = data.message || (res.status === 419 ? "Sesi\xF3n expirada. Recarga la p\xE1gina e intenta de nuevo." : "No se pudo sincronizar la sesi\xF3n");
+      throw new Error(detail);
     }
     return data;
   }
@@ -18536,7 +18591,7 @@ This typically indicates that your device does not have a healthy Internet conne
           email: user.email || null,
           name: profile.name || user.displayName || null,
           telefono: profile.telefono || null,
-          role: profile.role || "pasajero",
+          role: profile.app || profile.role || "pasajero",
           updated_at: serverTimestamp(),
           created_at: serverTimestamp()
         },
@@ -18546,71 +18601,123 @@ This typically indicates that your device does not have a healthy Internet conne
       console.warn("[TaxpiyaFirebase] Firestore profile:", e);
     }
   }
+  async function finalizeFirebaseUser(user, meta = {}) {
+    const enriched = {
+      ...meta,
+      name: meta.name || user.displayName || user.email?.split("@")[0] || null
+    };
+    await upsertFirestoreProfile(user, enriched);
+    const token = await user.getIdToken(true);
+    return syncWithLaravel(token, enriched);
+  }
   async function loginEmail(email, password, meta = {}) {
-    if (!auth && !init()) throw new Error("Firebase no inicializado");
+    if (!await ensureInit()) throw new Error("Firebase no inicializado");
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      const token = await cred.user.getIdToken();
-      return syncWithLaravel(token, meta);
+      return finalizeFirebaseUser(cred.user, meta);
     } catch (e) {
       throw new Error(formatFirebaseError(e));
     }
   }
   async function registerEmail(email, password, profile = {}) {
-    if (!auth && !init()) throw new Error("Firebase no inicializado");
+    if (!await ensureInit()) throw new Error("Firebase no inicializado");
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await upsertFirestoreProfile(cred.user, profile);
-      const token = await cred.user.getIdToken();
-      return syncWithLaravel(token, { ...profile, is_register: true });
+      return finalizeFirebaseUser(cred.user, { ...profile, is_register: true });
     } catch (e) {
       throw new Error(formatFirebaseError(e));
     }
   }
   async function loginGoogle(meta = {}) {
-    if (!auth && !init()) throw new Error("Firebase no inicializado");
+    if (!await ensureInit()) throw new Error("Firebase no inicializado");
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
     try {
       if (shouldUseGoogleRedirect()) {
+        saveAuthMeta(meta);
         await signInWithRedirect(auth, provider);
         return { ok: true, redirect: true };
       }
       const cred = await signInWithPopup(auth, provider);
-      await upsertFirestoreProfile(cred.user, meta);
-      const token = await cred.user.getIdToken();
-      return syncWithLaravel(token, meta);
+      return finalizeFirebaseUser(cred.user, meta);
     } catch (e) {
+      clearRedirectFlag();
       throw new Error(formatFirebaseError(e));
     }
   }
   async function completeGoogleRedirect(meta = {}) {
-    if (!auth && !init()) return null;
+    if (!await ensureInit()) return null;
+    const mergedMeta = loadAuthMeta(meta);
+    const pending = isRedirectPending();
     try {
-      const cred = await getRedirectResult(auth);
-      if (!cred?.user) return null;
-      await upsertFirestoreProfile(cred.user, meta);
-      const token = await cred.user.getIdToken();
-      return syncWithLaravel(token, meta);
+      let cred = await getRedirectResult(auth);
+      if (!cred?.user && auth.currentUser) {
+        cred = { user: auth.currentUser };
+      }
+      if (!cred?.user) {
+        if (pending) {
+          throw new Error("No se pudo completar el inicio con Google. Intenta de nuevo.");
+        }
+        return null;
+      }
+      clearRedirectFlag();
+      const data = await finalizeFirebaseUser(cred.user, mergedMeta);
+      return data;
     } catch (e) {
+      clearRedirectFlag();
       throw new Error(formatFirebaseError(e));
     }
   }
   function onAuthChange(cb) {
-    if (!auth && !init()) return () => {
-    };
+    if (!auth) {
+      ensureInit().then((ok) => {
+        if (ok) onAuthStateChanged(auth, cb);
+      });
+      return () => {
+      };
+    }
     return onAuthStateChanged(auth, cb);
+  }
+  function readPageAuthMeta() {
+    const wrap2 = document.querySelector(".txp-firebase-auth");
+    const app2 = wrap2?.dataset?.app || null;
+    return app2 ? { app: app2 } : {};
+  }
+  async function bootGoogleRedirectHandler() {
+    if (redirectBootStarted) return;
+    redirectBootStarted = true;
+    if (!isRedirectPending() && !/[?&]code=/.test(window.location.search)) {
+      return;
+    }
+    const overlay = document.getElementById("txp-fb-redirect-busy");
+    if (overlay) overlay.style.display = "flex";
+    try {
+      const data = await completeGoogleRedirect(readPageAuthMeta());
+      if (data?.ok) {
+        window.dispatchEvent(new CustomEvent("txp-firebase-auth-done", { detail: data }));
+        window.location.replace(data.redirect || "/home");
+        return;
+      }
+    } catch (e) {
+      const msg = e?.message || String(e);
+      window.__txpFbRedirectError = msg;
+      window.dispatchEvent(new CustomEvent("txp-firebase-auth-error", { detail: msg }));
+    } finally {
+      if (overlay) overlay.style.display = "none";
+    }
   }
   if (typeof window !== "undefined") {
     window.TaxpiyaFirebase = {
-      init,
+      init: ensureInit,
       loginEmail,
       registerEmail,
       loginGoogle,
       completeGoogleRedirect,
       onAuthChange,
-      formatFirebaseError
+      formatFirebaseError,
+      bootGoogleRedirectHandler
     };
+    bootGoogleRedirectHandler();
   }
   return __toCommonJS(firebase_auth_exports);
 })();

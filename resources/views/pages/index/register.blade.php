@@ -111,48 +111,67 @@
             <div id="txp-register-fb-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
         </div>
         <script>
-        document.addEventListener('DOMContentLoaded', function () {
-          if (!window.TaxpiyaFirebase) return;
-          window.TaxpiyaFirebase.init();
-          const err = document.getElementById('txp-register-fb-error');
-          const form = document.getElementById('users-userregister-form');
-          const showErr = (m) => {
-            if (!err) return;
-            const text = window.TaxpiyaFirebase?.formatFirebaseError
-              ? window.TaxpiyaFirebase.formatFirebaseError({ message: m })
-              : (m || 'Error');
-            err.textContent = text;
-            err.style.display = 'block';
-          };
-          const hideErr = () => { if (err) err.style.display = 'none'; };
-          const profile = () => ({
-            app: 'pasajero',
-            name: document.getElementById('ctrl-name')?.value?.trim(),
-            telefono: document.getElementById('ctrl-telefono')?.value?.trim(),
-          });
+        (function () {
+          function whenFirebaseReady(cb, tries) {
+            tries = tries || 0;
+            if (window.TaxpiyaFirebase) return cb();
+            if (tries > 80) return;
+            setTimeout(() => whenFirebaseReady(cb, tries + 1), 50);
+          }
 
-          form?.addEventListener('submit', async (e) => {
-            const email = document.getElementById('ctrl-email')?.value?.trim();
-            const pass  = document.getElementById('ctrl-password')?.value || '';
-            if (!email || !pass) return;
-            e.preventDefault();
-            hideErr();
-            try {
-              const data = await window.TaxpiyaFirebase.registerEmail(email, pass, profile());
-              window.location.href = data?.redirect || '/home';
-            } catch (ex) {
-              showErr(ex?.message || 'No se pudo crear la cuenta');
-            }
-          });
+          function bootRegisterFb() {
+            if (!window.TaxpiyaFirebase) return;
+            const err = document.getElementById('txp-register-fb-error');
+            const form = document.getElementById('users-userregister-form');
+            const showErr = (m) => {
+              if (!err) return;
+              const text = window.TaxpiyaFirebase?.formatFirebaseError
+                ? window.TaxpiyaFirebase.formatFirebaseError({ message: m })
+                : (m || 'Error');
+              err.textContent = text;
+              err.style.display = 'block';
+            };
+            const hideErr = () => { if (err) err.style.display = 'none'; };
+            const profile = () => ({
+              app: 'pasajero',
+              name: document.getElementById('ctrl-name')?.value?.trim(),
+              telefono: document.getElementById('ctrl-telefono')?.value?.trim(),
+            });
 
-          document.getElementById('txp-register-firebase-google')?.addEventListener('click', async () => {
-            hideErr();
-            try {
-              const data = await window.TaxpiyaFirebase.loginGoogle(profile());
-              window.location.href = data?.redirect || '/home';
-            } catch (ex) { showErr(ex.message); }
-          });
-        });
+            if (window.__txpFbRedirectError) showErr(window.__txpFbRedirectError);
+            window.addEventListener('txp-firebase-auth-error', (e) => showErr(e?.detail));
+            window.addEventListener('txp-firebase-auth-done', (e) => {
+              if (e?.detail?.ok) window.location.href = e.detail.redirect || '/home';
+            });
+
+            form?.addEventListener('submit', async (e) => {
+              const email = document.getElementById('ctrl-email')?.value?.trim();
+              const pass  = document.getElementById('ctrl-password')?.value || '';
+              if (!email || !pass) return;
+              e.preventDefault();
+              hideErr();
+              try {
+                await window.TaxpiyaFirebase.init();
+                const data = await window.TaxpiyaFirebase.registerEmail(email, pass, profile());
+                window.location.href = data?.redirect || '/home';
+              } catch (ex) {
+                showErr(ex?.message || 'No se pudo crear la cuenta');
+              }
+            });
+
+            document.getElementById('txp-register-firebase-google')?.addEventListener('click', async () => {
+              hideErr();
+              try {
+                await window.TaxpiyaFirebase.init();
+                const data = await window.TaxpiyaFirebase.loginGoogle(profile());
+                if (data?.redirect) return;
+                window.location.href = data?.redirect || '/home';
+              } catch (ex) { showErr(ex.message); }
+            });
+          }
+
+          whenFirebaseReady(bootRegisterFb);
+        })();
         </script>
         @endif
     </div>

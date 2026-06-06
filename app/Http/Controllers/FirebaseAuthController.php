@@ -68,8 +68,16 @@ class FirebaseAuthController extends Controller
         } else {
             if (empty($user->firebase_uid)) {
                 $user->firebase_uid = $uid;
-                $user->save();
             }
+            if ($request->filled('name')) {
+                $user->name = $request->input('name');
+            } elseif (!empty($claims['name'])) {
+                $user->name = $claims['name'];
+            }
+            if ($request->filled('telefono')) {
+                $user->telefono = $request->input('telefono');
+            }
+            $user->save();
         }
 
         if ((int) ($user->estado ?? 1) !== 1) {
