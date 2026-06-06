@@ -2535,11 +2535,17 @@ function handlePosition(pos, meta = {}){
 
   if (meta.setOrigin) {
     originLatLng = new google.maps.LatLng(latLng.lat, latLng.lng);
+    const originInput = document.getElementById('origin-input');
+    if (originInput && !originInput.value.trim()) {
+      originInput.value = 'Mi ubicación';
+    }
+    putOriginMarker(originLatLng);
     reverseGeocode(originLatLng, (addr) => {
-      document.getElementById('origin-input').value = addr || '';
-      putOriginMarker(originLatLng);
+      if (originInput) originInput.value = addr || 'Mi ubicación';
       showLabel(originLatLng, addr || 'Mi ubicación');
+      tryRoute();
     });
+    tryRoute();
   }
   centerTo(latLng);
 
@@ -2571,15 +2577,34 @@ function centerTo(latLng){ map.panTo(latLng); map.setZoom(16); }
 
 
 function putUserPulse(latLng){
-  if(userMarker){ userMarker.setMap && userMarker.setMap(null); userMarker = null; }
+  const ll = (typeof latLng.lat === 'function')
+    ? latLng
+    : new google.maps.LatLng(latLng.lat, latLng.lng);
+
+  if (userMarker && userMarker._txpLatLng) {
+    userMarker._txpLatLng = ll;
+    if (typeof userMarker.draw === 'function') userMarker.draw();
+    return;
+  }
+
+  if (userMarker) {
+    userMarker.setMap && userMarker.setMap(null);
+    userMarker = null;
+  }
+
   const div = document.createElement('div');
   div.className = 'pulse-marker';
   const overlay = new google.maps.OverlayView();
+  overlay._txpLatLng = ll;
   overlay.onAdd = function(){ this.getPanes().overlayMouseTarget.appendChild(div); };
   overlay.draw = function(){
     const proj = this.getProjection(); if(!proj) return;
-    const pos = proj.fromLatLngToDivPixel(new google.maps.LatLng(latLng.lat, latLng.lng));
-    div.style.left = pos.x + 'px'; div.style.top = pos.y + 'px'; div.style.position = 'absolute';
+    const pos = proj.fromLatLngToDivPixel(this._txpLatLng || ll);
+    if (!pos) return;
+    div.style.left = pos.x + 'px';
+    div.style.top = pos.y + 'px';
+    div.style.position = 'absolute';
+    div.style.transform = 'translate(-50%, -50%)';
   };
   overlay.onRemove = function(){ if(div.parentNode) div.parentNode.removeChild(div); };
   overlay.setMap(map);

@@ -365,6 +365,7 @@
 
   function OverlayView() {
     this._map = null;
+    this._leafletMap = null;
     this._div = null;
     this._draw = null;
     this._onAdd = null;
@@ -375,28 +376,49 @@
   OverlayView.prototype.draw = function () {};
   OverlayView.prototype.onRemove = function () {};
 
+  OverlayView.prototype._detach = function () {
+    if (this._leafletMap && this._draw) {
+      this._leafletMap.off('move zoom', this._draw);
+    }
+    this._leafletMap = null;
+  };
+
   OverlayView.prototype.setMap = function (map) {
+    this._detach();
+
     if (this._map && !map) {
       this.onRemove();
       if (this._div?.parentNode) this._div.parentNode.removeChild(this._div);
       this._map = null;
       return;
     }
+
     this._map = map;
-    if (!map) return;
+    if (!map || !map._map) return;
+
     this._div = this._div || document.createElement('div');
     this.onAdd();
+
     const self = this;
-    this._draw = () => self.draw();
+    this._draw = function () {
+      if (!self._map || !self._map._map) return;
+      self.draw();
+    };
+
+    this._leafletMap = map._map;
     map._map.on('move zoom', this._draw);
     this._draw();
   };
 
   OverlayView.prototype.getPanes = function () {
+    if (!this._map || !this._map._map) {
+      return { overlayMouseTarget: document.body };
+    }
     return { overlayMouseTarget: this._map._map.getContainer() };
   };
 
   OverlayView.prototype.getProjection = function () {
+    if (!this._map || !this._map._map) return null;
     const map = this._map._map;
     return {
       fromLatLngToDivPixel: (latLng) => {
