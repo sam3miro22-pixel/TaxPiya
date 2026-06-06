@@ -143,6 +143,7 @@
 
     <div class="w-100" style="max-width:740px;">
       <div id="txd-trip-info" class="mb-2 text-center text-white fw-bold"></div>
+      <div id="txd-rating-panel" class="txd-rating-panel mb-2" style="display:none;" aria-live="polite"></div>
     </div>
   </div>
 
@@ -434,6 +435,25 @@ body#main #page-content {
 #txd-nav-row .btn,
 #txd-comm-row .btn{
   flex: 1;
+}
+
+.txd-rating-panel{
+  text-align:center;
+  color:#fff;
+  background:rgba(15,23,42,.88);
+  border:1px solid rgba(255,209,102,.35);
+  border-radius:12px;
+  padding:10px 12px;
+}
+.txd-rating-panel .txd-stars{
+  color:#ffd166;
+  font-size:1.35rem;
+  letter-spacing:.12rem;
+}
+.txd-rating-panel .txd-rating-comment{
+  margin-top:6px;
+  font-size:.9rem;
+  opacity:.92;
 }
 
 
@@ -1151,7 +1171,7 @@ document.getElementById('drv-act-terminar')?.addEventListener('click', async ()=
     if (!r.ok || !j?.ok) throw 0;
 
     showBanner('Viaje terminado', 'fa-flag-checkered');
-resetAfterTrip();
+    finishTripWithRating(j);
   }catch(e){
     showBanner('No se pudo terminar el viaje', 'fa-triangle-exclamation');
   }finally{ btn.innerHTML = old; }
@@ -1161,6 +1181,64 @@ resetAfterTrip();
 <script>
 
 let drvEstadoTimer = null;
+let drvRatingWaitTimer = null;
+let drvRatingShownFor = null;
+
+function starsHtml(score){
+  const n = Math.max(1, Math.min(5, parseInt(score, 10) || 0));
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+function hideDriverRatingPanel(){
+  const panel = document.getElementById('txd-rating-panel');
+  if (panel){ panel.style.display = 'none'; panel.innerHTML = ''; }
+}
+
+function showDriverRating(cal){
+  if (!cal || !cal.puntuacion) return false;
+  const panel = document.getElementById('txd-rating-panel');
+  if (!panel) return false;
+  const comment = (cal.comentario || '').trim();
+  panel.innerHTML = `
+    <div class="fw-bold mb-1"><i class="fa-solid fa-star me-1"></i> Calificación del pasajero</div>
+    <div class="txd-stars">${starsHtml(cal.puntuacion)}</div>
+    ${comment ? `<div class="txd-rating-comment">“${comment.replace(/</g,'&lt;') }”</div>` : ''}
+  `;
+  panel.style.display = 'block';
+  showBanner(`Calificación recibida: ${cal.puntuacion}/5`, 'fa-star');
+  return true;
+}
+
+function stopRatingWait(){
+  if (drvRatingWaitTimer){ clearTimeout(drvRatingWaitTimer); drvRatingWaitTimer = null; }
+}
+
+function beginPostTripRatingWait(viajeId){
+  stopRatingWait();
+  drvRatingShownFor = viajeId;
+  showBanner('Esperando calificación del pasajero…', 'fa-hourglass-half');
+  const cta = document.getElementById('txd-trip-cta');
+  if (cta) cta.style.setProperty('display','flex');
+  hideDriverRatingPanel();
+  if (!drvEstadoTimer) startDrvStateLoop();
+  drvRatingWaitTimer = setTimeout(()=>{
+    if (window.currentViajeId === viajeId){
+      showBanner('Viaje cerrado', 'fa-flag-checkered');
+      resetAfterTrip();
+    }
+  }, 120000);
+}
+
+function finishTripWithRating(j){
+  const id = window.currentViajeId;
+  if (j?.calificacion && showDriverRating(j.calificacion)){
+    stopRatingWait();
+    stopDrvStateLoop();
+    setTimeout(()=> resetAfterTrip(), 8000);
+    return;
+  }
+  beginPostTripRatingWait(id);
+}
 
 function startDrvStateLoop(){
   stopDrvStateLoop();
@@ -1178,6 +1256,17 @@ async function checkDrvStateOnce(){
     const j = await r.json();
     if (!j?.ok) return;
 
+    if (j.calificacion && showDriverRating(j.calificacion)){
+      stopRatingWait();
+      stopDrvStateLoop();
+      showBanner('Calificación recibida', 'fa-star');
+      setTimeout(()=>{
+        resetAfterTrip();
+        if (window.isOnline && typeof startOfferPoll === 'function') startOfferPoll();
+      }, 8000);
+      return;
+    }
+
     showDrvActions(true);
     setDrvActionsState(j.estado);
 
@@ -1192,9 +1281,17 @@ async function checkDrvStateOnce(){
         startRoutingToDropoff();
         break;
 case 'terminado':
-  showBanner('Viaje finalizado', 'fa-flag-checkered');
-  resetAfterTrip();
-  if (window.isOnline && typeof startOfferPoll === 'function') startOfferPoll();
+  if (j.calificacion && showDriverRating(j.calificacion)){
+    stopRatingWait();
+    showBanner('Viaje finalizado', 'fa-flag-checkered');
+    stopDrvStateLoop();
+    setTimeout(()=>{
+      resetAfterTrip();
+      if (window.isOnline && typeof startOfferPoll === 'function') startOfferPoll();
+    }, 8000);
+  } else {
+    beginPostTripRatingWait(id);
+  }
   break;
 
 case 'cancelado_pasajero':
@@ -1287,8 +1384,11 @@ function clearRoute(){
 function resetAfterTrip(){
 
   stopDrvStateLoop();
+  stopRatingWait();
   stopRouteLoop();
   clearRoute();
+  hideDriverRatingPanel();
+  drvRatingShownFor = null;
 
  
   window.currentViajeId = null;
@@ -1830,6 +1930,22 @@ async function stopBgWatcher(){
 <script>
 
 const isNative = !!(window.Capacitor?.isNativePlatform?.() === true);
+
+function markDriverOfflineOnLeave(){
+  try {
+    if (!window.isOnline || !CONDUCTOR_DISPONIBLE_URL) return;
+    fetch(CONDUCTOR_DISPONIBLE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'X-CSRF-TOKEN': getCsrf() },
+      body: JSON.stringify({ disponible: false }),
+      keepalive: true
+    }).catch(()=>{});
+    window.isOnline = false;
+  } catch(e){}
+}
+
+window.addEventListener('pagehide', markDriverOfflineOnLeave);
+window.addEventListener('beforeunload', markDriverOfflineOnLeave);
 
 if (isNative) {
  

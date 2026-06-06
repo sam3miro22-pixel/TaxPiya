@@ -19,6 +19,7 @@ use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
 use App\Services\WalletService;
 use Illuminate\Validation\ValidationException;
+use App\Support\TripMatching;
 class ConductoresController extends Controller
 {
 	
@@ -174,6 +175,12 @@ public function solicitudPendiente(Request $request)
             return response()->json(['ok' => false, 'message' => 'Conductor no encontrado'], 404);
         }
 
+        if ((int) ($conductor->disponible ?? 0) !== 1) {
+            return response()->json(['ok' => false, 'message' => 'Activa tu disponibilidad para recibir solicitudes'], 200);
+        }
+
+        TripMatching::expireStaleSearchingTrips();
+
         $pos = DB::table('conductor_posicion_actual')
             ->where('conductor_id', $conductor->id)
             ->first();
@@ -188,7 +195,8 @@ public function solicitudPendiente(Request $request)
 
         $query = DB::table('viajes as v')
             ->where('v.estado', 'buscando')
-            ->whereNull('v.conductor_id');
+            ->whereNull('v.conductor_id')
+            ->where('v.created_at', '>=', TripMatching::tripSearchCutoff());
 
         if (Schema::hasTable('viaje_estados_log')) {
             $query->whereNotExists(function ($sub) use ($userId) {

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Validator;
 use Exception;
 use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
+use App\Support\TripMatching;
 use App\Services\Firebase\FirestoreTripSyncService;
 class ViajesController extends Controller
 {
@@ -72,6 +73,9 @@ class ViajesController extends Controller
     $dLat = $req->filled('d_lat') ? (float)$req->input('d_lat') : null;
     $dLng = $req->filled('d_lng') ? (float)$req->input('d_lng') : null;
 
+    TripMatching::expireStaleSearchingTrips();
+    TripMatching::cancelPassengerOpenSearches((int) $pasajeroId);
+
     $oPoint = DatabaseGeometry::pointRaw($oLng, $oLat);
     $dPoint = ($dLat !== null && $dLng !== null) ? DatabaseGeometry::pointRaw($dLng, $dLat) : null;
 
@@ -122,12 +126,16 @@ try {
     $candidatos = [];
     if (GeoDistance::usesSqlite()) {
         [$minLat, $maxLat, $minLng, $maxLng] = GeoDistance::boundingBox($oLat, $oLng, $radioKm);
-        $rows = DB::table('conductores as c')
+        $rowsQuery = DB::table('conductores as c')
             ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
             ->where('c.estado_operitivo', 1)
             ->where('c.disponible', 1)
             ->whereBetween('p.lat', [$minLat, $maxLat])
-            ->whereBetween('p.lng', [$minLng, $maxLng])
+            ->whereBetween('p.lng', [$minLng, $maxLng]);
+
+        TripMatching::applyFreshDriverPositionFilter($rowsQuery, 'p');
+
+        $rows = $rowsQuery
             ->select('c.user_id', 'p.lat', 'p.lng')
             ->limit(60)
             ->get();
@@ -140,10 +148,14 @@ try {
         }
         $candidatos = array_slice(array_values(array_unique($candidatos)), 0, 30);
     } else {
-        $candidatos = DB::table('conductores as c')
+        $candidatosQuery = DB::table('conductores as c')
             ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
             ->where('c.estado_operitivo', 1)
-            ->where('c.disponible', 1)
+            ->where('c.disponible', 1);
+
+        TripMatching::applyFreshDriverPositionFilter($candidatosQuery, 'p');
+
+        $candidatos = $candidatosQuery
             ->select('c.user_id')
             ->selectRaw(
                 '(6371 * acos( cos(radians(?)) * cos(radians(p.lat)) * cos(radians(p.lng) - radians(?)) + sin(radians(?)) * sin(radians(p.lat)) ) ) as dist_km',
@@ -228,6 +240,23 @@ public function estado($id)
         return response()->json(['ok' => false, 'message' => 'No autorizado'], 403);
     }
 
+    $calificacion = null;
+    if (Schema::hasTable('calificaciones')) {
+        $cal = DB::table('calificaciones')
+            ->where('viaje_id', (int) $id)
+            ->where('rater_rol', 'pasajero')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($cal) {
+            $calificacion = [
+                'puntuacion' => (int) $cal->puntuacion,
+                'comentario' => $cal->comentario,
+                'created_at' => $cal->created_at,
+            ];
+        }
+    }
+
     return response()->json([
         'ok' => true,
         'viaje_id' => (int)$viaje->viaje_id,
@@ -249,6 +278,7 @@ public function estado($id)
 		
         'monto'  => $viaje->tarifa_aplicada !== null ? (float)$viaje->tarifa_aplicada : null,
         'moneda' => $viaje->moneda,
+        'calificacion' => $calificacion,
     ]);
 }
 
@@ -504,6 +534,20 @@ public function calificar(Request $req)
         'ip'               => $req->ip(),
         'created_at'       => now(),
     ]);
+
+    if (!empty($viaje->conductor_id) && Schema::hasColumn('conductores', 'rating_promedio')) {
+        $avg = DB::table('calificaciones')
+            ->where('ratee_id', (int) $rateeUserId)
+            ->where('ratee_rol', 'conductor')
+            ->where('visible', 1)
+            ->avg('puntuacion');
+
+        if ($avg !== null) {
+            DB::table('conductores')
+                ->where('id', (int) $viaje->conductor_id)
+                ->update(['rating_promedio' => round((float) $avg, 2)]);
+        }
+    }
 
     return response()->json(['ok'=>true]);
 }

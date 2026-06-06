@@ -81,6 +81,13 @@ class AuthController extends Controller{
 					->withErrors('Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.')
 					->withInput($request->only('username'));
 			}
+
+			DB::table('conductores')
+				->where('id', (int) $conductor->id)
+				->update([
+					'disponible'  => 0,
+					'updated_at'  => now()->format('Y-m-d H:i:s'),
+				]);
 		}
 		elseif ($app === 'pasajero') {
 			if (!$user->hasRole('Pasajero')) {
@@ -130,6 +137,18 @@ class AuthController extends Controller{
 		$goPasajero  = $user && $user->hasRole('Pasajero');
 		$goConductor = $user && $user->hasRole('Conductor');
 		$goEmpresa   = $user && $user->hasRole('Empresa');
+
+		if ($goConductor && $user) {
+			$conductor = DB::table('conductores')->where('user_id', $user->id)->first();
+			if ($conductor) {
+				DB::table('conductores')
+					->where('id', (int) $conductor->id)
+					->update([
+						'disponible' => 0,
+						'updated_at' => now()->format('Y-m-d H:i:s'),
+					]);
+			}
+		}
 
 		Auth::logout();
 		$request->session()->invalidate();

@@ -18,6 +18,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Disponibilidad conductores / caducidad de solicitudes
+    |--------------------------------------------------------------------------
+    */
+    'driver_position_ttl_minutes' => (int) env('TAXPIYA_DRIVER_POSITION_TTL_MINUTES', 5),
+    'trip_search_ttl_minutes'     => (int) env('TAXPIYA_TRIP_SEARCH_TTL_MINUTES', 15),
+
+    /*
+    |--------------------------------------------------------------------------
     | Mapas — OpenStreetMap (gratis, sin API key)
     |--------------------------------------------------------------------------
     */

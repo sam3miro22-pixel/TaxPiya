@@ -98,8 +98,11 @@ Route::middleware(['auth'])->group(function () {
             ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
             ->leftJoin('vehiculos as v', 'v.conductor_id', '=', 'c.id')
             ->where('c.estado_operitivo', 1)
-            ->where('c.disponible', 1)
-            ->select([
+            ->where('c.disponible', 1);
+
+        \App\Support\TripMatching::applyFreshDriverPositionFilter($drivers, 'p');
+
+        $drivers = $drivers->select([
                 'c.id as conductor_id',
                 'p.lat', 'p.lng', 'p.heading', 'p.velocidad_kmh',
                 'v.placa', 'v.marca', 'v.linea',

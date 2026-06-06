@@ -170,11 +170,11 @@ foreach ($taxis as $t) {
     $conductorId = $stmt->fetchColumn();
 
     if (!$conductorId) {
-        $pdo->prepare('INSERT INTO conductores (user_id,empresa_id,estado_operitivo,disponible,total_viajes,verificacion_estado,verificacion_nivel,created_at,updated_at) VALUES (?,?,1,1,0,?,0,?,?)')
+        $pdo->prepare('INSERT INTO conductores (user_id,empresa_id,estado_operitivo,disponible,total_viajes,verificacion_estado,verificacion_nivel,created_at,updated_at) VALUES (?,?,1,0,0,?,0,?,?)')
             ->execute([$driverUserId, $empresaId, 'verificado', $now, $now]);
         $conductorId = (int) $pdo->lastInsertId();
     } else {
-        $pdo->prepare('UPDATE conductores SET empresa_id=?, estado_operitivo=1, disponible=1, verificacion_estado=?, updated_at=? WHERE id=?')
+        $pdo->prepare('UPDATE conductores SET empresa_id=?, estado_operitivo=1, disponible=0, verificacion_estado=?, updated_at=? WHERE id=?')
             ->execute([$empresaId, 'verificado', $now, $conductorId]);
         $conductorId = (int) $conductorId;
     }
