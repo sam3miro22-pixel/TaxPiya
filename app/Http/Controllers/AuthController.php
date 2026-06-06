@@ -5,9 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Users;
 use App\Http\Requests\UsersRegisterRequest;
 
-use App\Models\permissions;
-
-use Exception;
+use App\Providers\RouteServiceProvider;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Message;
 
@@ -118,7 +116,8 @@ class AuthController extends Controller{
 		}
 		// Si 'app' viene null, no se aplica gateo (útil para panel/admin si lo usas aquí).
 
-		return $this->redirectIntended('/home', 'Inicio de sesión completado');
+		$destination = RouteServiceProvider::homeForUser($user, $app);
+		return $this->redirectIntended($destination, 'Inicio de sesión completado');
 	}
 
 	/**

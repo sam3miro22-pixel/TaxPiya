@@ -20,6 +20,22 @@ class RouteServiceProvider extends ServiceProvider
     public const HOME = '/home';
 
     /**
+     * URL de destino tras login según rol (evita 403 RBAC en /home para Empresa).
+     */
+    public static function homeForUser(?\Illuminate\Contracts\Auth\Authenticatable $user, ?string $app = null): string
+    {
+        if (!$user || !method_exists($user, 'hasRole')) {
+            return self::HOME;
+        }
+
+        if ($app === 'empresa' || $user->hasRole('Empresa')) {
+            return '/empresa';
+        }
+
+        return self::HOME;
+    }
+
+    /**
      * If specified, this namespace is automatically applied to your controller routes.
      *
      * In addition, it is set as the URL generator's root namespace.

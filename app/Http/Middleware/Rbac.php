@@ -19,6 +19,9 @@ class Rbac
 		$user = $request->user();
 		
 		$page_path = strtolower("$page/$action");
+		if ($user && method_exists($user, 'hasRole') && $user->hasRole('Empresa') && $page_path === 'home/index') {
+			return redirect('/empresa');
+		}
 		if (!$user->canAccess($page_path)) {
 			return abort(403, "Forbidden");
 		}

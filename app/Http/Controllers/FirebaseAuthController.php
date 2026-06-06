@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Users;
+use App\Providers\RouteServiceProvider;
 use App\Services\Firebase\FirestoreUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -98,7 +99,7 @@ class FirebaseAuthController extends Controller
             'ok'       => true,
             'user_id'  => $user->id,
             'is_new'   => $isNew,
-            'redirect' => url('/home'),
+            'redirect' => url(RouteServiceProvider::homeForUser($user, $app)),
         ]);
     }
 
