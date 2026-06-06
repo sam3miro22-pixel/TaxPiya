@@ -15,6 +15,8 @@ use App\Exports\ViajesListExport;
 use App\Exports\ViajesViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
+use App\Support\DatabaseGeometry;
+use App\Services\Firebase\FirestoreTripSyncService;
 class ViajesController extends Controller
 {
     use ResolvesTripParticipants;
@@ -67,10 +69,10 @@ class ViajesController extends Controller
     $dLat = $req->filled('d_lat') ? (float)$req->input('d_lat') : null;
     $dLng = $req->filled('d_lng') ? (float)$req->input('d_lng') : null;
 
-    $oPoint = DB::raw("ST_GeomFromText('POINT($oLng $oLat)')");
-    $dPoint = ($dLat !== null && $dLng !== null) ? DB::raw("ST_GeomFromText('POINT($dLng $dLat)')") : null;
+    $oPoint = DatabaseGeometry::pointRaw($oLng, $oLat);
+    $dPoint = ($dLat !== null && $dLng !== null) ? DatabaseGeometry::pointRaw($dLng, $dLat) : null;
 
-    $viajeId = DB::table('viajes')->insertGetId([
+    $viajeId = DB::table('viajes')->insertGetId(DatabaseGeometry::stripNullGeometry([
         'pasajero_id'       => (int) $pasajeroId,
         'conductor_id'      => null,
         'vehiculo_id'       => null,
@@ -89,7 +91,7 @@ class ViajesController extends Controller
         'tarifa_aplicada'   => (float)$tarifa->monto_fijo,
         'valor_pagado'      => null,
         'pago_registrado'   => 0,
-    ]);
+    ]));
 
     DB::table('viaje_estados_log')->insert([
         'viaje_id'     => $viajeId,
@@ -139,6 +141,7 @@ try {
     ]);
 }
 
+    app(FirestoreTripSyncService::class)->syncTrip((int) $viajeId);
 
     return response()->json([
         'ok'         => true,

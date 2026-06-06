@@ -11,12 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        if (config('taxpiya.firebase.use_firestore')) {
-            $this->app->bind(
-                \App\Contracts\TripRepositoryInterface::class,
-                \App\Services\Firebase\FirestoreTripRepository::class
-            );
-        }
+        // Viajes siguen en SQLite/MySQL. Firestore es espejo en tiempo real (FirestoreTripSyncService).
     }
 
     /**

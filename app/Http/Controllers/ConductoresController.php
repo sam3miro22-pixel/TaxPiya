@@ -15,6 +15,7 @@ use App\Exports\ConductoresListExport;
 use App\Exports\ConductoresViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
+use App\Support\DatabaseGeometry;
 class ConductoresController extends Controller
 {
 	
@@ -52,11 +53,11 @@ public function disponible(Request $req)
     $lat = (float) $req->input('lat');
     $lng = (float) $req->input('lng');
 
-    $data = [
+    $data = DatabaseGeometry::stripNullGeometry([
         'lat'       => $lat,
         'lng'       => $lng,
-        'ubicacion' => DB::raw("ST_GeomFromText('POINT($lng $lat)')"),
-    ];
+        'ubicacion' => DatabaseGeometry::pointRaw($lng, $lat),
+    ]);
 
     if ($req->filled('heading')) {
         $data['heading'] = (float) $req->input('heading');

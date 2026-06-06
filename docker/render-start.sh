@@ -9,12 +9,16 @@ if [ -n "${FIREBASE_CREDENTIALS_JSON:-}" ]; then
 fi
 
 php artisan storage:link 2>/dev/null || true
+chmod -R 775 storage bootstrap/cache database 2>/dev/null || true
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-if php artisan migrate:status >/dev/null 2>&1; then
-  php artisan migrate --force || true
+if [ "${DB_CONNECTION:-sqlite}" != "sqlite" ]; then
+  if php artisan migrate:status >/dev/null 2>&1; then
+    php artisan migrate --force || true
+  fi
 fi
 
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

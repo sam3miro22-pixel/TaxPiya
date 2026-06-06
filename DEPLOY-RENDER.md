@@ -9,7 +9,7 @@ Guía para tener backend **24/7 en internet**, probar desde el navegador y desde
 | Pieza | Dónde corre |
 |-------|-------------|
 | Backend Laravel (login, viajes, mapa, API) | **Render** (Web Service Docker) |
-| Base de datos MySQL | **Render** (servicio MySQL privado) o hosting MySQL externo |
+| Base de datos | **SQLite** (`database/taxpiya.sqlite`) — ver [SETUP-GRATIS.md](./SETUP-GRATIS.md) |
 | Firebase (Auth, push, Firestore) | **Firebase** `tax-piya` (ya lo tienes) |
 | Apps móviles | APK apuntando a la URL de Render |
 
