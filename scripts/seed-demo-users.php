@@ -1,0 +1,150 @@
+<?php
+/**
+ * Crea usuarios demo en SQLite + Firebase Auth.
+ * Uso: php scripts/seed-demo-users.php
+ */
+
+$apiKey = getenv('FIREBASE_API_KEY') ?: 'AIzaSyCIT1YV8eJRzmf7HSQbWe_7OzftDD1Vcnk';
+$dbPath = __DIR__ . '/../database/taxpiya.sqlite';
+$password = 'Taxpiya2026!';
+
+$users = [
+    [
+        'name'     => 'Pasajero Demo 1',
+        'email'    => 'pasajero.demo1@taxpiya.com',
+        'telefono' => '3009001001',
+        'role_id'  => 2,
+        'conductor'=> false,
+        'lat'      => null,
+        'lng'      => null,
+    ],
+    [
+        'name'     => 'Pasajero Demo 2',
+        'email'    => 'pasajero.demo2@taxpiya.com',
+        'telefono' => '3009001002',
+        'role_id'  => 2,
+        'conductor'=> false,
+        'lat'      => null,
+        'lng'      => null,
+    ],
+    [
+        'name'     => 'Conductor Demo 1',
+        'email'    => 'conductor.demo1@taxpiya.com',
+        'telefono' => '3109001001',
+        'role_id'  => 3,
+        'conductor'=> true,
+        'lat'      => 4.7110,
+        'lng'      => -74.0721,
+    ],
+    [
+        'name'     => 'Conductor Demo 2',
+        'email'    => 'conductor.demo2@taxpiya.com',
+        'telefono' => '3109001002',
+        'role_id'  => 3,
+        'conductor'=> true,
+        'lat'      => 4.7150,
+        'lng'      => -74.0680,
+    ],
+];
+
+$pdo = new PDO('sqlite:' . $dbPath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]);
+$now = date('Y-m-d H:i:s');
+
+foreach ($users as $u) {
+    echo "\n=== {$u['email']} ===\n";
+
+    $firebaseUid = firebaseSignUp($apiKey, $u['email'], $password);
+    echo "Firebase UID: {$firebaseUid}\n";
+
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? OR telefono = ? LIMIT 1');
+    $stmt->execute([$u['email'], $u['telefono']]);
+    $existing = $stmt->fetchColumn();
+
+    if ($existing) {
+        $pdo->prepare('UPDATE users SET firebase_uid=?, name=?, password=?, user_role_id=?, estado=1 WHERE id=?')
+            ->execute([$firebaseUid, $u['name'], $hash, $u['role_id'], $existing]);
+        $userId = (int) $existing;
+        echo "Usuario SQLite actualizado id={$userId}\n";
+    } else {
+        $pdo->prepare('INSERT INTO users (firebase_uid,name,password,email,telefono,estado,user_role_id) VALUES (?,?,?,?,?,1,?)')
+            ->execute([$firebaseUid, $u['name'], $hash, $u['email'], $u['telefono'], $u['role_id']]);
+        $userId = (int) $pdo->lastInsertId();
+        echo "Usuario SQLite creado id={$userId}\n";
+    }
+
+    if ($u['conductor']) {
+        $stmt = $pdo->prepare('SELECT id FROM conductores WHERE user_id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $conductorId = $stmt->fetchColumn();
+
+        if (!$conductorId) {
+            $pdo->prepare('INSERT INTO conductores (user_id,estado_operitivo,disponible,total_viajes,verificacion_estado,verificacion_nivel,created_at,updated_at) VALUES (?,1,1,0,?,0,?,?)')
+                ->execute([$userId, 'verificado', $now, $now]);
+            $conductorId = (int) $pdo->lastInsertId();
+            echo "Conductor creado id={$conductorId}\n";
+        } else {
+            $pdo->prepare('UPDATE conductores SET estado_operitivo=1, disponible=1, verificacion_estado=?, updated_at=? WHERE id=?')
+                ->execute(['verificado', $now, $conductorId]);
+            echo "Conductor actualizado id={$conductorId}\n";
+        }
+
+        $pdo->prepare('INSERT OR REPLACE INTO conductor_posicion_actual (conductor_id,lat,lng,created_at,actualizada_at) VALUES (?,?,?,?,?)')
+            ->execute([(int) $conductorId, $u['lat'], $u['lng'], $now, $now]);
+        echo "Posición GPS registrada\n";
+    }
+}
+
+echo "\nOK — contraseña para todos: {$password}\n";
+
+function firebaseSignUp(string $apiKey, string $email, string $password): string
+{
+    $url = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' . urlencode($apiKey);
+    $payload = json_encode([
+        'email'             => $email,
+        'password'          => $password,
+        'returnSecureToken' => true,
+    ]);
+
+    $response = httpPost($url, $payload);
+    $data = json_decode($response, true);
+
+    if (!empty($data['localId'])) {
+        return $data['localId'];
+    }
+
+    if (($data['error']['message'] ?? '') === 'EMAIL_EXISTS') {
+        $signInUrl = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' . urlencode($apiKey);
+        $signIn = json_decode(httpPost($signInUrl, json_encode([
+            'email'             => $email,
+            'password'          => $password,
+            'returnSecureToken' => true,
+        ])), true);
+        if (!empty($signIn['localId'])) {
+            return $signIn['localId'];
+        }
+        throw new RuntimeException("Email existe pero login falló: {$email}");
+    }
+
+    throw new RuntimeException('Firebase error: ' . ($data['error']['message'] ?? $response));
+}
+
+function httpPost(string $url, string $body): string
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $body,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
+    ]);
+    $out = curl_exec($ch);
+    if ($out === false) {
+        throw new RuntimeException('curl: ' . curl_error($ch));
+    }
+    curl_close($ch);
+    return $out;
+}
