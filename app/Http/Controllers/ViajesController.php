@@ -16,6 +16,7 @@ use App\Exports\ViajesViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
 use App\Support\DatabaseGeometry;
+use App\Support\GeoDistance;
 use App\Services\Firebase\FirestoreTripSyncService;
 class ViajesController extends Controller
 {
@@ -23,6 +24,7 @@ class ViajesController extends Controller
 
 	public function solicitar(Request $req)
 {
+    try {
     $pasajeroId = auth()->id();
     if (!$pasajeroId) {
         return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
@@ -42,6 +44,7 @@ class ViajesController extends Controller
     $categoria = $req->input('categoria', 'taxi');
     $ciudad    = $req->input('ciudad') ?: config('taxpiya.default_city');
     $hoy       = now()->toDateString();
+    $radioKm   = (float) config('taxpiya.search_radius_km', 8);
 
     $base = DB::table('tarifas')
         ->where('categoria', $categoria)
@@ -72,7 +75,7 @@ class ViajesController extends Controller
     $oPoint = DatabaseGeometry::pointRaw($oLng, $oLat);
     $dPoint = ($dLat !== null && $dLng !== null) ? DatabaseGeometry::pointRaw($dLng, $dLat) : null;
 
-    $viajeId = DB::table('viajes')->insertGetId(DatabaseGeometry::stripNullGeometry([
+    $insert = DatabaseGeometry::stripNullGeometry([
         'pasajero_id'       => (int) $pasajeroId,
         'conductor_id'      => null,
         'vehiculo_id'       => null,
@@ -85,13 +88,21 @@ class ViajesController extends Controller
         'destino_ubicacion' => $dPoint,
         'destino_texto'     => $req->input('d_txt'),
         'estado'            => 'buscando',
-        'created_at'        => now(),
+        'created_at'        => now()->format('Y-m-d H:i:s'),
         'tarifa_id'         => (int)$tarifa->id,
         'moneda'            => $tarifa->moneda,
         'tarifa_aplicada'   => (float)$tarifa->monto_fijo,
         'valor_pagado'      => null,
         'pago_registrado'   => 0,
-    ]));
+        'metodo_asignacion' => 'auto',
+        'radio_busqueda_m'  => (int) round($radioKm * 1000),
+    ]);
+
+    if (Schema::hasColumn('viajes', 'updated_at')) {
+        $insert['updated_at'] = now()->format('Y-m-d H:i:s');
+    }
+
+    $viajeId = DB::table('viajes')->insertGetId($insert);
 
     DB::table('viaje_estados_log')->insert([
         'viaje_id'     => $viajeId,
@@ -103,37 +114,61 @@ class ViajesController extends Controller
         'motivo_texto' => 'Solicitud de viaje creada',
         'app_origen'   => 'app_pasajero',
         'ip'           => $req->ip(),
-        'created_at'   => now(),
+        'created_at'   => now()->format('Y-m-d H:i:s'),
     ]);
 
 
 try {
-    $candidatos = DB::table('conductores as c')
-        ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
-        ->where('c.estado_operitivo', 1)
-        ->where('c.disponible', 1)
-        ->select('c.user_id')
-        ->selectRaw(
-            '(6371 * acos( cos(radians(?)) * cos(radians(p.lat)) * cos(radians(p.lng) - radians(?)) + sin(radians(?)) * sin(radians(p.lat)) ) ) as dist_km',
-            [$oLat, $oLng, $oLat]
-        )
-        ->having('dist_km', '<=', 8)   
-        ->orderBy('dist_km')
-        ->limit(30)
-        ->pluck('c.user_id')
-        ->all();
+    $candidatos = [];
+    if (GeoDistance::usesSqlite()) {
+        [$minLat, $maxLat, $minLng, $maxLng] = GeoDistance::boundingBox($oLat, $oLng, $radioKm);
+        $rows = DB::table('conductores as c')
+            ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
+            ->where('c.estado_operitivo', 1)
+            ->where('c.disponible', 1)
+            ->whereBetween('p.lat', [$minLat, $maxLat])
+            ->whereBetween('p.lng', [$minLng, $maxLng])
+            ->select('c.user_id', 'p.lat', 'p.lng')
+            ->limit(60)
+            ->get();
 
-    app(\App\Services\PushService::class)->notifyUsers(
-        $candidatos,
-        'Nueva solicitud de Viaje',
-        $req->input('o_txt', 'Solicitud cerca de ti'),
-        [
-            't'        => 'offer',
-            'viaje_id' => (string) $viajeId,
-            'o_lat'    => (string) $oLat,
-            'o_lng'    => (string) $oLng,
-        ]
-    );
+        foreach ($rows as $row) {
+            $dist = GeoDistance::km($oLat, $oLng, (float) $row->lat, (float) $row->lng);
+            if ($dist <= $radioKm) {
+                $candidatos[] = (int) $row->user_id;
+            }
+        }
+        $candidatos = array_slice(array_values(array_unique($candidatos)), 0, 30);
+    } else {
+        $candidatos = DB::table('conductores as c')
+            ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
+            ->where('c.estado_operitivo', 1)
+            ->where('c.disponible', 1)
+            ->select('c.user_id')
+            ->selectRaw(
+                '(6371 * acos( cos(radians(?)) * cos(radians(p.lat)) * cos(radians(p.lng) - radians(?)) + sin(radians(?)) * sin(radians(p.lat)) ) ) as dist_km',
+                [$oLat, $oLng, $oLat]
+            )
+            ->having('dist_km', '<=', $radioKm)
+            ->orderBy('dist_km')
+            ->limit(30)
+            ->pluck('c.user_id')
+            ->all();
+    }
+
+    if ($candidatos !== []) {
+        app(\App\Services\PushService::class)->notifyUsers(
+            $candidatos,
+            'Nueva solicitud de Viaje',
+            $req->input('o_txt', 'Solicitud cerca de ti'),
+            [
+                't'        => 'offer',
+                'viaje_id' => (string) $viajeId,
+                'o_lat'    => (string) $oLat,
+                'o_lng'    => (string) $oLng,
+            ]
+        );
+    }
 } catch (\Throwable $e) {
     \Log::warning('FCM nueva solicitud: fallo', [
         'viaje_id' => $viajeId,
@@ -151,6 +186,12 @@ try {
         'moneda'     => $tarifa->moneda,
         'estado'     => 'buscando',
     ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        throw $e;
+    } catch (\Throwable $e) {
+        report($e);
+        return response()->json(['ok' => false, 'message' => 'No se pudo crear la solicitud. Intenta de nuevo.'], 500);
+    }
 }
 
 

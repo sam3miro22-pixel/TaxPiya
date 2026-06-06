@@ -1224,7 +1224,7 @@ async function solicitarViajeThenSearch(){
     });
 
     const j = await r.json();
-    if (!r.ok || !j.ok){ alert('No se pudo iniciar la solicitud.'); return; }
+    if (!r.ok || !j.ok){ alert(j.message || 'No se pudo iniciar la solicitud.'); return; }
 
     window.currentViajeId = j.viaje_id; 
     ocultarSheet();
