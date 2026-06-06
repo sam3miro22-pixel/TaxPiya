@@ -101,15 +101,13 @@
 
         @if(config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
         <div class="txp-firebase-auth mt-2">
-            <div class="txp-auth-divider">Registro rápido</div>
+            <div class="txp-auth-divider">o regístrate con</div>
             <div class="d-grid gap-2">
-                <button type="button" class="txp-auth-btn txp-auth-btn--ghost" id="txp-register-firebase-email">
-                    <i class="fa-solid fa-envelope"></i> Crear con correo
-                </button>
                 <button type="button" class="txp-auth-btn txp-auth-btn--google" id="txp-register-firebase-google">
                     <i class="fa-brands fa-google"></i> Crear con Google
                 </button>
             </div>
+            <p class="small text-muted mt-2 mb-0">Al crear cuenta con correo, tu acceso queda guardado en Firebase Auth.</p>
             <div id="txp-register-fb-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
         </div>
         <script>
@@ -117,26 +115,35 @@
           if (!window.TaxpiyaFirebase) return;
           window.TaxpiyaFirebase.init();
           const err = document.getElementById('txp-register-fb-error');
+          const form = document.getElementById('users-userregister-form');
           const showErr = (m) => { if (err) { err.textContent = m; err.style.display = 'block'; } };
+          const hideErr = () => { if (err) err.style.display = 'none'; };
           const profile = () => ({
             app: 'pasajero',
             name: document.getElementById('ctrl-name')?.value?.trim(),
             telefono: document.getElementById('ctrl-telefono')?.value?.trim(),
           });
-          document.getElementById('txp-register-firebase-email')?.addEventListener('click', async () => {
+
+          form?.addEventListener('submit', async (e) => {
             const email = document.getElementById('ctrl-email')?.value?.trim();
             const pass  = document.getElementById('ctrl-password')?.value || '';
-            if (!email || !pass) { showErr('Completa correo y contraseña'); return; }
+            if (!email || !pass) return;
+            e.preventDefault();
+            hideErr();
             try {
               const data = await window.TaxpiyaFirebase.registerEmail(email, pass, profile());
               window.location.href = data?.redirect || '/home';
-            } catch (e) { showErr(e.message); }
+            } catch (ex) {
+              showErr(ex?.message || 'No se pudo crear la cuenta');
+            }
           });
+
           document.getElementById('txp-register-firebase-google')?.addEventListener('click', async () => {
+            hideErr();
             try {
               const data = await window.TaxpiyaFirebase.loginGoogle(profile());
               window.location.href = data?.redirect || '/home';
-            } catch (e) { showErr(e.message); }
+            } catch (ex) { showErr(ex.message); }
           });
         });
         </script>

@@ -6,6 +6,8 @@ use App\Models\Users;
 use App\Http\Requests\UsersRegisterRequest;
 
 use App\Providers\RouteServiceProvider;
+use App\Services\Firebase\FirebaseIdentityService;
+use App\Services\Firebase\FirestoreUserService;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Message;
 
@@ -38,7 +40,13 @@ class AuthController extends Controller{
 			? ['email' => $username, 'password' => $password]
 			: ['telefono' => $username, 'password' => $password];
 
-		if (!Auth::attempt($credentials, $remember)) {
+		$loggedIn = Auth::attempt($credentials, $remember);
+
+		if (!$loggedIn && filter_var($username, FILTER_VALIDATE_EMAIL)) {
+			$loggedIn = $this->attemptFirebasePasswordLogin($username, $password, $remember, $app);
+		}
+
+		if (!$loggedIn) {
 			return back()
 				->withErrors('Nombre de usuario o contraseña no correctos')
 				->withInput($request->only('username'));
@@ -49,82 +57,101 @@ class AuthController extends Controller{
 
 		$user = Auth::user();
 
-		// 🚧 VALIDACIÓN DE ESTADO (1 = activo, 2 = inactivo)
-		if ((int) ($user->estado ?? 1) !== 1) {
+		$gateError = $this->validateLoginGate($user, $app);
+		if ($gateError) {
 			Auth::logout();
 			$request->session()->invalidate();
 			$request->session()->regenerateToken();
 
 			return back()
-				->withErrors('Tu cuenta está inactiva. Por favor comunícate con el Equipo de Taxpiya.')
+				->withErrors($gateError)
 				->withInput($request->only('username'));
 		}
 
-		// Gateo por rol solo si la vista indicó app concreta
+		$destination = RouteServiceProvider::homeForUser($user, $app);
+		return $this->redirectIntended($destination, 'Inicio de sesión completado');
+	}
+
+	private function attemptFirebasePasswordLogin(string $email, string $password, bool $remember, ?string $app): bool
+	{
+		$firebase = app(FirebaseIdentityService::class);
+		if (!$firebase->isConfigured()) {
+			return false;
+		}
+
+		try {
+			$identity = $firebase->signInWithPassword($email, $password);
+		} catch (\Throwable $e) {
+			return false;
+		}
+
+		$user = Users::query()->where('firebase_uid', $identity['localId'])->first();
+		if (!$user) {
+			$user = Users::query()->where('email', $email)->first();
+		}
+
+		if (!$user) {
+			$user = Users::create([
+				'firebase_uid' => $identity['localId'],
+				'name'         => explode('@', $email)[0],
+				'email'        => $email,
+				'telefono'     => 'fb_' . substr($identity['localId'], 0, 12),
+				'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
+				'estado'       => 1,
+			]);
+			$user->assignRole($app === 'conductor' ? 'Conductor' : 'Pasajero');
+		} elseif (empty($user->firebase_uid)) {
+			$user->firebase_uid = $identity['localId'];
+			$user->save();
+		}
+
+		Auth::login($user, $remember);
+
+		try {
+			app(FirestoreUserService::class)->upsertFromUser($user, $app ?: 'pasajero');
+		} catch (\Throwable $e) {
+			report($e);
+		}
+
+		return true;
+	}
+
+	private function validateLoginGate($user, ?string $app): ?string
+	{
+		if ((int) ($user->estado ?? 1) !== 1) {
+			return 'Tu cuenta está inactiva. Por favor comunícate con el Equipo de Taxpiya.';
+		}
+
 		if ($app === 'conductor') {
 			if (!$user->hasRole('Conductor')) {
-				Auth::logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-
-				return back()
-					->withErrors('Acceso exclusivo para Conductores.')
-					->withInput($request->only('username'));
+				return 'Acceso exclusivo para Conductores.';
 			}
 			$conductor = DB::table('conductores')->where('user_id', $user->id)->first();
 			if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
-				Auth::logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-
-				return back()
-					->withErrors('Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.')
-					->withInput($request->only('username'));
+				return 'Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.';
 			}
 
 			DB::table('conductores')
 				->where('id', (int) $conductor->id)
 				->update([
-					'disponible'  => 0,
-					'updated_at'  => now()->format('Y-m-d H:i:s'),
+					'disponible' => 0,
+					'updated_at' => now()->format('Y-m-d H:i:s'),
 				]);
-		}
-		elseif ($app === 'pasajero') {
+		} elseif ($app === 'pasajero') {
 			if (!$user->hasRole('Pasajero')) {
-				Auth::logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-
-				return back()
-					->withErrors('Este acceso es solo para Pasajeros.')
-					->withInput($request->only('username'));
+				return 'Este acceso es solo para Pasajeros.';
 			}
-		}
-		elseif ($app === 'empresa') {
+		} elseif ($app === 'empresa') {
 			if (!$user->hasRole('Empresa')) {
-				Auth::logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-
-				return back()
-					->withErrors('Acceso exclusivo para empresas afiliadas.')
-					->withInput($request->only('username'));
+				return 'Acceso exclusivo para empresas afiliadas.';
 			}
 			$empresa = DB::table('empresas')->where('user_id', $user->id)->first();
 			if (!$empresa) {
-				Auth::logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-
-				return back()
-					->withErrors('Tu cuenta no tiene una empresa vinculada.')
-					->withInput($request->only('username'));
+				return 'Tu cuenta no tiene una empresa vinculada.';
 			}
 		}
-		// Si 'app' viene null, no se aplica gateo (útil para panel/admin si lo usas aquí).
 
-		$destination = RouteServiceProvider::homeForUser($user, $app);
-		return $this->redirectIntended($destination, 'Inicio de sesión completado');
+		return null;
 	}
 
 	/**
@@ -180,19 +207,38 @@ class AuthController extends Controller{
      */
 	function register_store(UsersRegisterRequest $request){
 		$modeldata = $this->normalizeFormData($request->validated());
+		$plainPassword = $request->input('password');
 		
 		if( array_key_exists("fotoperfil", $modeldata) ){
 			//move uploaded file from temp directory to destination directory
 			$fileInfo = $this->moveUploadedFiles($modeldata['fotoperfil'], "fotoperfil");
 			$modeldata['fotoperfil'] = $fileInfo['filepath'];
 		}
-		$modeldata['password'] = bcrypt($modeldata['password']);
+
+		$firebase = app(FirebaseIdentityService::class);
+		if ($firebase->isConfigured() && !empty($modeldata['email'])) {
+			try {
+				$identity = $firebase->signUp($modeldata['email'], $plainPassword);
+				$modeldata['firebase_uid'] = $identity['localId'];
+			} catch (\Throwable $e) {
+				return back()
+					->withErrors($e->getMessage())
+					->withInput($request->except('password'));
+			}
+		}
+
+		$modeldata['password'] = bcrypt($plainPassword);
 		
 		//save Users record
 		$user = $record = Users::create($modeldata);
 		$user->assignRole("Pasajero"); //set default role for user
 
-		$rec_id = $record->id;
+		try {
+			app(FirestoreUserService::class)->upsertFromUser($user, 'pasajero');
+		} catch (\Throwable $e) {
+			report($e);
+		}
+
 		Auth::login($user, true);
 		return $this->redirectIntended("/home", "Inicio de sesión completado");
 	}
