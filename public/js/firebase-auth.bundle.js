@@ -20,6 +20,7 @@ var TaxpiyaFirebase = (() => {
   // resources/js/firebase-auth.js
   var firebase_auth_exports = {};
   __export(firebase_auth_exports, {
+    completeGoogleRedirect: () => completeGoogleRedirect,
     init: () => init,
     loginEmail: () => loginEmail,
     loginGoogle: () => loginGoogle,
@@ -7253,6 +7254,9 @@ var TaxpiyaFirebase = (() => {
     await persistence._remove(key);
     return hasPendingRedirect;
   }
+  async function _setPendingRedirectStatus(resolver, auth2) {
+    return resolverPersistence(resolver)._set(pendingRedirectKey(auth2), "true");
+  }
   function _overrideRedirectResult(auth2, result) {
     redirectOutcomeMap.set(auth2._key(), result);
   }
@@ -7261,6 +7265,29 @@ var TaxpiyaFirebase = (() => {
   }
   function pendingRedirectKey(auth2) {
     return _persistenceKeyName(PENDING_REDIRECT_KEY, auth2.config.apiKey, auth2.name);
+  }
+  function signInWithRedirect(auth2, provider, resolver) {
+    return _signInWithRedirect(auth2, provider, resolver);
+  }
+  async function _signInWithRedirect(auth2, provider, resolver) {
+    if (_isFirebaseServerApp(auth2.app)) {
+      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth2));
+    }
+    const authInternal = _castAuth(auth2);
+    _assertInstanceOf(auth2, provider, FederatedAuthProvider);
+    await authInternal._initializationPromise;
+    const resolverInternal = _withDefaultResolver(authInternal, resolver);
+    await _setPendingRedirectStatus(resolverInternal, authInternal);
+    return resolverInternal._openRedirect(
+      authInternal,
+      provider,
+      "signInViaRedirect"
+      /* AuthEventType.SIGN_IN_VIA_REDIRECT */
+    );
+  }
+  async function getRedirectResult(auth2, resolver) {
+    await _castAuth(auth2)._initializationPromise;
+    return _getRedirectResult(auth2, resolver, false);
   }
   async function _getRedirectResult(auth2, resolverExtern, bypassAuthState = false) {
     if (_isFirebaseServerApp(auth2.app)) {
@@ -18448,6 +18475,11 @@ This typically indicates that your device does not have a healthy Internet conne
     db = getFirestore(app);
     return true;
   }
+  function isNativeWebView() {
+    if (typeof window === "undefined") return false;
+    if (window.Capacitor?.isNativePlatform?.()) return true;
+    return /Taxpiya(Pasajero|Driver)?\/Android/i.test(navigator.userAgent || "");
+  }
   async function syncWithLaravel(idToken, extra = {}) {
     const url = window.TAXPIYA_FIREBASE_SYNC_URL;
     if (!url) throw new Error("URL de sincronizaci\xF3n no configurada");
@@ -18503,7 +18535,19 @@ This typically indicates that your device does not have a healthy Internet conne
   async function loginGoogle(meta = {}) {
     if (!auth && !init()) throw new Error("Firebase no inicializado");
     const provider = new GoogleAuthProvider();
+    if (isNativeWebView()) {
+      await signInWithRedirect(auth, provider);
+      return { ok: true, redirect: true };
+    }
     const cred = await signInWithPopup(auth, provider);
+    await upsertFirestoreProfile(cred.user, meta);
+    const token = await cred.user.getIdToken();
+    return syncWithLaravel(token, meta);
+  }
+  async function completeGoogleRedirect(meta = {}) {
+    if (!auth && !init()) return null;
+    const cred = await getRedirectResult(auth);
+    if (!cred?.user) return null;
     await upsertFirestoreProfile(cred.user, meta);
     const token = await cred.user.getIdToken();
     return syncWithLaravel(token, meta);
@@ -18519,6 +18563,7 @@ This typically indicates that your device does not have a healthy Internet conne
       loginEmail,
       registerEmail,
       loginGoogle,
+      completeGoogleRedirect,
       onAuthChange
     };
   }

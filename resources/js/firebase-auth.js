@@ -8,6 +8,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
 } from 'firebase/auth';
@@ -31,6 +33,12 @@ export function init() {
   auth = getAuth(app);
   db = getFirestore(app);
   return true;
+}
+
+function isNativeWebView() {
+  if (typeof window === 'undefined') return false;
+  if (window.Capacitor?.isNativePlatform?.()) return true;
+  return /Taxpiya(Pasajero|Driver)?\/Android/i.test(navigator.userAgent || '');
 }
 
 async function syncWithLaravel(idToken, extra = {}) {
@@ -94,7 +102,20 @@ export async function registerEmail(email, password, profile = {}) {
 export async function loginGoogle(meta = {}) {
   if (!auth && !init()) throw new Error('Firebase no inicializado');
   const provider = new GoogleAuthProvider();
+  if (isNativeWebView()) {
+    await signInWithRedirect(auth, provider);
+    return { ok: true, redirect: true };
+  }
   const cred = await signInWithPopup(auth, provider);
+  await upsertFirestoreProfile(cred.user, meta);
+  const token = await cred.user.getIdToken();
+  return syncWithLaravel(token, meta);
+}
+
+export async function completeGoogleRedirect(meta = {}) {
+  if (!auth && !init()) return null;
+  const cred = await getRedirectResult(auth);
+  if (!cred?.user) return null;
   await upsertFirestoreProfile(cred.user, meta);
   const token = await cred.user.getIdToken();
   return syncWithLaravel(token, meta);
@@ -112,6 +133,7 @@ if (typeof window !== 'undefined') {
     loginEmail,
     registerEmail,
     loginGoogle,
+    completeGoogleRedirect,
     onAuthChange,
   };
 }

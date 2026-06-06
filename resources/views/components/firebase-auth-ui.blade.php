@@ -49,9 +49,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.TaxpiyaFirebase.init();
 
+  window.TaxpiyaFirebase.completeGoogleRedirect(meta).then((data) => {
+    if (data?.ok) goHome(data);
+  }).catch((e) => { if (e?.message) showErr(e.message); });
+
   document.getElementById('txp-firebase-google')?.addEventListener('click', async () => {
     try {
       const data = await window.TaxpiyaFirebase.loginGoogle(meta);
+      if (data?.redirect) return;
       goHome(data);
     } catch (e) { showErr(e.message); }
   });

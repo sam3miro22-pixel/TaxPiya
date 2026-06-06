@@ -1,0 +1,157 @@
+/* TaxPiya — optimización móvil / Capacitor WebView */
+
+html, body {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body.with-login {
+  padding-top: 0 !important;
+}
+
+body.with-login .navbar,
+body.with-login .topbar,
+body.with-login .footer,
+body.with-login #sidebar {
+  display: none !important;
+}
+
+body.with-login #main-content,
+body.with-login #page-content,
+body.with-login #page-wrapper {
+  min-height: 100dvh;
+  height: auto;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.auth-wrap {
+  min-height: 100dvh;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  background: linear-gradient(135deg, #0b132b 0%, #1c2541 40%, #3a506b 100%);
+}
+
+.auth-wrap .container,
+.auth-wrap .row,
+.auth-wrap .col-12 {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.glass-card {
+  width: 100%;
+  border: 0;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.txp-firebase-auth .btn {
+  min-height: 48px;
+  border-radius: 14px !important;
+  font-weight: 600;
+}
+
+.txp-btn-google {
+  background: #fff !important;
+  color: #1a1a1a !important;
+  border: 0 !important;
+}
+
+.txp-btn-google:hover {
+  filter: brightness(0.97);
+}
+
+.btn-brand,
+.btn-brand:focus {
+  background: linear-gradient(135deg, #ffb703, #fb8500) !important;
+  color: #1a1a1a !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+  min-height: 48px;
+  box-shadow: 0 10px 24px rgba(251, 133, 0, 0.25);
+}
+
+.txp-btn-create {
+  border-radius: 14px !important;
+  border: 2px solid rgba(255, 255, 255, 0.35) !important;
+  color: #fff !important;
+  min-height: 48px;
+}
+
+.txp-ipt {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 0 !important;
+  border-top-right-radius: 14px !important;
+  border-bottom-right-radius: 14px !important;
+  min-height: 48px;
+  font-size: 16px !important;
+}
+
+.txp-ipt-pre {
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-top-left-radius: 14px !important;
+  border-bottom-left-radius: 14px !important;
+}
+
+.input-group-lg > .form-control,
+.input-group-lg > .input-group-text {
+  min-height: 48px;
+}
+
+#txp-map-root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.map-canvas,
+#map {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.txp-map-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: linear-gradient(180deg, #1c2541, #0b132b);
+  color: #fff;
+  z-index: 2;
+}
+
+.txp-map-error .box {
+  max-width: 360px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+@media (max-width: 576px) {
+  .auth-wrap .glass-card {
+    padding: 1.25rem !important;
+  }
+
+  .auth-wrap .h4 {
+    font-size: 1.25rem;
+  }
+}

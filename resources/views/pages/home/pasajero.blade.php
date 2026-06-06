@@ -2907,6 +2907,6 @@ function refreshNearbyDrivers(){
 
 
 
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config('taxpiya.google_maps_key') }}&libraries=places&callback=initMap" async defer></script>
+@include('components.google-maps-script', ['libraries' => 'places', 'callback' => 'initMap'])
 
 @endsection

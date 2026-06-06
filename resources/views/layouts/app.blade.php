@@ -14,7 +14,8 @@
 		<meta name="description" content="" />
 
 		<meta name="csrf-token" content="{{ csrf_token() }}">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+		<link rel="stylesheet" href="{{ asset('css/mobile-app.css') }}" />
 		<link rel="stylesheet" href="{{ asset('css/fontawesome.css') }}" />
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 		<link rel="stylesheet" href="{{ asset('css/animate.css') }}" />
@@ -44,6 +45,7 @@
 
 
 		@yield('pagecss')
+		@stack('styles')
 		@yield('plugins')
 		<script>
 			var siteAddr = "{{ url('') }}/";
@@ -240,10 +242,18 @@
 	$('#sidebarCollapse').on('click', function () {
 		$('#sidebar, #main-content').toggleClass('active');
 	});
-	var navTopHeight = $('#topbar').outerHeight() + 'px';
-	document.body.style.paddingTop = navTopHeight;
-	$('#sidebar').css('top', navTopHeight);
-	$('#sidebar').css('height', 'calc(100vh - ' +  navTopHeight + ')');
+	$(function () {
+		if ($('.auth-wrap').length) {
+			document.body.style.paddingTop = '0';
+			return;
+		}
+		if ($('.topbar:visible, .navbar:visible').length && $('#topbar').length) {
+			var navTopHeight = $('#topbar').outerHeight() + 'px';
+			document.body.style.paddingTop = navTopHeight;
+			$('#sidebar').css('top', navTopHeight);
+			$('#sidebar').css('height', 'calc(100vh - ' +  navTopHeight + ')');
+		}
+	});
 </script>
 		<script>
 			window.onload = (event) => {
