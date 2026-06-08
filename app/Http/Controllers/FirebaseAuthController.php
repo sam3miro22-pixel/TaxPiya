@@ -277,6 +277,7 @@ class FirebaseAuthController extends Controller
 
             return response()->json(['ok' => false, 'steps' => $steps], 500);
         }
+    }
 
     /**
      * @return array<string, mixed>
