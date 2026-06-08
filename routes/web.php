@@ -234,6 +234,36 @@ Route::middleware(['auth'])->group(function () {
 	
 	Route::post('auth/login', 'AuthController@login')->name('auth.login');
 	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'syncSession'])->name('auth.firebase.sync');
+	Route::get('auth/firebase/diag', function () {
+		$checks = [
+			'users_firebase_uid'      => \Illuminate\Support\Facades\Schema::hasColumn('users', 'firebase_uid'),
+			'users_codigo_referido'   => \Illuminate\Support\Facades\Schema::hasColumn('users', 'codigo_referido'),
+			'sessions_table'          => \Illuminate\Support\Facades\Schema::hasTable('sessions'),
+			'wallet_cuentas'          => \Illuminate\Support\Facades\Schema::hasTable('wallet_cuentas'),
+			'wallet_puede_depositar'  => \Illuminate\Support\Facades\Schema::hasColumn('wallet_cuentas', 'puede_depositar'),
+			'role_pasajero'           => \Illuminate\Support\Facades\DB::table('roles')->where('role_name', 'Pasajero')->exists(),
+			'session_driver'          => config('session.driver'),
+			'firebase_auth'           => (bool) config('taxpiya.firebase.use_firebase_auth'),
+		];
+		try {
+			\Illuminate\Support\Facades\DB::beginTransaction();
+			\Illuminate\Support\Facades\DB::table('users')->insertGetId([
+				'name'         => '_probe_',
+				'email'        => '_probe_' . uniqid('', true) . '@test.local',
+				'telefono'     => 'fbprobe' . substr(uniqid('', true), -10),
+				'password'     => bcrypt('x'),
+				'estado'       => 1,
+				'user_role_id' => 2,
+				'firebase_uid' => 'probe_' . uniqid('', true),
+			]);
+			\Illuminate\Support\Facades\DB::rollBack();
+			$checks['user_insert_probe'] = 'ok';
+		} catch (\Throwable $e) {
+			\Illuminate\Support\Facades\DB::rollBack();
+			$checks['user_insert_probe'] = $e->getMessage();
+		}
+		return response()->json($checks);
+	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);
 
 	Route::get('auth/accountcreated', 'AuthController@accountcreated')->name('accountcreated');
