@@ -11,12 +11,24 @@ class PurgeNonDemoCommand extends Command
     protected $signature = 'taxpiya:purge-non-demo
                             {--force : Sin confirmación}
                             {--no-firebase : No borrar cuentas en Firebase Auth}
-                            {--reseed : Ejecutar seed demo después}';
+                            {--reseed : Ejecutar seed demo después}
+                            {--once : Omitir si ya se ejecutó (marca en SQLite)}';
 
     protected $description = 'Elimina todas las cuentas excepto las demo (SQLite + Firebase)';
 
     public function handle(AccountPurgeService $purge): int
     {
+        if ($this->option('once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
+            $done = \Illuminate\Support\Facades\DB::table('users')
+                ->where('email', '_taxpiya_purge_done@internal.local')
+                ->exists();
+            if ($done) {
+                $this->line('Purga ya ejecutada anteriormente (--once).');
+
+                return self::SUCCESS;
+            }
+        }
+
         if (!$this->option('force') && !$this->confirm('¿Eliminar TODAS las cuentas que no sean demo?')) {
             return self::SUCCESS;
         }
@@ -46,6 +58,22 @@ class PurgeNonDemoCommand extends Command
 
         if ($this->option('reseed')) {
             $this->call('taxpiya:seed-demo', ['--force' => true]);
+        }
+
+        if ($this->option('once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
+            $exists = \Illuminate\Support\Facades\DB::table('users')
+                ->where('email', '_taxpiya_purge_done@internal.local')
+                ->exists();
+            if (!$exists) {
+                \Illuminate\Support\Facades\DB::table('users')->insert([
+                    'name'         => 'Purge Marker',
+                    'email'        => '_taxpiya_purge_done@internal.local',
+                    'telefono'     => '0000000000',
+                    'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
+                    'estado'       => 0,
+                    'user_role_id' => 1,
+                ]);
+            }
         }
 
         return self::SUCCESS;
