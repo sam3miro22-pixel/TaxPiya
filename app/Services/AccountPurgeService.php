@@ -47,6 +47,7 @@ class AccountPurgeService
 
         $deleteUserIds = DB::table('users')
             ->whereNotIn('id', $keepIds)
+            ->where('email', '!=', '_taxpiya_purge_done@internal.local')
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
