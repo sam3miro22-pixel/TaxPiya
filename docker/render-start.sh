@@ -46,7 +46,7 @@ php artisan view:cache
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   php artisan migrate --force 2>/dev/null || true
   php artisan taxpiya:ensure-schema 2>/dev/null || true
-  if [ "${TAXPIYA_SEED_DEMO:-true}" = "true" ]; then
+  if [ "${TAXPIYA_SEED_DEMO:-false}" = "true" ]; then
     php artisan taxpiya:seed-demo 2>/dev/null || true
   fi
 elif php artisan migrate:status >/dev/null 2>&1; then

@@ -760,6 +760,7 @@ if (Schema::hasTable('viaje_estados_log')) {
 			if (!$wasActive && (int) ($record->estado_operitivo ?? 0) === 1) {
 				$userId = (int) DB::table('conductores')->where('id', $rec_id)->value('user_id');
 				if ($userId) {
+					DB::table('users')->where('id', $userId)->update(['estado' => 1]);
 					app(\App\Services\ReferralService::class)->activateReferral($userId, 'conductor');
 				}
 			}

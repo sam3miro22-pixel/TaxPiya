@@ -6,6 +6,8 @@ use App\Models\Users;
 use App\Providers\RouteServiceProvider;
 use App\Services\Firebase\FirestoreUserService;
 use App\Services\ReferralService;
+use App\Services\UserAccountService;
+use App\Services\WalletLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,10 +22,10 @@ class FirebaseAuthController extends Controller
     public function syncSession(Request $request)
     {
         $request->validate([
-            'id_token'    => 'required|string',
-            'app'         => 'nullable|in:pasajero,conductor',
-            'name'        => 'nullable|string|max:255',
-            'telefono'    => 'nullable|string|max:125',
+            'id_token'      => 'required|string',
+            'app'           => 'nullable|in:pasajero,conductor',
+            'name'          => 'nullable|string|max:255',
+            'telefono'      => 'nullable|string|max:125',
             'is_register'   => 'nullable|boolean',
             'referral_code' => 'nullable|string|max:20',
         ]);
@@ -36,12 +38,13 @@ class FirebaseAuthController extends Controller
             $claims = $this->verifyIdToken($request->input('id_token'));
         } catch (\Throwable $e) {
             Log::warning('Firebase token inválido', ['err' => $e->getMessage()]);
+
             return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
         }
 
         $uid   = $claims['sub'] ?? $claims['user_id'] ?? null;
         $email = $claims['email'] ?? null;
-        $app   = $request->input('app');
+        $app   = $request->input('app', 'pasajero');
 
         if (!$uid) {
             return response()->json(['ok' => false, 'message' => 'Token sin identificador'], 401);
@@ -51,14 +54,13 @@ class FirebaseAuthController extends Controller
             return response()->json(['ok' => false, 'message' => 'Firebase Auth solo está disponible para pasajero y conductor'], 422);
         }
 
-        $user = Users::query()->where('firebase_uid', $uid)->first();
-
-        if (!$user && $email) {
-            $user = Users::query()->where('email', $email)->first();
-        }
-
+        $accounts  = app(UserAccountService::class);
         $referrals = app(ReferralService::class);
-        $refCode = $request->input('referral_code');
+        $refCode   = $request->input('referral_code');
+        $telefono  = $accounts->normalizeTelefono($request->input('telefono'));
+
+        $user = $accounts->findByFirebaseIdentity($uid, $email, $telefono);
+
         if (!$user && $referrals->normalizeCode($refCode)) {
             $check = $referrals->validateCode($refCode);
             if (!$check['ok']) {
@@ -68,9 +70,16 @@ class FirebaseAuthController extends Controller
 
         $isNew = false;
         if (!$user) {
+            if ($app === 'conductor') {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'No tienes cuenta de conductor activa. Solicita registro en /conductor/aplicar y espera la aprobación del administrador.',
+                ], 403);
+            }
+
             $isNew = true;
-            $name = $request->input('name') ?: ($claims['name'] ?? 'Usuario Taxpiya');
-            $tel  = $request->input('telefono') ?: ('fb_' . substr($uid, 0, 12));
+            $name  = $request->input('name') ?: ($claims['name'] ?? 'Usuario Taxpiya');
+            $tel   = $telefono ?: ('fb_' . substr($uid, 0, 12));
 
             $user = Users::create([
                 'firebase_uid'  => $uid,
@@ -80,51 +89,59 @@ class FirebaseAuthController extends Controller
                 'password'      => bcrypt(Str::random(32)),
                 'estado'        => 1,
             ]);
-            $user->assignRole($app === 'conductor' ? 'Conductor' : 'Pasajero');
+            $user->assignRole('Pasajero');
 
-            if ($app === 'pasajero') {
-                try {
-                    app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
-                } catch (\Throwable $e) {
-                    report($e);
-                }
+            try {
+                app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+            } catch (\Throwable $e) {
+                report($e);
             }
         } else {
-            if (empty($user->firebase_uid)) {
-                $user->firebase_uid = $uid;
-            }
+            $accounts->linkFirebaseUid($user, $uid);
+
             if ($request->filled('name')) {
                 $user->name = $request->input('name');
-            } elseif (!empty($claims['name'])) {
+            } elseif (!empty($claims['name']) && str_starts_with((string) $user->name, 'Usuario ')) {
                 $user->name = $claims['name'];
             }
-            if ($request->filled('telefono')) {
-                $user->telefono = $request->input('telefono');
+
+            if ($telefono && (str_starts_with((string) $user->telefono, 'fb_') || empty($user->telefono))) {
+                $user->telefono = $telefono;
             }
+
+            if ($email && (str_contains((string) $user->email, '@firebase.taxpiya.local') || str_contains((string) $user->email, '@conductor.taxpiya.local'))) {
+                $user->email = $email;
+            }
+
             $user->save();
+            $user->refresh();
         }
 
         if ((int) ($user->estado ?? 1) !== 1) {
-            return response()->json(['ok' => false, 'message' => 'Cuenta inactiva'], 403);
+            return response()->json(['ok' => false, 'message' => 'Cuenta inactiva o en revisión'], 403);
         }
 
         if ($app === 'conductor' && !$user->hasRole('Conductor')) {
             return response()->json(['ok' => false, 'message' => 'Acceso exclusivo para Conductores'], 403);
         }
+
         if ($app === 'conductor') {
             $conductor = DB::table('conductores')->where('user_id', $user->id)->first();
             if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
-                return response()->json(['ok' => false, 'message' => 'Conductor no activo'], 403);
+                return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
             }
         }
+
         if ($app === 'pasajero' && !$user->hasRole('Pasajero')) {
             return response()->json(['ok' => false, 'message' => 'Acceso solo para Pasajeros'], 403);
         }
 
         $referrals->ensureUserCode($user);
+        app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+        $referrals->processPendingBonusesForReferrerUser((int) $user->id);
+
         if ($isNew && $referrals->normalizeCode($refCode)) {
-            $tipo = $app === 'conductor' ? 'conductor' : ($app === 'empresa' ? 'empresa' : 'pasajero');
-            $reg = $referrals->registerReferral($refCode, (int) $user->id, $tipo);
+            $reg = $referrals->registerReferral($refCode, (int) $user->id, 'pasajero');
             if (!empty($reg['referido_id'])) {
                 $resolved = $referrals->resolveCode($refCode);
                 $referrerUserId = $resolved && $resolved['type'] === 'user'
@@ -134,14 +151,12 @@ class FirebaseAuthController extends Controller
                     $referrals->processPendingBonusesForReferrerUser($referrerUserId);
                 }
             }
-        } elseif (!$isNew) {
-            $referrals->processPendingBonusesForReferrerUser((int) $user->id);
         }
 
         Auth::login($user, true);
         $request->session()->regenerate();
 
-        app(FirestoreUserService::class)->upsertFromUser($user, $app ?: 'pasajero');
+        app(FirestoreUserService::class)->upsertFromUser($user, $app);
 
         return response()->json([
             'ok'       => true,
@@ -173,7 +188,6 @@ class FirebaseAuthController extends Controller
             return $verified->claims()->all();
         }
 
-        // Fallback REST si kreait no está instalado aún
         return $this->verifyIdTokenViaGoogle($idToken);
     }
 

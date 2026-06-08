@@ -51,6 +51,8 @@ Route::get('empresa/login', function () {
     return view('pages.index.empresa_login');
 })->name('empresa.login')->middleware(['redirect.to.home']);
 
+Route::get('empresa/registro', [EmpresaPortalController::class, 'afiliarse'])
+    ->name('empresa.registro')->middleware(['redirect.to.home']);
 Route::get('empresa/afiliarse', [EmpresaPortalController::class, 'afiliarse'])
     ->name('empresa.afiliarse')->middleware(['redirect.to.home']);
 Route::post('empresa/afiliarse', [EmpresaPortalController::class, 'afiliarseStore'])
@@ -67,8 +69,12 @@ Route::post('pasajero/registro', 'AuthController@register_store')
 
 Route::get('conductor/aplicar', [HomeController::class, 'conductorAplicar'])
     ->name('conductor.aplicar')->middleware(['redirect.to.home']);
+Route::get('conductor/registro', [HomeController::class, 'conductorAplicar'])
+    ->name('conductor.registro')->middleware(['redirect.to.home']);
 Route::post('conductor/aplicar', [HomeController::class, 'conductorAplicarStore'])
     ->name('conductor.aplicar_store');
+Route::get('conductor/aplicar/ok', [HomeController::class, 'conductorAplicarOk'])
+    ->name('conductor.aplicar.ok');
 
 Route::middleware(['auth'])->group(function () {
 

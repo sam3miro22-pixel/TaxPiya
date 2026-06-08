@@ -61,6 +61,16 @@
             </div>
             @include('components.referral-code-field')
 
+            @include('components.registration-docs-notice', [
+                'roleLabel' => 'la afiliación',
+                'documents' => [
+                    'Cámara de comercio o RUT',
+                    'NIT y documento del representante legal',
+                    'Licencia de transporte / permiso operación',
+                    'Listado inicial de vehículos y conductores (si aplica)',
+                ],
+            ])
+
             <div class="txp-auth-check mb-3">
                 <input type="checkbox" name="acepta" id="acepta" value="1" required>
                 <label for="acepta">Acepto los términos y autorizo la verificación de mi empresa</label>

@@ -153,6 +153,21 @@ SQL);
         $this->ensureColumn($pdo, 'referidos', 'bonus_monto', 'REAL NULL');
         $this->ensureColumn($pdo, 'referidos', 'bonus_paid_at', 'TEXT NULL');
 
+        $this->ensureTable($pdo, 'sessions', <<<'SQL'
+CREATE TABLE IF NOT EXISTS sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id INTEGER NULL,
+    ip_address VARCHAR(64) NULL,
+    user_agent TEXT NULL,
+    payload TEXT NOT NULL,
+    last_activity INTEGER NOT NULL
+)
+SQL);
+        $pdo->exec('CREATE INDEX IF NOT EXISTS sessions_user_id_index ON sessions(user_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS sessions_last_activity_index ON sessions(last_activity)');
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS referidos_referred_user_unique ON referidos(referred_user_id)');
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS users_codigo_referido_unique ON users(codigo_referido) WHERE codigo_referido IS NOT NULL AND codigo_referido != ""');
+
         $this->ensureTable($pdo, 'referidos', <<<'SQL'
 CREATE TABLE IF NOT EXISTS referidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

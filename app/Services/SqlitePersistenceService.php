@@ -325,7 +325,7 @@ class SqlitePersistenceService
         try {
             file_put_contents($tmp, $binary);
             $pdo = new \PDO('sqlite:' . $tmp, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
-            $required = ['users', 'conductores', 'conductor_posicion_actual', 'viajes', 'vehiculos'];
+            $required = ['users', 'conductores', 'conductor_posicion_actual', 'viajes', 'vehiculos', 'referidos', 'wallet_cuentas'];
             foreach ($required as $table) {
                 $stmt = $pdo->prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1");
                 $stmt->execute([$table]);

@@ -59,6 +59,8 @@ async function ensureInit() {
 
 function saveAuthMeta(meta = {}) {
   try {
+    localStorage.setItem(AUTH_META_KEY, JSON.stringify(meta || {}));
+    localStorage.setItem(REDIRECT_FLAG_KEY, '1');
     sessionStorage.setItem(AUTH_META_KEY, JSON.stringify(meta || {}));
     sessionStorage.setItem(REDIRECT_FLAG_KEY, '1');
   } catch (_) {}
@@ -67,19 +69,25 @@ function saveAuthMeta(meta = {}) {
 function loadAuthMeta(fallback = {}) {
   let meta = { ...fallback };
   try {
-    const raw = sessionStorage.getItem(AUTH_META_KEY);
+    const raw = localStorage.getItem(AUTH_META_KEY) || sessionStorage.getItem(AUTH_META_KEY);
     if (raw) meta = { ...meta, ...JSON.parse(raw) };
+    localStorage.removeItem(AUTH_META_KEY);
     sessionStorage.removeItem(AUTH_META_KEY);
   } catch (_) {}
   return meta;
 }
 
 function clearRedirectFlag() {
-  try { sessionStorage.removeItem(REDIRECT_FLAG_KEY); } catch (_) {}
+  try {
+    localStorage.removeItem(REDIRECT_FLAG_KEY);
+    sessionStorage.removeItem(REDIRECT_FLAG_KEY);
+  } catch (_) {}
 }
 
 function isRedirectPending() {
-  try { return sessionStorage.getItem(REDIRECT_FLAG_KEY) === '1'; } catch (_) { return false; }
+  try {
+    return localStorage.getItem(REDIRECT_FLAG_KEY) === '1' || sessionStorage.getItem(REDIRECT_FLAG_KEY) === '1';
+  } catch (_) { return false; }
 }
 
 export function init() {
@@ -213,6 +221,13 @@ export async function loginGoogle(meta = {}) {
   }
 }
 
+export async function resyncSession(meta = {}) {
+  if (!(await ensureInit())) return null;
+  const user = auth.currentUser;
+  if (!user) return null;
+  return finalizeFirebaseUser(user, meta);
+}
+
 export async function completeGoogleRedirect(meta = {}) {
   if (!(await ensureInit())) return null;
 
@@ -290,6 +305,7 @@ if (typeof window !== 'undefined') {
     registerEmail,
     loginGoogle,
     completeGoogleRedirect,
+    resyncSession,
     onAuthChange,
     formatFirebaseError,
     bootGoogleRedirectHandler,

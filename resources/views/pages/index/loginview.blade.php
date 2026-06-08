@@ -59,7 +59,7 @@
     </div>
 
     <div class="txp-auth-check">
-        <input value="true" type="checkbox" name="rememberme" id="rememberme">
+        <input value="true" type="checkbox" name="rememberme" id="rememberme" checked>
         <label for="rememberme">Recuérdame</label>
     </div>
 
@@ -80,11 +80,11 @@
 
 @if($isConductor)
     <p class="txp-auth-foot">
-        ¿Quieres ser conductor? <a href="{{ route('conductor.aplicar') }}">Envía tu solicitud</a>
+        ¿Quieres ser conductor? <a href="{{ route('conductor.registro') }}">Regístrate aquí</a>
     </p>
 @elseif($isEmpresa)
     <p class="txp-auth-foot">
-        ¿Aún no estás afiliado? <a href="{{ route('empresa.afiliarse') }}">Solicitar afiliación</a>
+        ¿Aún no estás afiliado? <a href="{{ route('empresa.registro') }}">Regístrate aquí</a>
     </p>
 @elseif($isAdmin)
     <p class="txp-auth-foot">Acceso restringido a personal autorizado.</p>

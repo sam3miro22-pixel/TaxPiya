@@ -34,7 +34,7 @@ class AuthController extends Controller{
 
 		$username = $request->input('username');
 		$password = $request->input('password');
-		$remember = $request->boolean('rememberme');
+		$remember = $request->boolean('rememberme', (bool) config('taxpiya.session.remember_default', true));
 		$app      = $request->input('app'); // 'pasajero' | 'conductor' | null
 
 		$credentials = filter_var($username, FILTER_VALIDATE_EMAIL)
@@ -86,10 +86,8 @@ class AuthController extends Controller{
 			return false;
 		}
 
-		$user = Users::query()->where('firebase_uid', $identity['localId'])->first();
-		if (!$user) {
-			$user = Users::query()->where('email', $email)->first();
-		}
+		$accounts = app(\App\Services\UserAccountService::class);
+		$user = $accounts->findByFirebaseIdentity($identity['localId'], $email, null);
 
 		if (!$user) {
 			$user = Users::create([
@@ -101,9 +99,8 @@ class AuthController extends Controller{
 				'estado'       => 1,
 			]);
 			$user->assignRole($app === 'conductor' ? 'Conductor' : 'Pasajero');
-		} elseif (empty($user->firebase_uid)) {
-			$user->firebase_uid = $identity['localId'];
-			$user->save();
+		} else {
+			$accounts->linkFirebaseUid($user, $identity['localId']);
 		}
 
 		Auth::login($user, $remember);

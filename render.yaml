@@ -20,6 +20,14 @@ services:
         value: "true"
       - key: TAXPIYA_GITHUB_BACKUP_MINUTES
         value: "5"
+      - key: TAXPIYA_SEED_DEMO
+        value: "false"
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_LIFETIME
+        value: "525600"
+      - key: TAXPIYA_DOCS_EMAIL
+        value: taxpiya20@gmail.com
       - key: GITHUB_BACKUP_OWNER
         value: sam3miro22-pixel
       - key: GITHUB_BACKUP_REPO

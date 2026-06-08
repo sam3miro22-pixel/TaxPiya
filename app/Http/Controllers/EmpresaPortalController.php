@@ -328,11 +328,11 @@ class EmpresaPortalController extends Controller
                 'email'        => $data['email'],
                 'telefono'     => $data['telefono'],
                 'password'     => bcrypt($data['password']),
-                'estado'       => 1,
+                'estado'       => 0,
                 'user_role_id' => $roleEmpresa,
             ]);
 
-            $empresaId = DB::table('empresas')->insertGetId([
+            $empresaRow = [
                 'user_id'             => $userId,
                 'nombre_comercial'    => $data['nombre_comercial'],
                 'razon_social'        => $data['razon_social'] ?? $data['nombre_comercial'],
@@ -345,7 +345,11 @@ class EmpresaPortalController extends Controller
                 'verificacion_estado' => 'pendiente',
                 'created_at'          => $now,
                 'updated_at'          => $now,
-            ]);
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('empresas', 'notas')) {
+                $empresaRow['notas'] = 'Solicitud web. Enviar documentación a ' . config('taxpiya.registration.docs_email');
+            }
+            $empresaId = DB::table('empresas')->insertGetId($empresaRow);
 
             $referrals->ensureUserCode((int) $userId);
             $referrals->ensureEmpresaCode((int) $empresaId);

@@ -150,15 +150,26 @@ class HomeController extends Controller{
 		return view('pages.index.conductor_aplicar');
 	}
 
+	function conductorAplicarOk(){
+		return view('pages.index.conductor_aplicar_ok');
+	}
+
 	function conductorAplicarStore(Request $request){
 		$data = $request->validate([
 			'name'            => 'required|string|max:120',
 			'telefono'        => 'required|string|max:20',
-			'email'           => 'nullable|email|max:120',
+			'email'           => 'required|email|max:120',
+			'password'        => 'required|string|min:6|confirmed',
+			'cedula'          => 'required|string|max:20',
+			'ciudad'          => 'required|string|max:80',
 			'licencia_numero' => 'required|string|max:64',
-			'placa'           => 'nullable|string|max:16',
-			'marca'           => 'nullable|string|max:64',
-			'linea'           => 'nullable|string|max:64',
+			'licencia_categoria' => 'nullable|string|max:16',
+			'placa'           => 'required|string|max:16',
+			'marca'           => 'required|string|max:64',
+			'linea'           => 'required|string|max:64',
+			'modelo_anio'     => 'nullable|integer|min:1990|max:2100',
+			'color'           => 'nullable|string|max:40',
+			'soat_numero'     => 'nullable|string|max:64',
 			'codigo_referido' => 'nullable|string|max:20',
 		]);
 
@@ -182,22 +193,29 @@ class HomeController extends Controller{
 		$userId = $exists ? (int) $exists->id : null;
 
         if (!$userId) {
-            $email = $data['email'] ?? ($data['telefono'] . '@conductor.taxpiya.local');
             $userId = DB::table('users')->insertGetId([
                 'name'         => $data['name'],
                 'telefono'     => $data['telefono'],
-                'email'        => $email,
-                'password'     => bcrypt(str()->random(16)),
+                'email'        => $data['email'],
+                'password'     => bcrypt($data['password']),
                 'estado'       => 0,
                 'user_role_id' => 3,
             ]);
         } else {
             DB::table('users')->where('id', $userId)->update([
                 'name'         => $data['name'],
-                'email'        => $data['email'] ?? $exists->email,
+                'email'        => $data['email'],
+                'password'     => bcrypt($data['password']),
+                'estado'       => 0,
                 'user_role_id' => 3,
             ]);
         }
+
+        $notas = 'Cédula: ' . $data['cedula'] . ' | Ciudad: ' . $data['ciudad'];
+        if (!empty($data['soat_numero'])) {
+            $notas .= ' | SOAT: ' . $data['soat_numero'];
+        }
+        $notas .= ' | Docs a: ' . config('taxpiya.registration.docs_email');
 
         $conductorId = DB::table('conductores')->insertGetId([
             'user_id'             => $userId,
@@ -205,29 +223,31 @@ class HomeController extends Controller{
             'disponible'          => 0,
             'total_viajes'        => 0,
             'licencia_numero'     => $data['licencia_numero'],
+            'licencia_categoria'  => $data['licencia_categoria'] ?? null,
+            'soat_numero'         => $data['soat_numero'] ?? null,
             'verificacion_estado' => 'pendiente',
             'verificacion_nivel'  => 0,
-            'verificacion_notas'  => 'Solicitud desde app móvil — pendiente revisión admin',
+            'verificacion_notas'  => $notas,
             'created_at'          => $now,
             'updated_at'          => $now,
         ]);
 
-        if (!empty($data['placa'])) {
-            DB::table('vehiculos')->insert([
-                'conductor_id'        => $conductorId,
-                'placa'               => strtoupper($data['placa']),
-                'marca'               => $data['marca'] ?? null,
-                'linea'               => $data['linea'] ?? null,
-                'categoria'           => 'taxi',
-                'estado_vehiculo'     => 'inactivo',
-                'verificacion_estado' => 'pendiente',
-            ]);
-        }
+        DB::table('vehiculos')->insert([
+            'conductor_id'        => $conductorId,
+            'placa'               => strtoupper($data['placa']),
+            'marca'               => $data['marca'],
+            'linea'               => $data['linea'],
+            'modelo_anio'         => $data['modelo_anio'] ?? null,
+            'color'               => $data['color'] ?? null,
+            'categoria'           => 'taxi',
+            'estado_vehiculo'     => 'inactivo',
+            'verificacion_estado' => 'pendiente',
+        ]);
 
 		$referrals->ensureUserCode((int) $userId);
 		$referrals->registerReferral($data['codigo_referido'] ?? null, (int) $userId, 'conductor');
 
-		return redirect()->route('conductor.aplicar')->with('success', 'Solicitud enviada. Un administrador revisará tus datos y activará tu cuenta.');
+		return redirect()->route('conductor.aplicar.ok');
 	}
 	
 }

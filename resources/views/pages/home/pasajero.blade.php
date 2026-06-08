@@ -3132,4 +3132,7 @@ function refreshNearbyDrivers(){
 
 @include('components.osm-maps-script', ['callback' => 'initMap'])
 
+@include('components.firebase-auth')
+@include('components.firebase-session-guard', ['firebaseApp' => 'pasajero'])
+
 @endsection

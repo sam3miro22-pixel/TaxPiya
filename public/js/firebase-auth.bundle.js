@@ -26,7 +26,8 @@ var TaxpiyaFirebase = (() => {
     loginEmail: () => loginEmail,
     loginGoogle: () => loginGoogle,
     onAuthChange: () => onAuthChange,
-    registerEmail: () => registerEmail
+    registerEmail: () => registerEmail,
+    resyncSession: () => resyncSession
   });
 
   // node_modules/@firebase/util/dist/postinstall.mjs
@@ -18499,6 +18500,8 @@ This typically indicates that your device does not have a healthy Internet conne
   }
   function saveAuthMeta(meta = {}) {
     try {
+      localStorage.setItem(AUTH_META_KEY, JSON.stringify(meta || {}));
+      localStorage.setItem(REDIRECT_FLAG_KEY, "1");
       sessionStorage.setItem(AUTH_META_KEY, JSON.stringify(meta || {}));
       sessionStorage.setItem(REDIRECT_FLAG_KEY, "1");
     } catch (_) {
@@ -18507,8 +18510,9 @@ This typically indicates that your device does not have a healthy Internet conne
   function loadAuthMeta(fallback = {}) {
     let meta = { ...fallback };
     try {
-      const raw = sessionStorage.getItem(AUTH_META_KEY);
+      const raw = localStorage.getItem(AUTH_META_KEY) || sessionStorage.getItem(AUTH_META_KEY);
       if (raw) meta = { ...meta, ...JSON.parse(raw) };
+      localStorage.removeItem(AUTH_META_KEY);
       sessionStorage.removeItem(AUTH_META_KEY);
     } catch (_) {
     }
@@ -18516,13 +18520,14 @@ This typically indicates that your device does not have a healthy Internet conne
   }
   function clearRedirectFlag() {
     try {
+      localStorage.removeItem(REDIRECT_FLAG_KEY);
       sessionStorage.removeItem(REDIRECT_FLAG_KEY);
     } catch (_) {
     }
   }
   function isRedirectPending() {
     try {
-      return sessionStorage.getItem(REDIRECT_FLAG_KEY) === "1";
+      return localStorage.getItem(REDIRECT_FLAG_KEY) === "1" || sessionStorage.getItem(REDIRECT_FLAG_KEY) === "1";
     } catch (_) {
       return false;
     }
@@ -18645,6 +18650,12 @@ This typically indicates that your device does not have a healthy Internet conne
       throw new Error(formatFirebaseError(e));
     }
   }
+  async function resyncSession(meta = {}) {
+    if (!await ensureInit()) return null;
+    const user = auth.currentUser;
+    if (!user) return null;
+    return finalizeFirebaseUser(user, meta);
+  }
   async function completeGoogleRedirect(meta = {}) {
     if (!await ensureInit()) return null;
     const mergedMeta = loadAuthMeta(meta);
@@ -18713,6 +18724,7 @@ This typically indicates that your device does not have a healthy Internet conne
       registerEmail,
       loginGoogle,
       completeGoogleRedirect,
+      resyncSession,
       onAuthChange,
       formatFirebaseError,
       bootGoogleRedirectHandler

@@ -59,6 +59,15 @@ return [
         'bonus_amount' => (float) env('TAXPIYA_REFERRAL_BONUS', 5000),
     ],
 
+    'registration' => [
+        'docs_email' => env('TAXPIYA_DOCS_EMAIL', 'taxpiya20@gmail.com'),
+    ],
+
+    'session' => [
+        'lifetime_minutes' => (int) env('SESSION_LIFETIME', 525600),
+        'remember_default' => env('TAXPIYA_REMEMBER_DEFAULT', true),
+    ],
+
     'wallet' => [
         'commission_percent'    => (float) env('TAXPIYA_WALLET_COMMISSION_PERCENT', 10),
         'commission_min'        => (float) env('TAXPIYA_WALLET_COMMISSION_MIN', 500),
