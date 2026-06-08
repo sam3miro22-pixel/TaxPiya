@@ -7,6 +7,7 @@ use App\Services\WalletService;
 use App\Services\ReferralService;
 use App\Services\Firebase\FirebaseIdentityService;
 use App\Services\Firebase\FirestoreUserService;
+use App\Services\WalletLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +53,7 @@ class EmpresaPortalController extends Controller
         $user = auth()->user();
         $empresa = $this->empresaForUser((int) $user->id);
         $empresaId = (int) $empresa->id;
+        app(WalletLedgerService::class)->ensureCuenta('empresa', $empresaId);
 
         $conductorIds = DB::table('conductores')
             ->where('empresa_id', $empresaId)
@@ -123,9 +125,12 @@ class EmpresaPortalController extends Controller
         $items = DB::table('conductores as c')
             ->join('users as u', 'u.id', '=', 'c.user_id')
             ->leftJoin('vehiculos as v', 'v.conductor_id', '=', 'c.id')
+            ->leftJoin('wallet_cuentas as wc', function ($join) {
+                $join->on('wc.conductor_id', '=', 'c.id')->where('wc.tipo', 'conductor');
+            })
             ->leftJoin('wallet_saldos as w', 'w.conductor_id', '=', 'c.id')
             ->where('c.empresa_id', $empresa->id)
-            ->selectRaw('c.id, c.disponible, c.estado_operitivo, c.total_viajes, u.name as nombre, u.telefono, u.email, v.placa, v.marca, v.linea, v.color, COALESCE(w.saldo_actual,0) as saldo')
+            ->selectRaw('c.id, c.disponible, c.estado_operitivo, c.total_viajes, u.name as nombre, u.telefono, u.email, v.placa, v.marca, v.linea, v.color, COALESCE(wc.saldo_actual, w.saldo_actual, 0) as saldo')
             ->orderByDesc('c.id')
             ->get();
 
@@ -220,6 +225,9 @@ class EmpresaPortalController extends Controller
             ]);
 
             app(WalletService::class)->ensureSaldoRow((int) $conductorId);
+
+            app(WalletLedgerService::class)->ensureCuenta('conductor', (int) $conductorId);
+            app(WalletLedgerService::class)->syncConductorPermissions((int) $conductorId);
 
             $userModel = Users::find($userId);
             if ($userModel) {

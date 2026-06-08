@@ -76,17 +76,16 @@
             @include('components.referral-code-field')
 
             <div class="txp-auth-field">
-                <label class="txp-auth-label">Foto de perfil <span style="font-weight:400;opacity:.7">(opcional)</span></label>
-                <div id="ctrl-fotoperfil-holder">
-                    <div class="dropzone dz-light txp-auth-dropzone" input="#ctrl-fotoperfil" fieldname="fotoperfil"
-                         uploadurl="{{ url('fileuploader/upload/fotoperfil') }}"
-                         data-multiple="false" dropmsg="Toca para subir tu foto"
-                         btntext="Elegir foto" extensions=".jpg,.png,.gif,.jpeg"
-                         filesize="50" maximum="1">
-                        <input name="fotoperfil" id="ctrl-fotoperfil" class="dropzone-input form-control" value="{{ old('fotoperfil') }}" type="text">
-                        <div class="dz-file-limit text-danger small mt-2"></div>
-                    </div>
+                <label class="txp-auth-label" for="fotoperfil-file">Foto de perfil <span style="font-weight:400;opacity:.7">(opcional)</span></label>
+                <div class="txp-auth-photo-pick">
+                    <img id="txp-register-photo-preview" src="" alt="" class="txp-auth-photo-preview" style="display:none;">
+                    <label class="txp-auth-photo-btn" for="fotoperfil-file">
+                        <i class="fa-solid fa-camera"></i> Elegir foto
+                    </label>
+                    <input type="file" name="fotoperfil_file" id="fotoperfil-file" accept="image/jpeg,image/png,image/gif,image/webp" class="visually-hidden">
                 </div>
+                <p class="small text-muted mt-2 mb-0">JPG, PNG o WEBP · máx. 5 MB. Se guarda en el servidor (sin Firebase Storage).</p>
+                <input type="hidden" name="fotoperfil" id="ctrl-fotoperfil" value="{{ old('fotoperfil') }}">
             </div>
 
             <div class="txp-auth-actions">
@@ -194,6 +193,13 @@
 
 @section('pagejs')
 <script>
+document.getElementById('fotoperfil-file')?.addEventListener('change', function (e) {
+  const file = e.target.files?.[0];
+  const preview = document.getElementById('txp-register-photo-preview');
+  if (!file || !preview) return;
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+});
 document.addEventListener('click', function (e) {
   const btn = e.target.closest('.txp-toggle-pass');
   if (!btn) return;

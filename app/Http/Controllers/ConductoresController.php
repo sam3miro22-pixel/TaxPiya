@@ -612,12 +612,23 @@ public function terminarViaje(Request $req)
         $tarifa = (float) ($viajeActualizado->tarifa_aplicada ?? $viajeActualizado->tarifa_final ?? $viajeActualizado->tarifa_estimada ?? 0);
 
         if ($tarifa > 0) {
+            $moneda = $viajeActualizado->moneda ?? 'COP';
+            try {
+                app(\App\Services\WalletLedgerService::class)->creditoIngresoViaje(
+                    (int) $conductor->id,
+                    $viajeId,
+                    $tarifa,
+                    $moneda
+                );
+            } catch (\Throwable $e) {
+                \Log::warning('Wallet ingreso_viaje falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
+            }
             try {
                 app(WalletService::class)->debitoTerminoViaje(
                     (int) $conductor->id,
                     $viajeId,
                     $tarifa,
-                    $viajeActualizado->moneda ?? 'COP'
+                    $moneda
                 );
             } catch (\Throwable $e) {
                 \Log::warning('Wallet debito_termino falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);

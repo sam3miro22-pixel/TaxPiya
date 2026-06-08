@@ -102,6 +102,54 @@ SQL);
         $this->ensureColumn($pdo, 'users', 'codigo_referido', 'TEXT NULL');
         $this->ensureColumn($pdo, 'empresas', 'codigo_referido', 'TEXT NULL');
 
+        $this->ensureTable($pdo, 'wallet_cuentas', <<<'SQL'
+CREATE TABLE IF NOT EXISTS wallet_cuentas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    user_id INTEGER NULL,
+    conductor_id INTEGER NULL,
+    empresa_id INTEGER NULL,
+    saldo_actual REAL NOT NULL DEFAULT 0,
+    saldo_reservado REAL NOT NULL DEFAULT 0,
+    min_operativo REAL NOT NULL DEFAULT 0,
+    moneda TEXT NOT NULL DEFAULT 'COP',
+    bloqueado INTEGER NOT NULL DEFAULT 0,
+    motivo_bloqueo TEXT NULL,
+    puede_depositar INTEGER NOT NULL DEFAULT 1,
+    puede_retirar INTEGER NOT NULL DEFAULT 0,
+    solo_lectura INTEGER NOT NULL DEFAULT 0,
+    last_movimiento_id INTEGER NULL,
+    last_movimiento_at TEXT NULL,
+    created_at TEXT NULL,
+    updated_at TEXT NULL
+)
+SQL);
+
+        $this->ensureTable($pdo, 'wallet_solicitudes', <<<'SQL'
+CREATE TABLE IF NOT EXISTS wallet_solicitudes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cuenta_id INTEGER NOT NULL,
+    operacion TEXT NOT NULL,
+    monto REAL NOT NULL,
+    moneda TEXT NOT NULL DEFAULT 'COP',
+    estado TEXT NOT NULL DEFAULT 'pendiente',
+    metodo_pago TEXT NULL,
+    referencia_pago TEXT NULL,
+    notas TEXT NULL,
+    procesado_por INTEGER NULL,
+    movimiento_id INTEGER NULL,
+    created_at TEXT NULL,
+    updated_at TEXT NULL
+)
+SQL);
+
+        $this->ensureColumn($pdo, 'wallet_movimientos', 'cuenta_id', 'INTEGER NULL');
+        $this->ensureColumn($pdo, 'wallet_movimientos', 'tipo_operacion', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'wallet_movimientos', 'estado', "TEXT NOT NULL DEFAULT 'completado'");
+        $this->ensureColumn($pdo, 'wallet_movimientos', 'metodo_pago', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'wallet_movimientos', 'empresa_id', 'INTEGER NULL');
+        $this->ensureColumn($pdo, 'wallet_movimientos', 'user_id', 'INTEGER NULL');
+
         $this->ensureTable($pdo, 'referidos', <<<'SQL'
 CREATE TABLE IF NOT EXISTS referidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +174,7 @@ SQL);
         $this->ensureEmpresasPermissions();
         $this->ensureReferidosPermissions();
         app(\App\Services\ReferralService::class)->backfillCodes();
+        $this->backfillWalletCuentas();
 
         $this->info('Schema SQLite verificado.');
         return self::SUCCESS;
@@ -151,6 +200,71 @@ SQL);
         }
         $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
         $this->warn("  Columna {$table}.{$column} creada");
+    }
+
+    private function repairIndependentConductors(\PDO $pdo): void
+    {
+        if (!Schema::hasTable('conductores') || !Schema::hasColumn('conductores', 'empresa_id')) {
+            return;
+        }
+
+        $independentPhones = ['3109001001', '3109001002'];
+        foreach ($independentPhones as $phone) {
+            $stmt = $pdo->prepare('SELECT c.id FROM conductores c JOIN users u ON u.id = c.user_id WHERE u.telefono = ? LIMIT 1');
+            $stmt->execute([$phone]);
+            $cid = $stmt->fetchColumn();
+            if ($cid) {
+                $pdo->prepare('UPDATE conductores SET empresa_id = NULL WHERE id = ?')->execute([(int) $cid]);
+            }
+        }
+
+        $pdo->exec('UPDATE conductores SET empresa_id = NULL WHERE empresa_id IS NOT NULL AND empresa_id = 0');
+    }
+
+    private function backfillWalletCuentas(): void
+    {
+        if (!Schema::hasTable('wallet_cuentas')) {
+            return;
+        }
+
+        $ledger = app(\App\Services\WalletLedgerService::class);
+
+        $pasajeros = DB::table('users')->where('user_role_id', 2)->pluck('id');
+        foreach ($pasajeros as $uid) {
+            $ledger->ensureCuenta('pasajero', (int) $uid);
+        }
+
+        $this->repairIndependentConductors($pdo);
+
+        $conductores = DB::table('conductores')->pluck('id');
+        foreach ($conductores as $cid) {
+            $ledger->ensureCuenta('conductor', (int) $cid);
+            $ledger->syncConductorPermissions((int) $cid);
+        }
+
+        $empresas = DB::table('empresas')->pluck('id');
+        foreach ($empresas as $eid) {
+            $ledger->ensureCuenta('empresa', (int) $eid);
+        }
+
+        if (Schema::hasColumn('wallet_movimientos', 'cuenta_id')) {
+            $sinCuenta = DB::table('wallet_movimientos')
+                ->whereNull('cuenta_id')
+                ->whereNotNull('conductor_id')
+                ->select('conductor_id')
+                ->distinct()
+                ->pluck('conductor_id');
+
+            foreach ($sinCuenta as $cid) {
+                $cuenta = $ledger->ensureCuenta('conductor', (int) $cid);
+                if ($cuenta) {
+                    DB::table('wallet_movimientos')
+                        ->where('conductor_id', $cid)
+                        ->whereNull('cuenta_id')
+                        ->update(['cuenta_id' => $cuenta->id]);
+                }
+            }
+        }
     }
 
     private function ensureReferidosPermissions(): void

@@ -9,33 +9,29 @@
   <div id="map" class="map-canvas"></div>
 
   <div id="txp-ui-layer" class="txp-ui-layer">
-  <div class="top-controls">
-    <div class="d-flex align-items-center justify-content-center position-relative">
-      <div class="brand-wrap">
-        <img src="{{ asset('images/logo.png') }}" alt="Taxpiya" class="brand-logo">
-      </div>
-    </div>
-  </div>
-
-
-  <div id="geo-accuracy" class="geo-badge" style="display:none;"></div>
-
- 
-  <div class="bottom-cta">
-    @php
+  @php
   $drvDisponible = \DB::table('conductores')
       ->where('user_id', auth()->id())
       ->value('disponible') ?? 0;
-@endphp
+  @endphp
 
-<button id="driver-online-toggle"
-        class="btn btn-brand btn-xxl"
-        data-online="{{ $drvDisponible ? '1' : '0' }}">
-  <i class="fa-solid fa-power-off me-2"></i> DISPONIBLE
-</button>
-<button id="txd-recenter" class="txd-recenter" aria-label="Centrar en mi ubicación">
-  <i class="fa-solid fa-crosshairs"></i>
-</button>
+  <div class="txp-conductor-top-right">
+    <div class="brand-wrap brand-wrap--corner">
+      <img src="{{ asset('images/logo.png') }}" alt="Taxpiya" class="brand-logo brand-logo--corner" width="56" height="56">
+    </div>
+    <button id="driver-online-toggle"
+            class="btn btn-brand btn-xxl"
+            data-online="{{ $drvDisponible ? '1' : '0' }}">
+      <i class="fa-solid fa-power-off me-2"></i> DISPONIBLE
+    </button>
+  </div>
+
+  <div id="geo-accuracy" class="geo-badge" style="display:none;"></div>
+
+  <div class="bottom-cta">
+    <button id="txd-recenter" class="txd-recenter" aria-label="Centrar en mi ubicación">
+      <i class="fa-solid fa-crosshairs"></i>
+    </button>
   </div>
 
 
@@ -228,11 +224,22 @@ body#main #page-content {
 .txp-ui-layer { position:absolute; inset:0; z-index:var(--txp-ui-z); pointer-events:none; }
 .txp-ui-layer > * { pointer-events:auto; }
 
-.top-controls{
-  position:absolute; left:0; right:0; top:0;
-  display:flex; flex-direction:column; align-items:center;
-  padding: max(12px, env(safe-area-inset-top)) 12px 8px; z-index:var(--txp-ui-z);
-  background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
+.txp-conductor-top-right{
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.txp-conductor-top-right > * { pointer-events: auto; }
+.brand-wrap--corner { line-height: 0; }
+.brand-logo--corner{
+  width: 56px; height: 56px; object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(255,209,102,.55));
 }
 .brand-logo{
   width:64px; height:64px; object-fit:contain;
@@ -400,14 +407,12 @@ body#main #page-content {
 
 
 #driver-online-toggle{
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  right: calc(env(safe-area-inset-right, 0px) + 12px);
-  z-index: 6;
+  position: static;
   padding: 10px 14px;
   font-size: 14px;
   border-radius: 14px;
   box-shadow: 0 8px 22px rgba(255,159,28,.30), inset 0 2px 0 rgba(255,255,255,.35);
+  white-space: nowrap;
 }
 #driver-online-toggle i{ margin-right: .5rem; }
 @media (max-width: 480px){

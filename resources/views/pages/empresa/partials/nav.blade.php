@@ -8,6 +8,9 @@
     <a href="{{ route('empresa.viajes') }}" class="txp-empresa-nav__item {{ request()->routeIs('empresa.viajes') ? 'is-active' : '' }}">
         <i class="fa-solid fa-route"></i><span>Viajes</span>
     </a>
+    <a href="{{ route('empresa.wallet') }}" class="txp-empresa-nav__item {{ request()->routeIs('empresa.wallet') ? 'is-active' : '' }}">
+        <i class="fa-solid fa-wallet"></i><span>Billetera</span>
+    </a>
     <a href="{{ route('empresa.cuenta') }}" class="txp-empresa-nav__item {{ request()->routeIs('empresa.cuenta') ? 'is-active' : '' }}">
         <i class="fa-solid fa-building"></i><span>Empresa</span>
     </a>

@@ -51,12 +51,20 @@ class HomeController extends Controller{
 		}
 
 		$data = $request->validate([
-			'name'       => 'required|string|max:120',
-			'fotoperfil' => 'nullable|string|max:255',
+			'name'            => 'required|string|max:120',
+			'fotoperfil'      => 'nullable|string|max:255',
+			'fotoperfil_file' => 'nullable|image|max:5120',
 		]);
 
 		$update = ['name' => $data['name']];
-		if (!empty($data['fotoperfil'])) {
+		if ($request->hasFile('fotoperfil_file')) {
+			try {
+				$update['fotoperfil'] = app(\App\Services\ProfilePhotoService::class)
+					->store($request->file('fotoperfil_file'));
+			} catch (\Throwable $e) {
+				return back()->withErrors(['fotoperfil' => $e->getMessage()])->withInput();
+			}
+		} elseif (!empty($data['fotoperfil'])) {
 			$update['fotoperfil'] = $data['fotoperfil'];
 		}
 
@@ -109,7 +117,7 @@ class HomeController extends Controller{
 		return view('pages.conductor.viajes', ['viajes' => $viajes]);
 	}
 
-	function conductorWallet(WalletService $wallet){
+	function conductorWallet(WalletService $wallet, \App\Services\WalletLedgerService $ledger){
 		$user = auth()->user();
 		if (!$user || !$user->hasRole('Conductor')) {
 			return redirect()->route('home');
@@ -120,15 +128,20 @@ class HomeController extends Controller{
 		}
 
 		$wallet->ensureSaldoRow((int) $conductor->id);
+		$ledger->syncConductorPermissions((int) $conductor->id);
+		$cuenta = $ledger->ensureCuenta('conductor', (int) $conductor->id);
 		$saldo = $wallet->getSaldo((int) $conductor->id);
-		$movimientos = DB::table('wallet_movimientos')
-			->where('conductor_id', $conductor->id)
-			->where('anulado', 0)
-			->orderByDesc('id')
-			->limit(30)
-			->get();
+		$movimientos = $cuenta
+			? $ledger->getMovimientos((int) $cuenta->id, 40)
+			: DB::table('wallet_movimientos')->where('conductor_id', $conductor->id)->where('anulado', 0)->orderByDesc('id')->limit(40)->get()->all();
+		$resumen = $ledger->resumenIngresosConductor((int) $conductor->id);
+		$isFlota = $ledger->isConductorFlota($conductor);
+		if ($cuenta && !$isFlota && (int) ($cuenta->solo_lectura ?? 0) === 1) {
+			$ledger->syncConductorPermissions((int) $conductor->id);
+			$cuenta = $ledger->ensureCuenta('conductor', (int) $conductor->id);
+		}
 
-		return view('pages.conductor.wallet', compact('saldo', 'movimientos'));
+		return view('pages.conductor.wallet', compact('saldo', 'movimientos', 'cuenta', 'resumen', 'isFlota'));
 	}
 
 	function conductorAplicar(){

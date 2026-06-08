@@ -219,10 +219,18 @@ class AuthController extends Controller{
 		}
 		$plainPassword = $request->input('password');
 		
-		if( array_key_exists("fotoperfil", $modeldata) ){
-			//move uploaded file from temp directory to destination directory
-			$fileInfo = $this->moveUploadedFiles($modeldata['fotoperfil'], "fotoperfil");
+		if ($request->hasFile('fotoperfil_file')) {
+			try {
+				$modeldata['fotoperfil'] = app(\App\Services\ProfilePhotoService::class)
+					->store($request->file('fotoperfil_file'));
+			} catch (\Throwable $e) {
+				return back()->withErrors($e->getMessage())->withInput($request->except('password'));
+			}
+		} elseif (array_key_exists('fotoperfil', $modeldata) && !empty($modeldata['fotoperfil'])) {
+			$fileInfo = $this->moveUploadedFiles($modeldata['fotoperfil'], 'fotoperfil');
 			$modeldata['fotoperfil'] = $fileInfo['filepath'];
+		} else {
+			unset($modeldata['fotoperfil']);
 		}
 
 		$firebase = app(FirebaseIdentityService::class);
@@ -245,6 +253,12 @@ class AuthController extends Controller{
 
 		$referrals->ensureUserCode($user);
 		$referrals->registerReferral($referralCode, (int) $user->id, 'pasajero');
+
+		try {
+			app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+		} catch (\Throwable $e) {
+			report($e);
+		}
 
 		try {
 			app(FirestoreUserService::class)->upsertFromUser($user, 'pasajero');

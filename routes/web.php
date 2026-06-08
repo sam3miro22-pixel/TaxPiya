@@ -78,13 +78,22 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/empresa/flota', [EmpresaPortalController::class, 'flotaStore'])->name('empresa.flota.store');
     Route::get('/empresa/viajes', [EmpresaPortalController::class, 'viajes'])->name('empresa.viajes');
     Route::get('/empresa/cuenta', [EmpresaPortalController::class, 'cuenta'])->name('empresa.cuenta');
+    Route::get('/empresa/wallet', [\App\Http\Controllers\WalletPortalController::class, 'empresaWallet'])->name('empresa.wallet');
+    Route::post('/empresa/wallet/depositar', [\App\Http\Controllers\WalletPortalController::class, 'empresaDepositar'])->name('empresa.wallet.depositar');
+    Route::post('/empresa/wallet/retirar', [\App\Http\Controllers\WalletPortalController::class, 'empresaRetirar'])->name('empresa.wallet.retirar');
+    Route::get('/empresa/flota/{conductorId}/wallet', [\App\Http\Controllers\WalletPortalController::class, 'empresaFlotaWallet'])->name('empresa.flota.wallet');
+    Route::post('/empresa/flota/{conductorId}/pagar', [\App\Http\Controllers\WalletPortalController::class, 'empresaPagarConductor'])->name('empresa.flota.pagar');
 
     Route::get('/pasajero/perfil', [HomeController::class, 'pasajeroPerfil'])->name('pasajero.perfil');
     Route::post('/pasajero/perfil', [HomeController::class, 'pasajeroPerfilUpdate'])->name('pasajero.perfil.update');
     Route::get('/pasajero/viajes', [HomeController::class, 'pasajeroViajes'])->name('pasajero.viajes');
+    Route::get('/pasajero/wallet', [\App\Http\Controllers\WalletPortalController::class, 'pasajeroWallet'])->name('pasajero.wallet');
+    Route::post('/pasajero/wallet/depositar', [\App\Http\Controllers\WalletPortalController::class, 'pasajeroDepositar'])->name('pasajero.wallet.depositar');
     Route::get('/conductor/cuenta', [HomeController::class, 'conductorCuenta'])->name('conductor.cuenta');
     Route::get('/conductor/viajes', [HomeController::class, 'conductorViajes'])->name('conductor.viajes');
     Route::get('/conductor/wallet', [HomeController::class, 'conductorWallet'])->name('conductor.wallet');
+    Route::post('/conductor/wallet/depositar', [\App\Http\Controllers\WalletPortalController::class, 'conductorDepositar'])->name('conductor.wallet.depositar');
+    Route::post('/conductor/wallet/retirar', [\App\Http\Controllers\WalletPortalController::class, 'conductorRetirar'])->name('conductor.wallet.retirar');
 
     Route::get('/api/nearby-drivers', function (Request $req) {
         $lat = (float) $req->query('lat');
@@ -605,10 +614,14 @@ Route::get('componentsdata/last_movimiento_id_option_list',  function(Request $r
 )->middleware(['auth']);
 
 
+Route::post('fileuploader/upload/fotoperfil', [\App\Http\Controllers\FileUploaderController::class, 'upload'])
+    ->defaults('fieldname', 'fotoperfil');
+Route::post('fileuploader/remove_temp_file', [\App\Http\Controllers\FileUploaderController::class, 'remove_temp_file']);
+
 Route::middleware(['auth'])->group(function () {
-    Route::post('fileuploader/upload/{fieldname}', 'FileUploaderController@upload');
-    Route::post('fileuploader/s3upload/{fieldname}', 'FileUploaderController@s3upload');
-    Route::post('fileuploader/remove_temp_file', 'FileUploaderController@remove_temp_file');
+    Route::post('fileuploader/upload/{fieldname}', [\App\Http\Controllers\FileUploaderController::class, 'upload'])
+        ->where('fieldname', '^(?!fotoperfil$).+');
+    Route::post('fileuploader/s3upload/{fieldname}', [\App\Http\Controllers\FileUploaderController::class, 's3upload']);
 });
 
 

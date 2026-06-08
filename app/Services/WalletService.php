@@ -135,6 +135,28 @@ class WalletService
             ]);
         });
 
+        if ($movId && Schema::hasTable('wallet_cuentas')) {
+            try {
+                $ledger = app(WalletLedgerService::class);
+                $cuenta = $ledger->ensureCuenta('conductor', $conductorId);
+                if ($cuenta) {
+                    DB::table('wallet_movimientos')->where('id', $movId)->update([
+                        'cuenta_id'      => $cuenta->id,
+                        'tipo_operacion' => $data['motivo'],
+                        'estado'         => 'completado',
+                    ]);
+                    DB::table('wallet_cuentas')->where('id', $cuenta->id)->update([
+                        'saldo_actual'       => DB::table('wallet_saldos')->where('conductor_id', $conductorId)->value('saldo_actual'),
+                        'last_movimiento_id' => $movId,
+                        'last_movimiento_at' => now()->format('Y-m-d H:i:s'),
+                        'updated_at'         => now()->format('Y-m-d H:i:s'),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         return $movId;
     }
 
