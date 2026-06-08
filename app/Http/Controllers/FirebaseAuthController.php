@@ -77,23 +77,14 @@ class FirebaseAuthController extends Controller
         $user  = $result['user'];
         $isNew = $result['is_new'];
 
-        if ($app === 'pasajero') {
-            try {
-                $apply = $referrals->applyPasajeroReferral(
-                    $refCode,
-                    (int) $user->id,
-                    $isNew,
-                    $request->boolean('is_register')
-                );
-                if (!empty($apply['referido_id'])) {
-                    $resolved = $referrals->resolveCode($refCode);
-                    $referrerId = (int) ($resolved['user_id'] ?? 0);
-                    if ($referrerId > 0) {
-                        $referrals->processPendingBonusesForReferrerUser($referrerId);
-                    }
-                }
-            } catch (\Throwable) {
-            }
+        $referralResult = null;
+        if ($app === 'pasajero' && $referrals->normalizeCode($refCode)) {
+            $referralResult = $referrals->applyPasajeroReferral(
+                $refCode,
+                (int) $user->id,
+                $isNew,
+                $request->boolean('is_register')
+            );
         }
 
         try {
@@ -101,12 +92,21 @@ class FirebaseAuthController extends Controller
         } catch (\Throwable) {
         }
 
-        return response()->json([
+        $payload = [
             'ok'       => true,
             'user_id'  => $user->id,
             'is_new'   => $isNew,
             'redirect' => '/home',
-        ]);
+        ];
+        if (is_array($referralResult)) {
+            $payload['referral'] = [
+                'applied'    => empty($referralResult['skipped']),
+                'referido_id'=> $referralResult['referido_id'] ?? null,
+                'bonus_ok'   => $referralResult['bonus']['ok'] ?? null,
+            ];
+        }
+
+        return response()->json($payload);
     }
 
     /**

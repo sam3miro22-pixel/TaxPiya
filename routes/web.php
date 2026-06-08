@@ -18,6 +18,54 @@ use App\Support\GeoDistance;
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
 Route::get('/api/referral/validate', [\App\Http\Controllers\ReferidosController::class, 'validateCode'])->name('api.referral.validate');
+Route::get('/api/referral/user-status', function (Request $request) {
+    $email = strtolower(trim((string) $request->query('email', '')));
+    if ($email === '') {
+        return response()->json(['ok' => false, 'message' => 'email requerido'], 422);
+    }
+
+    $user = \Illuminate\Support\Facades\DB::table('users')
+        ->whereRaw('LOWER(email) = ?', [$email])
+        ->orderByDesc('id')
+        ->first();
+    if (!$user) {
+        return response()->json(['ok' => false, 'found' => false, 'message' => 'Usuario no encontrado']);
+    }
+
+    $userId = (int) $user->id;
+    $referrals = app(\App\Services\ReferralService::class);
+    $ledger = app(\App\Services\WalletLedgerService::class);
+    $referrals->processPendingBonusesForReferrerUser($userId);
+    $ledger->ensureCuenta('pasajero', $userId);
+
+    $cuenta = \Illuminate\Support\Facades\DB::table('wallet_cuentas')
+        ->where('tipo', 'pasajero')
+        ->where('user_id', $userId)
+        ->first();
+
+    $refs = \Illuminate\Support\Facades\DB::table('referidos')
+        ->where('referrer_user_id', $userId)
+        ->orderByDesc('id')
+        ->limit(20)
+        ->get(['id', 'referred_user_id', 'estado', 'bonus_paid_at', 'bonus_monto', 'codigo_usado']);
+
+    return response()->json([
+        'ok'     => true,
+        'found'  => true,
+        'user'   => [
+            'id'    => $userId,
+            'email' => $user->email,
+            'name'  => $user->name,
+            'code'  => $referrals->codeForUser($userId),
+        ],
+        'stats'  => $referrals->statsForUser($userId),
+        'wallet' => [
+            'saldo' => (float) ($cuenta->saldo_actual ?? 0),
+            'cuenta_id' => $cuenta->id ?? null,
+        ],
+        'referidos' => $refs,
+    ]);
+})->name('api.referral.user-status');
 
 Route::get('/api/internal/sqlite-dump', function (Request $request) {
     if (config('database.default') !== 'sqlite') {

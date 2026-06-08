@@ -186,14 +186,10 @@ class ReferralService
         }
 
         $result = $this->registerReferral($rawCode, $userId, 'pasajero');
-        if (!empty($result['referido_id'])) {
-            $resolved = $this->resolveCode($rawCode);
-            $referrerUserId = $resolved && $resolved['type'] === 'user'
-                ? (int) $resolved['user_id']
-                : (int) ($resolved['user_id'] ?? 0);
-            if ($referrerUserId > 0) {
-                $this->processPendingBonusesForReferrerUser($referrerUserId);
-            }
+
+        $resolved = $this->resolveCode($rawCode);
+        if ($resolved && $resolved['type'] === 'user') {
+            $this->processPendingBonusesForReferrerUser((int) $resolved['user_id']);
         }
 
         return $result;
@@ -218,9 +214,22 @@ class ReferralService
             return ['ok' => false, 'message' => 'No puedes usar tu propio código de referido'];
         }
 
-        $exists = DB::table('referidos')->where('referred_user_id', $referredUserId)->exists();
-        if ($exists) {
-            return ['ok' => true];
+        $existingId = (int) (DB::table('referidos')->where('referred_user_id', $referredUserId)->value('id') ?? 0);
+        if ($existingId > 0) {
+            $referrerUserId = $resolved['type'] === 'user'
+                ? (int) $resolved['user_id']
+                : (int) ($resolved['user_id'] ?? 0);
+            if ($referrerUserId > 0) {
+                $this->processPendingBonusesForReferrerUser($referrerUserId);
+            }
+            $bonus = $this->payReferralBonus($existingId);
+
+            return [
+                'ok'          => true,
+                'referido_id' => $existingId,
+                'existing'    => true,
+                'bonus'       => $bonus,
+            ];
         }
 
         $estado = $tipoReferido === 'pasajero' ? 'activo' : 'registrado';

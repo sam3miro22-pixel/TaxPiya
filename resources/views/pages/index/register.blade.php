@@ -133,13 +133,18 @@
               err.style.display = 'block';
             };
             const hideErr = () => { if (err) err.style.display = 'none'; };
-            const profile = () => ({
-              app: 'pasajero',
-              name: document.getElementById('ctrl-name')?.value?.trim(),
-              telefono: document.getElementById('ctrl-telefono')?.value?.trim(),
-              referral_code: document.getElementById('txp-referral-code')?.value?.trim() || null,
-              is_register: true,
-            });
+            const profile = () => {
+              const urlRef = new URLSearchParams(window.location.search).get('ref');
+              const inputRef = document.getElementById('txp-referral-code')?.value?.trim();
+              const ref = (inputRef || urlRef || '').trim().toUpperCase() || null;
+              return {
+                app: 'pasajero',
+                name: document.getElementById('ctrl-name')?.value?.trim(),
+                telefono: document.getElementById('ctrl-telefono')?.value?.trim(),
+                referral_code: ref,
+                is_register: true,
+              };
+            };
 
             if (window.__txpFbRedirectError) showErr(window.__txpFbRedirectError);
             window.addEventListener('txp-firebase-auth-error', (e) => showErr(e?.detail));
