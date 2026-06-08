@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Users;
-use App\Providers\RouteServiceProvider;
 use App\Services\Firebase\FirestoreUserService;
 use App\Services\PortalAuthService;
 use App\Services\ReferralService;
@@ -35,39 +34,13 @@ class FirebaseAuthController extends Controller
             return response()->json(['ok' => false, 'message' => 'Firebase Auth desactivado'], 503);
         }
 
-        try {
-            return $this->processFirebaseSync($request);
-        } catch (\Throwable) {
-            return response()->json([
-                'ok'      => false,
-                'message' => 'No se pudo completar el inicio de sesión. Intenta de nuevo o usa celular.',
-            ], 500);
-        }
-    }
-
-    private function processFirebaseSync(Request $request): JsonResponse
-    {
-        try {
-            $claims = $this->verifyIdToken($request->input('id_token'));
-        } catch (\Throwable) {
-            return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
-        }
-
-        $uid   = (string) ($claims['sub'] ?? $claims['user_id'] ?? '');
-        $email = $claims['email'] ?? null;
-        $app   = $request->input('app', 'pasajero');
-
-        if ($uid === '') {
-            return response()->json(['ok' => false, 'message' => 'Token sin identificador'], 401);
-        }
-
+        $app = $request->input('app', 'pasajero');
         if (!in_array($app, ['pasajero', 'conductor'], true)) {
             return response()->json(['ok' => false, 'message' => 'Firebase Auth solo está disponible para pasajero y conductor'], 422);
         }
 
         $referrals = app(ReferralService::class);
         $refCode   = $request->input('referral_code');
-
         if ($request->boolean('is_register') && $referrals->normalizeCode($refCode)) {
             $check = $referrals->validateCode($refCode);
             if (!$check['ok']) {
@@ -75,76 +48,72 @@ class FirebaseAuthController extends Controller
             }
         }
 
-        if ($app === 'conductor') {
-            $accounts  = app(UserAccountService::class);
-            $telefono  = $accounts->normalizeTelefono($request->input('telefono'));
-            $existing  = $accounts->findByFirebaseIdentity($uid, $email, $telefono);
-            if (!$existing) {
-                return response()->json([
-                    'ok'      => false,
-                    'message' => 'No tienes cuenta de conductor activa. Solicita registro en /conductor/aplicar y espera la aprobación del administrador.',
-                ], 403);
-            }
-        }
-
-        $result = $this->provisionFirebaseUser($request, $claims, $uid, $email, $app);
-        if ($result instanceof JsonResponse) {
-            return $result;
-        }
-
-        /** @var array{user:Users,is_new:bool} $result */
-        $user  = $result['user'];
-        $isNew = $result['is_new'];
-
-        $portalAuth = app(PortalAuthService::class);
-        if ((int) ($user->estado ?? 1) !== 1) {
-            return response()->json(['ok' => false, 'message' => 'Cuenta inactiva o en revisión'], 403);
-        }
-
-        $roleError = $portalAuth->validateRoleForPortal($user, $app);
-        if ($roleError) {
-            return response()->json(['ok' => false, 'message' => $roleError], 403);
-        }
-
-        if ($app === 'conductor') {
-            $conductor = DB::table('conductores')->where('user_id', $user->id)->first();
-            if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
-                return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
-            }
-        }
-
         try {
-            if ($app === 'pasajero') {
-                $referrals->applyPasajeroReferral(
-                    $refCode,
-                    (int) $user->id,
-                    $isNew,
-                    $request->boolean('is_register')
-                );
+            $probe = $this->diagSyncProbe($request);
+            $data  = $probe->getData(true);
+
+            if (!($data['ok'] ?? false)) {
+                $verify = $data['steps']['verify'] ?? null;
+                if ($verify && $verify !== 'ok') {
+                    return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
+                }
+                $msg = $data['steps']['provision'] ?? 'No se pudo completar el inicio de sesión.';
+
+                return response()->json(['ok' => false, 'message' => $msg], $probe->getStatusCode());
             }
-        } catch (\Throwable) {
-        }
 
-        try {
-            app(FirestoreUserService::class)->upsertFromUser($user, $app);
-        } catch (\Throwable) {
-        }
+            $userId = (int) ($data['user_id'] ?? 0);
+            $user   = Users::query()->find($userId);
+            if (!$user) {
+                return response()->json(['ok' => false, 'message' => 'Usuario no encontrado tras sincronizar'], 500);
+            }
 
-        try {
-            $redirect = RouteServiceProvider::homeForUser($user, $app);
-        } catch (\Throwable) {
-            $redirect = '/home';
-        }
-        if ($redirect === '' || $redirect[0] !== '/') {
-            $redirect = '/home';
-        }
+            $isNew = str_starts_with((string) ($data['steps']['find_user'] ?? ''), 'new');
 
-        return response()->json([
-            'ok'       => true,
-            'user_id'  => $user->id,
-            'is_new'   => $isNew,
-            'redirect' => $redirect,
-        ]);
+            $portalAuth = app(PortalAuthService::class);
+            $roleError  = $portalAuth->validateRoleForPortal($user, $app);
+            if ($roleError) {
+                Auth::logout();
+
+                return response()->json(['ok' => false, 'message' => $roleError], 403);
+            }
+
+            if ($app === 'conductor') {
+                $conductor = DB::table('conductores')->where('user_id', $user->id)->first();
+                if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
+                    Auth::logout();
+
+                    return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
+                }
+            }
+
+            try {
+                if ($app === 'pasajero') {
+                    $referrals->applyPasajeroReferral(
+                        $refCode,
+                        $userId,
+                        $isNew,
+                        $request->boolean('is_register')
+                    );
+                }
+                app(FirestoreUserService::class)->upsertFromUser($user, $app);
+            } catch (\Throwable) {
+            }
+
+            $redirect = $app === 'empresa' ? '/empresa' : '/home';
+
+            return response()->json([
+                'ok'       => true,
+                'user_id'  => $userId,
+                'is_new'   => $isNew,
+                'redirect' => $redirect,
+            ]);
+        } catch (\Throwable) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'No se pudo completar el inicio de sesión. Intenta de nuevo o usa celular.',
+            ], 500);
+        }
     }
 
     /**
@@ -251,7 +220,8 @@ class FirebaseAuthController extends Controller
 
         $uid   = (string) ($claims['sub'] ?? $claims['user_id'] ?? '');
         $email = $claims['email'] ?? null;
-        $result = $this->provisionFirebaseUser($request, $claims, $uid, $email, 'pasajero');
+        $app   = $request->input('app', 'pasajero');
+        $result = $this->provisionFirebaseUser($request, $claims, $uid, $email, $app);
 
         if ($result instanceof JsonResponse) {
             $payload = $result->getData(true);
