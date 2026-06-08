@@ -11,6 +11,7 @@ $motivoLabel = [
     'debito_termino' => 'Comisión viaje',
     'debito_asignacion' => 'Asignación',
     'bono' => 'Bono',
+    'bono_referido' => 'Bono por referido',
     'penalidad' => 'Penalidad',
 ];
 @endphp

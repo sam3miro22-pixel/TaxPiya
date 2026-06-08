@@ -152,6 +152,10 @@ class ReferralService
                 ]);
         }
 
+        if ($estado === 'activo') {
+            $this->payReferralBonus((int) $referidoId);
+        }
+
         return [
             'ok'          => true,
             'referido_id' => (int) $referidoId,
@@ -161,14 +165,129 @@ class ReferralService
 
     public function activateReferral(int $referredUserId, string $tipoReferido): void
     {
-        DB::table('referidos')
+        $ids = DB::table('referidos')
             ->where('referred_user_id', $referredUserId)
             ->where('tipo_referido', $tipoReferido)
             ->where('estado', 'registrado')
+            ->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        DB::table('referidos')
+            ->whereIn('id', $ids)
             ->update([
                 'estado'     => 'activo',
                 'updated_at' => now()->toDateTimeString(),
             ]);
+
+        foreach ($ids as $id) {
+            $this->payReferralBonus((int) $id);
+        }
+    }
+
+    /**
+     * Acredita $5.000 (configurable) al referidor cuando el referido queda activo.
+     *
+     * @return array{ok:bool,message?:string,monto?:float,movimiento_id?:int,already_paid?:bool}
+     */
+    public function payReferralBonus(int $referidoId): array
+    {
+        if (!config('taxpiya.referrals.enabled', true)) {
+            return ['ok' => false, 'message' => 'Programa de referidos deshabilitado'];
+        }
+
+        $amount = (float) config('taxpiya.referrals.bonus_amount', 5000);
+        if ($amount <= 0) {
+            return ['ok' => true, 'skipped' => true];
+        }
+
+        $row = DB::table('referidos')->where('id', $referidoId)->first();
+        if (!$row) {
+            return ['ok' => false, 'message' => 'Referido no encontrado'];
+        }
+
+        if ($row->estado !== 'activo') {
+            return ['ok' => false, 'message' => 'Referido aún no confirmado'];
+        }
+
+        if (!empty($row->bonus_paid_at)) {
+            return ['ok' => true, 'already_paid' => true];
+        }
+
+        $cuentaId = $this->resolveReferrerCuentaId($row);
+        if (!$cuentaId) {
+            return ['ok' => false, 'message' => 'Billetera del referidor no disponible'];
+        }
+
+        try {
+            $ledger = app(WalletLedgerService::class);
+            $movId = $ledger->registrarMovimientoCuenta($cuentaId, [
+                'sentido'        => 'credito',
+                'motivo'         => 'bono_referido',
+                'tipo_operacion' => 'bono_referido',
+                'monto'          => $amount,
+                'moneda'         => 'COP',
+                'descripcion'    => 'Bono referido #' . $referidoId . ' (' . $row->tipo_referido . ')',
+                'idempotencia'   => 'referido_bonus_' . $referidoId,
+            ]);
+
+            DB::table('referidos')->where('id', $referidoId)->update([
+                'bonus_monto'   => $amount,
+                'bonus_paid_at' => now()->toDateTimeString(),
+                'updated_at'    => now()->toDateTimeString(),
+            ]);
+
+            return ['ok' => true, 'monto' => $amount, 'movimiento_id' => $movId];
+        } catch (\Throwable $e) {
+            report($e);
+
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function resolveReferrerCuentaId(object $referido): ?int
+    {
+        $ledger = app(WalletLedgerService::class);
+
+        if ($referido->referrer_tipo === 'empresa' && !empty($referido->referrer_empresa_id)) {
+            $cuenta = $ledger->ensureCuenta('empresa', (int) $referido->referrer_empresa_id);
+
+            return $cuenta ? (int) $cuenta->id : null;
+        }
+
+        if (empty($referido->referrer_user_id)) {
+            return null;
+        }
+
+        $userId = (int) $referido->referrer_user_id;
+        $user = Users::find($userId);
+        if (!$user) {
+            return null;
+        }
+
+        if ($user->hasRole('Empresa')) {
+            $empresaId = DB::table('empresas')->where('user_id', $userId)->value('id');
+            if ($empresaId) {
+                $cuenta = $ledger->ensureCuenta('empresa', (int) $empresaId);
+
+                return $cuenta ? (int) $cuenta->id : null;
+            }
+        }
+
+        if ($user->hasRole('Conductor')) {
+            $conductorId = DB::table('conductores')->where('user_id', $userId)->value('id');
+            if ($conductorId) {
+                $cuenta = $ledger->ensureCuenta('conductor', (int) $conductorId);
+
+                return $cuenta ? (int) $cuenta->id : null;
+            }
+        }
+
+        $cuenta = $ledger->ensureCuenta('pasajero', $userId);
+
+        return $cuenta ? (int) $cuenta->id : null;
     }
 
     public function statsForUser(int $userId): array
@@ -183,13 +302,18 @@ class ReferralService
 
         $base = DB::table('referidos')->where('referrer_user_id', $userId);
 
+        $bonusAmount = (float) config('taxpiya.referrals.bonus_amount', 5000);
+
         return [
-            'codigo'     => $code,
-            'total'      => (clone $base)->count(),
-            'activos'    => (clone $base)->where('estado', 'activo')->count(),
-            'pasajeros'  => (clone $base)->where('tipo_referido', 'pasajero')->count(),
-            'conductores'=> (clone $base)->where('tipo_referido', 'conductor')->count(),
-            'empresas'   => (clone $base)->where('tipo_referido', 'empresa')->count(),
+            'codigo'      => $code,
+            'total'       => (clone $base)->count(),
+            'activos'     => (clone $base)->where('estado', 'activo')->count(),
+            'pasajeros'   => (clone $base)->where('tipo_referido', 'pasajero')->count(),
+            'conductores' => (clone $base)->where('tipo_referido', 'conductor')->count(),
+            'empresas'    => (clone $base)->where('tipo_referido', 'empresa')->count(),
+            'bonos_pagados' => (int) (clone $base)->whereNotNull('bonus_paid_at')->count(),
+            'ganancia_total' => (float) (clone $base)->whereNotNull('bonus_paid_at')->sum('bonus_monto'),
+            'bono_por_referido' => $bonusAmount,
         ];
     }
 
@@ -202,13 +326,18 @@ class ReferralService
 
         $base = DB::table('referidos')->where('referrer_empresa_id', $empresaId);
 
+        $bonusAmount = (float) config('taxpiya.referrals.bonus_amount', 5000);
+
         return [
-            'codigo'     => $code,
-            'total'      => (clone $base)->count(),
-            'activos'    => (clone $base)->where('estado', 'activo')->count(),
-            'pasajeros'  => (clone $base)->where('tipo_referido', 'pasajero')->count(),
-            'conductores'=> (clone $base)->where('tipo_referido', 'conductor')->count(),
-            'empresas'   => (clone $base)->where('tipo_referido', 'empresa')->count(),
+            'codigo'      => $code,
+            'total'       => (clone $base)->count(),
+            'activos'     => (clone $base)->where('estado', 'activo')->count(),
+            'pasajeros'   => (clone $base)->where('tipo_referido', 'pasajero')->count(),
+            'conductores' => (clone $base)->where('tipo_referido', 'conductor')->count(),
+            'empresas'    => (clone $base)->where('tipo_referido', 'empresa')->count(),
+            'bonos_pagados' => (int) (clone $base)->whereNotNull('bonus_paid_at')->count(),
+            'ganancia_total' => (float) (clone $base)->whereNotNull('bonus_paid_at')->sum('bonus_monto'),
+            'bono_por_referido' => $bonusAmount,
         ];
     }
 

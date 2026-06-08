@@ -55,7 +55,8 @@ return [
     |--------------------------------------------------------------------------
     */
     'referrals' => [
-        'enabled' => env('TAXPIYA_REFERRALS_ENABLED', true),
+        'enabled'      => env('TAXPIYA_REFERRALS_ENABLED', true),
+        'bonus_amount' => (float) env('TAXPIYA_REFERRAL_BONUS', 5000),
     ],
 
     'wallet' => [

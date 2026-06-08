@@ -150,6 +150,9 @@ SQL);
         $this->ensureColumn($pdo, 'wallet_movimientos', 'empresa_id', 'INTEGER NULL');
         $this->ensureColumn($pdo, 'wallet_movimientos', 'user_id', 'INTEGER NULL');
 
+        $this->ensureColumn($pdo, 'referidos', 'bonus_monto', 'REAL NULL');
+        $this->ensureColumn($pdo, 'referidos', 'bonus_paid_at', 'TEXT NULL');
+
         $this->ensureTable($pdo, 'referidos', <<<'SQL'
 CREATE TABLE IF NOT EXISTS referidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +163,8 @@ CREATE TABLE IF NOT EXISTS referidos (
     referred_user_id INTEGER NOT NULL,
     tipo_referido TEXT NOT NULL,
     estado TEXT NOT NULL DEFAULT 'registrado',
+    bonus_monto REAL NULL,
+    bonus_paid_at TEXT NULL,
     notas TEXT NULL,
     created_at TEXT NULL,
     updated_at TEXT NULL

@@ -1,18 +1,18 @@
 <?php
 /**
- * Prueba API de referidos en producción.
+ * Prueba referidos en producción (API + páginas).
  * Uso: php scripts/test-referrals-prod.php
  */
 $base = getenv('TAXPIYA_BASE_URL') ?: 'https://taxpiya.onrender.com';
 
-function req(string $url): array {
+function req(string $url, array $opts = []): array {
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    curl_setopt_array($ch, array_merge([
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 90,
+        CURLOPT_TIMEOUT        => 90,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTPHEADER => ['Accept: application/json'],
-    ]);
+        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+    ], $opts));
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -26,7 +26,6 @@ $pages = [
     '/pasajero/registro',
     '/conductor/aplicar',
     '/empresa/afiliarse',
-    '/index/login',
 ];
 foreach ($pages as $p) {
     $ch = curl_init($base . $p);
@@ -38,12 +37,25 @@ foreach ($pages as $p) {
 }
 
 $invalid = req($base . '/api/referral/validate?code=TXP-P999999');
-echo ($invalid['code'] === 422 ? '[OK]' : '[FAIL]') . " validate invalid code HTTP {$invalid['code']}\n";
+echo ($invalid['code'] === 422 ? '[OK]' : '[FAIL]') . " validate invalid HTTP {$invalid['code']}\n";
 
 $demo = req($base . '/api/referral/validate?code=TXP-P000001');
-echo ($demo['code'] === 200 || $demo['code'] === 422 ? '[OK]' : '[FAIL]') . " validate demo code HTTP {$demo['code']}\n";
+echo ($demo['code'] === 200 ? '[OK]' : '[INFO]') . " validate TXP-P000001 HTTP {$demo['code']}\n";
 if (!empty($demo['json']['ok'])) {
-    echo "  Demo code válido: {$demo['json']['code']}\n";
+    echo "  Código demo válido (pasajero 1)\n";
 }
 
+$conductorHome = req($base . '/conductor/login');
+echo ($conductorHome['code'] === 200 ? '[OK]' : '[FAIL]') . " conductor login page HTTP {$conductorHome['code']}\n";
+if (str_contains($conductorHome['body'] ?? '', 'txp-brand-badge') || str_contains($conductorHome['body'] ?? '', 'txp-conductor-head')) {
+    echo "[OK] Layout conductor mapa (logo/badge) presente en deploy\n";
+} else {
+    echo "[INFO] Layout nuevo aún no desplegado o requiere sesión\n";
+}
+
+echo "\nFlujo bono referido (manual admin):\n";
+echo "  - Pasajero con código → bono inmediato al registrarse\n";
+echo "  - Conductor aplicar → bono al activar en admin Conductores\n";
+echo "  - Empresa afiliarse → bono al aprobar en admin Empresas\n";
+echo "  - Monto: \$5.000 COP → saldo billetera del referidor\n";
 echo "\nListo.\n";

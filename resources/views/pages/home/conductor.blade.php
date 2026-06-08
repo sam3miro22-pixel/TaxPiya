@@ -15,14 +15,18 @@
       ->value('disponible') ?? 0;
   @endphp
 
+  <div class="txp-conductor-head" aria-hidden="true">
+    <span class="txp-conductor-head__title">TAXPIYA</span>
+  </div>
+
   <div class="txp-conductor-top-right">
-    <div class="brand-wrap brand-wrap--corner">
-      <img src="{{ asset('images/logo.png') }}" alt="Taxpiya" class="brand-logo brand-logo--corner" width="56" height="56">
+    <div class="txp-brand-badge" aria-hidden="true">
+      <img src="{{ asset('images/logo.png') }}" alt="" class="txp-brand-badge__img" width="40" height="40">
     </div>
     <button id="driver-online-toggle"
-            class="btn btn-brand btn-xxl"
+            class="btn btn-brand"
             data-online="{{ $drvDisponible ? '1' : '0' }}">
-      <i class="fa-solid fa-power-off me-2"></i> DISPONIBLE
+      <i class="fa-solid fa-power-off me-1"></i> DISPONIBLE
     </button>
   </div>
 
@@ -224,23 +228,54 @@ body#main #page-content {
 .txp-ui-layer { position:absolute; inset:0; z-index:var(--txp-ui-z); pointer-events:none; }
 .txp-ui-layer > * { pointer-events:auto; }
 
+.txp-conductor-head{
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  text-align: center;
+  pointer-events: none;
+}
+.txp-conductor-head__title{
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0,0,0,.65);
+}
+
 .txp-conductor-top-right{
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
   right: calc(env(safe-area-inset-right, 0px) + 12px);
   z-index: 6;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-end;
+  gap: 0;
   pointer-events: none;
 }
 .txp-conductor-top-right > * { pointer-events: auto; }
-.brand-wrap--corner { line-height: 0; }
-.brand-logo--corner{
-  width: 56px; height: 56px; object-fit: contain;
-  filter: drop-shadow(0 0 10px rgba(255,209,102,.55));
+
+.txp-brand-badge{
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,.28);
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
+.txp-brand-badge__img{
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+}
+
 .brand-logo{
   width:64px; height:64px; object-fit:contain;
   filter: drop-shadow(0 0 10px rgba(255,209,102,.5));
@@ -258,6 +293,15 @@ body#main #page-content {
   text-transform: uppercase; letter-spacing:.3px;
 }
 .btn-xxl{ padding:16px 26px; font-size:18px; }
+#driver-online-toggle.btn-brand{
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 14px;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(255,159,28,.30), inset 0 2px 0 rgba(255,255,255,.35);
+}
 
 
 .geo-badge{
@@ -408,15 +452,13 @@ body#main #page-content {
 
 #driver-online-toggle{
   position: static;
-  padding: 10px 14px;
-  font-size: 14px;
-  border-radius: 14px;
-  box-shadow: 0 8px 22px rgba(255,159,28,.30), inset 0 2px 0 rgba(255,255,255,.35);
-  white-space: nowrap;
+  margin-top: 0;
 }
-#driver-online-toggle i{ margin-right: .5rem; }
+#driver-online-toggle i{ margin-right: .35rem; }
 @media (max-width: 480px){
-  #driver-online-toggle{ padding: 9px 12px; font-size: 13px; }
+  .txp-brand-badge{ width: 44px; height: 44px; margin-bottom: 10px; }
+  .txp-brand-badge__img{ width: 34px; height: 34px; }
+  #driver-online-toggle.btn-brand{ padding: 8px 12px; font-size: 12px; }
 }
 
 #txd-trip-cta{ display:none; }
