@@ -57,8 +57,15 @@ try {
         } -Body $syncBody -TimeoutSec 120
     $ok = $sync.ok -eq $true
 } catch {
-    $raw = $_.ErrorDetails.Message
-    Write-Host "Sync Laravel FAIL: $raw"
+    $resp = $_.Exception.Response
+    $raw = ''
+    if ($resp) {
+        $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+        $raw = $reader.ReadToEnd()
+    }
+    if (-not $raw) { $raw = $_.ErrorDetails.Message }
+    Write-Host "Sync Laravel FAIL (HTTP $($resp.StatusCode.value__)):"
+    Write-Host $raw
     exit 1
 }
 

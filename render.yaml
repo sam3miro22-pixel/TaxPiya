@@ -25,7 +25,9 @@ services:
       - key: TAXPIYA_PURGE_NON_DEMO
         value: "true"
       - key: SESSION_DRIVER
-        value: database
+        value: file
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
       - key: SESSION_LIFETIME
         value: "525600"
       - key: TAXPIYA_DOCS_EMAIL

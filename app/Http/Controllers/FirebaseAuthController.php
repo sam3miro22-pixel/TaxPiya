@@ -192,10 +192,12 @@ class FirebaseAuthController extends Controller
         try {
             Auth::login($user, true);
             $request->session()->regenerate();
+            $request->session()->save();
         } catch (\Throwable $e) {
             try {
                 Auth::login($user, false);
                 $request->session()->regenerate();
+                $request->session()->save();
             } catch (\Throwable $e2) {
                 Log::error('Firebase sync: sesión no guardada', [
                     'user_id' => $user->id,
@@ -209,7 +211,11 @@ class FirebaseAuthController extends Controller
             }
         }
 
-        app(FirestoreUserService::class)->upsertFromUser($user, $app);
+        try {
+            app(FirestoreUserService::class)->upsertFromUser($user, $app);
+        } catch (\Throwable $e) {
+            Log::warning('Firestore upsert omitido en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+        }
 
         return response()->json([
             'ok'       => true,
@@ -218,6 +224,59 @@ class FirebaseAuthController extends Controller
             'redirect' => url(RouteServiceProvider::homeForUser($user, $app)),
         ]);
     }
+
+    /**
+     * Diagnóstico paso a paso del sync (solo producción interna).
+     */
+    public function diagSyncProbe(Request $request)
+    {
+        $request->validate(['id_token' => 'required|string']);
+        $steps = [];
+
+        try {
+            $claims = $this->verifyIdToken($request->input('id_token'));
+            $steps['verify'] = 'ok';
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'steps' => ['verify' => $e->getMessage()]]);
+        }
+
+        $uid   = $claims['sub'] ?? $claims['user_id'] ?? null;
+        $email = $claims['email'] ?? null;
+        $accounts = app(UserAccountService::class);
+        $user = $accounts->findByFirebaseIdentity($uid, $email, null);
+        $steps['find_user'] = $user ? ('found:' . $user->id) : 'new';
+
+        try {
+            if (!$user) {
+                $user = Users::create([
+                    'firebase_uid'  => $uid,
+                    'name'          => $request->input('name', 'Probe Taxpiya'),
+                    'email'         => $email ?: ($uid . '@firebase.taxpiya.local'),
+                    'telefono'      => 'fb_' . preg_replace('/[^a-zA-Z0-9]/', '', (string) $uid),
+                    'password'      => bcrypt(Str::random(32)),
+                    'estado'        => 1,
+                    'user_role_id'  => 2,
+                ]);
+                $user->assignRole('Pasajero');
+                $steps['create'] = 'ok:' . $user->id;
+            }
+
+            app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+            $steps['wallet'] = 'ok';
+            app(ReferralService::class)->ensureUserCode($user);
+            $steps['referral_code'] = 'ok';
+
+            Auth::login($user, true);
+            $request->session()->regenerate();
+            $request->session()->save();
+            $steps['session'] = 'ok';
+
+            return response()->json(['ok' => true, 'steps' => $steps, 'user_id' => $user->id]);
+        } catch (\Throwable $e) {
+            $steps['error'] = $e->getMessage();
+
+            return response()->json(['ok' => false, 'steps' => $steps], 500);
+        }
 
     /**
      * @return array<string, mixed>

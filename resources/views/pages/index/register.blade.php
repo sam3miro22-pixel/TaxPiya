@@ -150,11 +150,17 @@
             form?.addEventListener('submit', async (e) => {
               const email = document.getElementById('ctrl-email')?.value?.trim();
               const pass  = document.getElementById('ctrl-password')?.value || '';
+              const telRaw = document.getElementById('ctrl-telefono')?.value?.trim() || '';
               if (!email || !pass) return;
               if (form.dataset.txpFbSubmitting === '1') return;
 
               e.preventDefault();
               hideErr();
+
+              if (telRaw && (telRaw.includes('@') || !/^\d[\d\s\-()]{6,}$/.test(telRaw))) {
+                showErr('En Móvil escribe tu número de celular (solo dígitos), no el correo.');
+                return;
+              }
 
               if (!window.TaxpiyaFirebase) {
                 form.dataset.txpFbSubmitting = '1';
@@ -167,7 +173,11 @@
                 const data = await window.TaxpiyaFirebase.registerEmail(email, pass, profile());
                 window.location.href = data?.redirect || '/home';
               } catch (ex) {
-                showErr(ex.message || 'No se pudo crear la cuenta. Verifica el correo o intenta con Google.');
+                let msg = ex.message || 'No se pudo crear la cuenta. Verifica el correo o intenta con Google.';
+                if (/ya tiene cuenta|email-already-in-use|EMAIL_EXISTS/i.test(msg)) {
+                  msg += ' Si ya te registraste antes, usa Iniciar sesión con el mismo correo y contraseña.';
+                }
+                showErr(msg);
               }
             });
 

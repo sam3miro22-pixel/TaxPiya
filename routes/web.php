@@ -234,6 +234,7 @@ Route::middleware(['auth'])->group(function () {
 	
 	Route::post('auth/login', 'AuthController@login')->name('auth.login');
 	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'syncSession'])->name('auth.firebase.sync');
+	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.diag-sync');
 	Route::get('auth/firebase/diag', function () {
 		$checks = [
 			'users_firebase_uid'      => \Illuminate\Support\Facades\Schema::hasColumn('users', 'firebase_uid'),
@@ -262,6 +263,23 @@ Route::middleware(['auth'])->group(function () {
 			\Illuminate\Support\Facades\DB::rollBack();
 			$checks['user_insert_probe'] = $e->getMessage();
 		}
+		try {
+			$sid = 'probe_' . uniqid('', true);
+			\Illuminate\Support\Facades\DB::table('sessions')->insert([
+				'id'            => $sid,
+				'user_id'       => null,
+				'ip_address'    => '127.0.0.1',
+				'user_agent'    => 'diag',
+				'payload'       => base64_encode('test'),
+				'last_activity' => time(),
+			]);
+			\Illuminate\Support\Facades\DB::table('sessions')->where('id', $sid)->delete();
+			$checks['session_insert_probe'] = 'ok';
+		} catch (\Throwable $e) {
+			$checks['session_insert_probe'] = $e->getMessage();
+		}
+		$checks['firebase_credentials'] = is_readable(config('firebase.credentials'));
+		$checks['kreait_available'] = class_exists(\Kreait\Firebase\Factory::class);
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);

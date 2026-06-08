@@ -18647,6 +18647,10 @@ This typically indicates that your device does not have a healthy Internet conne
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       return finalizeFirebaseUser(cred.user, { ...profile, is_register: true });
     } catch (e) {
+      const code = e?.code || "";
+      if (code === "auth/email-already-in-use" || /EMAIL_EXISTS/i.test(e?.message || "")) {
+        return loginEmail(email, password, { ...profile, is_register: false });
+      }
       throw new Error(formatFirebaseError(e));
     }
   }
