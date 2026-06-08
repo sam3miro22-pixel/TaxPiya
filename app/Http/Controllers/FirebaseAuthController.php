@@ -77,23 +77,6 @@ class FirebaseAuthController extends Controller
         $user  = $result['user'];
         $isNew = $result['is_new'];
 
-        $portalAuth = app(PortalAuthService::class);
-        $roleError  = $portalAuth->validateRoleForPortal($user, $app);
-        if ($roleError) {
-            Auth::logout();
-
-            return response()->json(['ok' => false, 'message' => $roleError], 403);
-        }
-
-        if ($app === 'conductor') {
-            $conductor = DB::table('conductores')->where('user_id', $user->id)->first();
-            if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
-                Auth::logout();
-
-                return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
-            }
-        }
-
         try {
             if ($app === 'pasajero') {
                 $referrals->applyPasajeroReferral(
