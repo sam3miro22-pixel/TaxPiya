@@ -233,7 +233,7 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
 	Route::post('auth/login', 'AuthController@login')->name('auth.login');
-	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'syncSession'])->name('auth.firebase.sync');
+	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.sync');
 	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.diag-sync');
 	Route::get('auth/firebase/diag', function () {
 		$checks = [

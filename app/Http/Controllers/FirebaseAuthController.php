@@ -21,6 +21,14 @@ class FirebaseAuthController extends Controller
      */
     public function syncSession(Request $request): JsonResponse
     {
+        return $this->diagSyncProbe($request);
+    }
+
+    /**
+     * Diagnóstico y sync Firebase (endpoint principal).
+     */
+    public function diagSyncProbe(Request $request): JsonResponse
+    {
         $request->validate([
             'id_token'      => 'required|string',
             'app'           => 'nullable|in:pasajero,conductor',
@@ -49,71 +57,62 @@ class FirebaseAuthController extends Controller
         }
 
         try {
-            $probe = $this->diagSyncProbe($request);
-            $data  = $probe->getData(true);
+            $claims = $this->verifyIdToken($request->input('id_token'));
+        } catch (\Throwable) {
+            return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
+        }
 
-            if (!($data['ok'] ?? false)) {
-                $verify = $data['steps']['verify'] ?? null;
-                if ($verify && $verify !== 'ok') {
-                    return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
-                }
-                $msg = $data['steps']['provision'] ?? 'No se pudo completar el inicio de sesión.';
+        $uid   = (string) ($claims['sub'] ?? $claims['user_id'] ?? '');
+        $email = $claims['email'] ?? null;
 
-                return response()->json(['ok' => false, 'message' => $msg], $probe->getStatusCode());
-            }
+        if ($uid === '') {
+            return response()->json(['ok' => false, 'message' => 'Token sin identificador'], 401);
+        }
 
-            $userId = (int) ($data['user_id'] ?? 0);
-            $user   = Users::query()->find($userId);
-            if (!$user) {
-                return response()->json(['ok' => false, 'message' => 'Usuario no encontrado tras sincronizar'], 500);
-            }
+        $result = $this->provisionFirebaseUser($request, $claims, $uid, $email, $app);
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
 
-            $isNew = str_starts_with((string) ($data['steps']['find_user'] ?? ''), 'new');
+        $user  = $result['user'];
+        $isNew = $result['is_new'];
 
-            $portalAuth = app(PortalAuthService::class);
-            $roleError  = $portalAuth->validateRoleForPortal($user, $app);
-            if ($roleError) {
+        $portalAuth = app(PortalAuthService::class);
+        $roleError  = $portalAuth->validateRoleForPortal($user, $app);
+        if ($roleError) {
+            Auth::logout();
+
+            return response()->json(['ok' => false, 'message' => $roleError], 403);
+        }
+
+        if ($app === 'conductor') {
+            $conductor = DB::table('conductores')->where('user_id', $user->id)->first();
+            if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
                 Auth::logout();
 
-                return response()->json(['ok' => false, 'message' => $roleError], 403);
+                return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
             }
-
-            if ($app === 'conductor') {
-                $conductor = DB::table('conductores')->where('user_id', $user->id)->first();
-                if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
-                    Auth::logout();
-
-                    return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
-                }
-            }
-
-            try {
-                if ($app === 'pasajero') {
-                    $referrals->applyPasajeroReferral(
-                        $refCode,
-                        $userId,
-                        $isNew,
-                        $request->boolean('is_register')
-                    );
-                }
-                app(FirestoreUserService::class)->upsertFromUser($user, $app);
-            } catch (\Throwable) {
-            }
-
-            $redirect = $app === 'empresa' ? '/empresa' : '/home';
-
-            return response()->json([
-                'ok'       => true,
-                'user_id'  => $userId,
-                'is_new'   => $isNew,
-                'redirect' => $redirect,
-            ]);
-        } catch (\Throwable) {
-            return response()->json([
-                'ok'      => false,
-                'message' => 'No se pudo completar el inicio de sesión. Intenta de nuevo o usa celular.',
-            ], 500);
         }
+
+        try {
+            if ($app === 'pasajero') {
+                $referrals->applyPasajeroReferral(
+                    $refCode,
+                    (int) $user->id,
+                    $isNew,
+                    $request->boolean('is_register')
+                );
+            }
+            app(FirestoreUserService::class)->upsertFromUser($user, $app);
+        } catch (\Throwable) {
+        }
+
+        return response()->json([
+            'ok'       => true,
+            'user_id'  => $user->id,
+            'is_new'   => $isNew,
+            'redirect' => '/home',
+        ]);
     }
 
     /**
@@ -201,41 +200,6 @@ class FirebaseAuthController extends Controller
         }
 
         return ['user' => $user, 'is_new' => $isNew];
-    }
-
-    /**
-     * Diagnóstico paso a paso del sync (producción).
-     */
-    public function diagSyncProbe(Request $request): JsonResponse
-    {
-        $request->validate(['id_token' => 'required|string']);
-        $steps = [];
-
-        try {
-            $claims = $this->verifyIdToken($request->input('id_token'));
-            $steps['verify'] = 'ok';
-        } catch (\Throwable $e) {
-            return response()->json(['ok' => false, 'steps' => ['verify' => $e->getMessage()]]);
-        }
-
-        $uid   = (string) ($claims['sub'] ?? $claims['user_id'] ?? '');
-        $email = $claims['email'] ?? null;
-        $app   = $request->input('app', 'pasajero');
-        $result = $this->provisionFirebaseUser($request, $claims, $uid, $email, $app);
-
-        if ($result instanceof JsonResponse) {
-            $payload = $result->getData(true);
-
-            return response()->json(['ok' => false, 'steps' => ['provision' => $payload['message'] ?? 'error']], $result->getStatusCode());
-        }
-
-        $user = $result['user'];
-        $steps['find_user'] = $result['is_new'] ? 'new' : ('found:' . $user->id);
-        $steps['wallet'] = 'ok';
-        $steps['referral_code'] = 'ok';
-        $steps['session'] = 'ok';
-
-        return response()->json(['ok' => true, 'steps' => $steps, 'user_id' => $user->id]);
     }
 
     /**
