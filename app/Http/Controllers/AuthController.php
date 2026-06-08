@@ -90,6 +90,10 @@ class AuthController extends Controller{
 		$user = $accounts->findByFirebaseIdentity($identity['localId'], $email, null);
 
 		if (!$user) {
+			if (in_array($app, ['conductor', 'empresa'], true)) {
+				return false;
+			}
+
 			$user = Users::create([
 				'firebase_uid' => $identity['localId'],
 				'name'         => explode('@', $email)[0],
@@ -98,10 +102,21 @@ class AuthController extends Controller{
 				'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
 				'estado'       => 1,
 			]);
-			$user->assignRole($app === 'conductor' ? 'Conductor' : 'Pasajero');
+			$user->assignRole('Pasajero');
+			try {
+				app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+			} catch (\Throwable $e) {
+				report($e);
+			}
 		} else {
 			$accounts->linkFirebaseUid($user, $identity['localId']);
+			if ((int) ($user->estado ?? 1) !== 1) {
+				return false;
+			}
 		}
+
+		app(ReferralService::class)->ensureUserCode($user);
+		app(ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
 
 		Auth::login($user, $remember);
 

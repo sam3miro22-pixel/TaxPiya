@@ -17,6 +17,9 @@ class HomeController extends Controller{
      */
 	function index(){
 		$user = auth()->user();
+		if ($user && ($user->hasRole('Pasajero') || $user->hasRole('Conductor'))) {
+			app(ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
+		}
 		if($user->hasRole('admin')){
 			return view("pages.home.admin");
 		}
@@ -97,6 +100,7 @@ class HomeController extends Controller{
 		$vehiculo = $conductor
 			? DB::table('vehiculos')->where('conductor_id', $conductor->id)->first()
 			: null;
+		app(ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
 		$referral = app(ReferralService::class)->statsForUser((int) $user->id);
 		$referralShareUrl = url('/conductor/aplicar?ref=' . urlencode($referral['codigo'] ?? ''));
 		return view('pages.conductor.cuenta', compact('user', 'conductor', 'vehiculo', 'referral', 'referralShareUrl'));
@@ -201,6 +205,10 @@ class HomeController extends Controller{
                 'estado'       => 0,
                 'user_role_id' => 3,
             ]);
+            $created = \App\Models\Users::find($userId);
+            if ($created) {
+                $created->assignRole('Conductor');
+            }
         } else {
             DB::table('users')->where('id', $userId)->update([
                 'name'         => $data['name'],

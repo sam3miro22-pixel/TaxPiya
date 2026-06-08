@@ -121,10 +121,205 @@ class UserAccountService
                 if (empty($keep->firebase_uid) && !empty($discard->firebase_uid)) {
                     $keep->firebase_uid = $discard->firebase_uid;
                 }
+                if (empty($keep->fotoperfil) && !empty($discard->fotoperfil)) {
+                    $keep->fotoperfil = $discard->fotoperfil;
+                }
+                if ((str_starts_with((string) $keep->telefono, 'fb_') || empty($keep->telefono)) && !empty($discard->telefono)) {
+                    $keep->telefono = $discard->telefono;
+                }
+                if (str_contains((string) $keep->email, '@firebase.taxpiya.local') && !empty($discard->email)) {
+                    $keep->email = $discard->email;
+                }
                 $keep->save();
+            }
+
+            if (Schema::hasTable('viajes')) {
+                DB::table('viajes')->where('pasajero_id', $discardId)->update(['pasajero_id' => $keepId]);
+            }
+
+            if (Schema::hasTable('sessions')) {
+                DB::table('sessions')->where('user_id', $discardId)->update(['user_id' => $keepId]);
+            }
+
+            if (Schema::hasTable('push_tokens')) {
+                DB::table('push_tokens')->where('user_id', $discardId)->update(['user_id' => $keepId]);
             }
 
             DB::table('users')->where('id', $discardId)->delete();
         });
+    }
+
+    /**
+     * Fusiona cuentas duplicadas (mismo email, teléfono o firebase_uid).
+     *
+     * @return array{merged:int,groups:int}
+     */
+    public function repairDuplicateAccounts(): array
+    {
+        $merged = 0;
+        $groups = 0;
+
+        foreach ($this->duplicateEmailGroups() as $ids) {
+            $groups++;
+            $keepId = $this->pickAccountToKeep($ids);
+            foreach ($ids as $id) {
+                if ((int) $id !== $keepId) {
+                    $this->mergeUsers($keepId, (int) $id);
+                    $merged++;
+                }
+            }
+        }
+
+        foreach ($this->duplicateTelefonoGroups() as $ids) {
+            $groups++;
+            $keepId = $this->pickAccountToKeep($ids);
+            foreach ($ids as $id) {
+                if ((int) $id !== $keepId) {
+                    $this->mergeUsers($keepId, (int) $id);
+                    $merged++;
+                }
+            }
+        }
+
+        if (Schema::hasColumn('users', 'firebase_uid')) {
+            $uidDupes = DB::table('users')
+                ->whereNotNull('firebase_uid')
+                ->where('firebase_uid', '!=', '')
+                ->select('firebase_uid')
+                ->groupBy('firebase_uid')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('firebase_uid');
+
+            foreach ($uidDupes as $uid) {
+                $ids = DB::table('users')->where('firebase_uid', $uid)->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+                if (count($ids) < 2) {
+                    continue;
+                }
+                $groups++;
+                $keepId = $this->pickAccountToKeep($ids);
+                foreach ($ids as $id) {
+                    if ($id !== $keepId) {
+                        $this->mergeUsers($keepId, $id);
+                        $merged++;
+                    }
+                }
+            }
+        }
+
+        return ['merged' => $merged, 'groups' => $groups];
+    }
+
+    /**
+     * @return list<list<int>>
+     */
+    private function duplicateEmailGroups(): array
+    {
+        $rows = DB::table('users')
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->where('email', 'not like', '%@firebase.taxpiya.local')
+            ->where('email', 'not like', '%@conductor.taxpiya.local')
+            ->selectRaw('LOWER(TRIM(email)) as norm, GROUP_CONCAT(id) as ids')
+            ->groupByRaw('LOWER(TRIM(email))')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        $groups = [];
+        foreach ($rows as $row) {
+            $ids = array_map('intval', array_filter(explode(',', (string) $row->ids)));
+            if (count($ids) > 1) {
+                $groups[] = $ids;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return list<list<int>>
+     */
+    private function duplicateTelefonoGroups(): array
+    {
+        $rows = DB::table('users')
+            ->whereNotNull('telefono')
+            ->where('telefono', '!=', '')
+            ->where('telefono', 'not like', 'fb\\_%')
+            ->selectRaw('telefono as norm, GROUP_CONCAT(id) as ids')
+            ->groupBy('telefono')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        $groups = [];
+        foreach ($rows as $row) {
+            $ids = array_map('intval', array_filter(explode(',', (string) $row->ids)));
+            if (count($ids) > 1) {
+                $groups[] = $ids;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function pickAccountToKeep(array $ids): int
+    {
+        $bestId = $ids[0];
+        $bestScore = PHP_INT_MIN;
+
+        foreach ($ids as $id) {
+            $score = $this->accountKeepScore((int) $id);
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestId = (int) $id;
+            }
+        }
+
+        return $bestId;
+    }
+
+    private function accountKeepScore(int $userId): int
+    {
+        $user = DB::table('users')->where('id', $userId)->first();
+        if (!$user) {
+            return 0;
+        }
+
+        $score = 0;
+        if (!empty($user->firebase_uid)) {
+            $score += 100;
+        }
+        if ((int) ($user->estado ?? 0) === 1) {
+            $score += 50;
+        }
+        if (!empty($user->codigo_referido)) {
+            $score += 20;
+        }
+        if (!empty($user->fotoperfil)) {
+            $score += 5;
+        }
+        if (!str_starts_with((string) $user->telefono, 'fb_')) {
+            $score += 10;
+        }
+
+        if (Schema::hasTable('referidos')) {
+            $score += (int) DB::table('referidos')->where('referrer_user_id', $userId)->count() * 25;
+            $score += (int) DB::table('referidos')->where('referred_user_id', $userId)->count() * 5;
+        }
+
+        if (Schema::hasTable('wallet_cuentas')) {
+            $balance = (float) DB::table('wallet_cuentas')
+                ->where('user_id', $userId)
+                ->where('tipo', 'pasajero')
+                ->value('saldo_actual');
+            $score += (int) min($balance / 500, 200);
+        }
+
+        if (Schema::hasTable('viajes')) {
+            $score += (int) min(DB::table('viajes')->where('pasajero_id', $userId)->count(), 50);
+        }
+
+        return $score * 1000 - $userId;
     }
 }

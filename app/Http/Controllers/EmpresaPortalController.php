@@ -284,6 +284,7 @@ class EmpresaPortalController extends Controller
 
         $user = auth()->user();
         $empresa = $this->empresaForUser((int) $user->id);
+        app(ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
         $referral = app(ReferralService::class)->statsForEmpresa((int) $empresa->id);
         $referralShareUrl = url('/empresa/afiliarse?ref=' . urlencode($referral['codigo'] ?? ''));
         return view('pages.empresa.cuenta', compact('empresa', 'user', 'referral', 'referralShareUrl'));

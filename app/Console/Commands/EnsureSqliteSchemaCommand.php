@@ -196,6 +196,11 @@ SQL);
         app(\App\Services\ReferralService::class)->backfillCodes();
         $this->backfillWalletCuentas();
 
+        $repair = app(\App\Services\UserAccountService::class)->repairDuplicateAccounts();
+        if (($repair['merged'] ?? 0) > 0) {
+            $this->line("  Cuentas duplicadas fusionadas: {$repair['merged']} ({$repair['groups']} grupos)");
+        }
+
         $bonos = app(\App\Services\ReferralService::class)->backfillAllUnpaidBonuses();
         if ($bonos > 0) {
             $this->line("  Bonos referidos acreditados: {$bonos}");

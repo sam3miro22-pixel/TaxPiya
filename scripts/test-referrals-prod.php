@@ -24,8 +24,11 @@ echo "Base: {$base}\n\n";
 
 $pages = [
     '/pasajero/registro',
+    '/pasajero/login',
     '/conductor/aplicar',
+    '/conductor/registro',
     '/empresa/afiliarse',
+    '/empresa/registro',
 ];
 foreach ($pages as $p) {
     $ch = curl_init($base . $p);
