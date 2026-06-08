@@ -30,10 +30,11 @@
             <label>Correo (opcional)</label>
             <input type="email" name="email" class="form-control txp-input-dark" value="{{ old('email') }}">
         </div>
-        <div class="txp-profile-edit-field mb-4">
+        <div class="txp-profile-edit-field mb-2">
             <label>Contraseña inicial</label>
             <input type="password" name="password" class="form-control txp-input-dark" required minlength="6">
         </div>
+        <p class="small text-muted mb-4">El conductor ingresa en <strong>/conductor/login</strong> con su celular o correo y esta contraseña. También queda registrado en Firebase Auth.</p>
 
         <h2 class="txp-section-title">Vehículo</h2>
 

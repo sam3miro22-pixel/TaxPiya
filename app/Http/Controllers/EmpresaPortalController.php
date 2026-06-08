@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Users;
 use App\Services\WalletService;
 use App\Services\ReferralService;
+use App\Services\Firebase\FirebaseIdentityService;
+use App\Services\Firebase\FirestoreUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -162,13 +164,30 @@ class EmpresaPortalController extends Controller
         $now = now()->toDateTimeString();
         $roleConductor = DB::table('roles')->where('role_name', 'Conductor')->value('role_id') ?: 3;
 
+        $firebaseUid = null;
+        $email = $data['email'] ?? null;
+        if (!$email) {
+            $email = preg_replace('/\D+/', '', $data['telefono']) . '@flota.taxpiya.local';
+        }
+
+        $firebase = app(FirebaseIdentityService::class);
+        if ($firebase->isConfigured() && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            try {
+                $identity = $firebase->signUp($email, $data['password']);
+                $firebaseUid = $identity['localId'] ?? null;
+            } catch (\Throwable $e) {
+                return back()->withErrors('No se pudo crear el usuario en Firebase: ' . $e->getMessage())->withInput();
+            }
+        }
+
         DB::beginTransaction();
         try {
             $userId = DB::table('users')->insertGetId([
                 'name'          => $data['nombre'],
-                'email'         => $data['email'] ?? null,
+                'email'         => $email,
                 'telefono'      => $data['telefono'],
                 'password'      => bcrypt($data['password']),
+                'firebase_uid'  => $firebaseUid,
                 'estado'        => 1,
                 'user_role_id'  => $roleConductor,
             ]);
@@ -201,6 +220,16 @@ class EmpresaPortalController extends Controller
             ]);
 
             app(WalletService::class)->ensureSaldoRow((int) $conductorId);
+
+            $userModel = Users::find($userId);
+            if ($userModel) {
+                app(ReferralService::class)->ensureUserCode($userModel);
+                try {
+                    app(FirestoreUserService::class)->upsertFromUser($userModel, 'conductor');
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
 
             DB::commit();
         } catch (\Throwable $e) {

@@ -1,7 +1,9 @@
 @php
     $fbApp = $app ?? null;
+    $fbEnabled = config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key');
+    $fbSupported = in_array($fbApp, ['pasajero', 'conductor'], true);
 @endphp
-@if(config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
+@if($fbEnabled && $fbSupported)
 <div class="txp-firebase-auth" data-app="{{ $fbApp }}">
     <div class="txp-auth-divider">o continúa con</div>
     <div class="d-grid gap-2">
@@ -38,8 +40,8 @@
     const wrap = document.querySelector('.txp-firebase-auth');
     if (!wrap) return;
 
-    const app = wrap.dataset.app || null;
-    const meta = app ? { app } : {};
+    const app = wrap.dataset.app || 'pasajero';
+    const meta = { app };
     const refCode = document.getElementById('txp-referral-code')?.value?.trim();
     if (refCode) meta.referral_code = refCode;
     const errEl = document.getElementById('txp-firebase-error');
@@ -89,35 +91,55 @@
       if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
     });
 
-    async function firebaseEmailLogin(email, pass) {
+    function submitLaravelLogin(form) {
+      if (!form) return;
+      form.removeAttribute('data-txp-fb-submitting');
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    }
+
+    async function firebaseEmailLogin(email, pass, form) {
       hideErr();
-      if (!email || !pass) { showErr('Ingresa correo y contraseña'); return; }
+      if (!email || !pass) { showErr('Ingresa correo y contraseña'); return false; }
+      if (!window.TaxpiyaFirebase) return false;
       try {
         await window.TaxpiyaFirebase.init();
         const data = await window.TaxpiyaFirebase.loginEmail(email, pass, meta);
         goHome(data);
-      } catch (e) { showErr(e.message); }
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
 
     document.getElementById('txp-firebase-email-login')?.addEventListener('click', async () => {
       const email = document.getElementById('txp-fb-email')?.value?.trim();
       const pass  = document.getElementById('txp-fb-password')?.value || '';
-      await firebaseEmailLogin(email, pass);
+      const ok = await firebaseEmailLogin(email, pass, loginForm);
+      if (!ok) showErr('No se pudo con Firebase. Usa celular o contacta soporte.');
     });
 
     loginForm?.addEventListener('submit', async (e) => {
       const username = document.getElementById('txp-username')?.value?.trim() || '';
       const password = document.getElementById('txp-password')?.value || '';
       if (!username.includes('@')) return;
+      if (loginForm.dataset.txpFbSubmitting === '1') return;
 
       e.preventDefault();
       hideErr();
-      try {
-        await window.TaxpiyaFirebase.init();
-        const data = await window.TaxpiyaFirebase.loginEmail(username, password, meta);
-        goHome(data);
-      } catch (err) {
-        showErr(err?.message || 'No se pudo iniciar sesión con Firebase');
+
+      if (!window.TaxpiyaFirebase) {
+        submitLaravelLogin(loginForm);
+        return;
+      }
+
+      const ok = await firebaseEmailLogin(username, password, loginForm);
+      if (!ok) {
+        loginForm.dataset.txpFbSubmitting = '1';
+        submitLaravelLogin(loginForm);
       }
     });
   }

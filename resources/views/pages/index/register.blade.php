@@ -152,14 +152,24 @@
               const email = document.getElementById('ctrl-email')?.value?.trim();
               const pass  = document.getElementById('ctrl-password')?.value || '';
               if (!email || !pass) return;
+              if (form.dataset.txpFbSubmitting === '1') return;
+
               e.preventDefault();
               hideErr();
+
+              if (!window.TaxpiyaFirebase) {
+                form.dataset.txpFbSubmitting = '1';
+                form.submit();
+                return;
+              }
+
               try {
                 await window.TaxpiyaFirebase.init();
                 const data = await window.TaxpiyaFirebase.registerEmail(email, pass, profile());
                 window.location.href = data?.redirect || '/home';
               } catch (ex) {
-                showErr(ex?.message || 'No se pudo crear la cuenta');
+                form.dataset.txpFbSubmitting = '1';
+                form.submit();
               }
             });
 

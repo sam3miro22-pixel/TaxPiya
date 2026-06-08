@@ -31,5 +31,5 @@
   }
   .txp-fb-redirect-busy__card i{ font-size:1.5rem; color:#ffd166; }
 </style>
-<script src="{{ secure_asset('js/firebase-auth.bundle.js') }}?v=6" defer></script>
+<script src="{{ secure_asset('js/firebase-auth.bundle.js') }}?v=7" defer></script>
 @endif

@@ -41,9 +41,14 @@ class FirebaseAuthController extends Controller
 
         $uid   = $claims['sub'] ?? $claims['user_id'] ?? null;
         $email = $claims['email'] ?? null;
+        $app   = $request->input('app');
 
         if (!$uid) {
             return response()->json(['ok' => false, 'message' => 'Token sin identificador'], 401);
+        }
+
+        if (!in_array($app, ['pasajero', 'conductor'], true)) {
+            return response()->json(['ok' => false, 'message' => 'Firebase Auth solo está disponible para pasajero y conductor'], 422);
         }
 
         $user = Users::query()->where('firebase_uid', $uid)->first();
@@ -95,7 +100,6 @@ class FirebaseAuthController extends Controller
             return response()->json(['ok' => false, 'message' => 'Cuenta inactiva'], 403);
         }
 
-        $app = $request->input('app');
         if ($app === 'conductor' && !$user->hasRole('Conductor')) {
             return response()->json(['ok' => false, 'message' => 'Acceso exclusivo para Conductores'], 403);
         }

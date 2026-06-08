@@ -18686,7 +18686,7 @@ This typically indicates that your device does not have a healthy Internet conne
   async function bootGoogleRedirectHandler() {
     if (redirectBootStarted) return;
     redirectBootStarted = true;
-    if (!isRedirectPending() && !/[?&]code=/.test(window.location.search)) {
+    if (!isRedirectPending()) {
       return;
     }
     const overlay = document.getElementById("txp-fb-redirect-busy");

@@ -260,7 +260,7 @@ async function bootGoogleRedirectHandler() {
   if (redirectBootStarted) return;
   redirectBootStarted = true;
 
-  if (!isRedirectPending() && !/[?&]code=/.test(window.location.search)) {
+  if (!isRedirectPending()) {
     return;
   }
 
