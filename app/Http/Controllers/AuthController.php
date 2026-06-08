@@ -49,6 +49,22 @@ class AuthController extends Controller{
 			? ['email' => $username, 'password' => $password]
 			: ['telefono' => $username, 'password' => $password];
 
+		$portalAuth = app(PortalAuthService::class);
+		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+			$candidate = Users::query()
+				->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower(trim($username))]))
+				->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
+				->first();
+			if ($candidate) {
+				$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
+				if ($roleError) {
+					return back()
+						->withErrors($roleError)
+						->withInput($request->only('username'));
+				}
+			}
+		}
+
 		$loggedIn = Auth::attempt($credentials, $remember);
 
 		if (!$loggedIn) {

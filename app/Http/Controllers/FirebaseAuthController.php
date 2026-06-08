@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Users;
 use App\Providers\RouteServiceProvider;
 use App\Services\Firebase\FirestoreUserService;
+use App\Services\PortalAuthService;
 use App\Services\ReferralService;
 use App\Services\UserAccountService;
 use App\Services\WalletLedgerService;
@@ -117,12 +118,15 @@ class FirebaseAuthController extends Controller
             $user->refresh();
         }
 
+        $portalAuth = app(PortalAuthService::class);
+
         if ((int) ($user->estado ?? 1) !== 1) {
             return response()->json(['ok' => false, 'message' => 'Cuenta inactiva o en revisión'], 403);
         }
 
-        if ($app === 'conductor' && !$user->hasRole('Conductor')) {
-            return response()->json(['ok' => false, 'message' => 'Acceso exclusivo para Conductores'], 403);
+        $roleError = $portalAuth->validateRoleForPortal($user, $app);
+        if ($roleError) {
+            return response()->json(['ok' => false, 'message' => $roleError], 403);
         }
 
         if ($app === 'conductor') {
@@ -130,10 +134,6 @@ class FirebaseAuthController extends Controller
             if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
                 return response()->json(['ok' => false, 'message' => 'Conductor no activo. Tu solicitud está en revisión.'], 403);
             }
-        }
-
-        if ($app === 'pasajero' && !$user->hasRole('Pasajero')) {
-            return response()->json(['ok' => false, 'message' => 'Acceso solo para Pasajeros'], 403);
         }
 
         $referrals->ensureUserCode($user);
