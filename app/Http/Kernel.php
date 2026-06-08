@@ -67,7 +67,5 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
 		'rbac' => \App\Http\Middleware\Rbac::class,
 		'redirect.to.home' => \App\Http\Middleware\RedirectIfAuthenticated::class,
-        'accountstatus' => \App\Http\Middleware\AccountStatus::class,
-        'otpverification' => \App\Http\Middleware\OtpVerification::class,
     ];
 }

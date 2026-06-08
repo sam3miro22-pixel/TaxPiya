@@ -6,8 +6,8 @@ use App\Models\Users;
 use App\Http\Requests\UsersRegisterRequest;
 
 use App\Providers\RouteServiceProvider;
-use App\Services\Firebase\FirebaseIdentityService;
 use App\Services\Firebase\FirestoreUserService;
+use App\Services\PortalAuthService;
 use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Message;
@@ -37,15 +37,19 @@ class AuthController extends Controller{
 		$remember = $request->boolean('rememberme', (bool) config('taxpiya.session.remember_default', true));
 		$app      = $request->input('app'); // 'pasajero' | 'conductor' | null
 
-		$credentials = filter_var($username, FILTER_VALIDATE_EMAIL)
+		$isEmail = filter_var($username, FILTER_VALIDATE_EMAIL);
+
+		if ($isEmail && PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
+			return back()
+				->withErrors('Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.')
+				->withInput($request->only('username'));
+		}
+
+		$credentials = $isEmail
 			? ['email' => $username, 'password' => $password]
 			: ['telefono' => $username, 'password' => $password];
 
 		$loggedIn = Auth::attempt($credentials, $remember);
-
-		if (!$loggedIn && filter_var($username, FILTER_VALIDATE_EMAIL)) {
-			$loggedIn = $this->attemptFirebasePasswordLogin($username, $password, $remember, $app);
-		}
 
 		if (!$loggedIn) {
 			return back()
@@ -58,7 +62,7 @@ class AuthController extends Controller{
 
 		$user = Auth::user();
 
-		$gateError = $this->validateLoginGate($user, $app);
+		$gateError = app(PortalAuthService::class)->validateLoginGate($user, $app);
 		if ($gateError) {
 			Auth::logout();
 			$request->session()->invalidate();
@@ -71,100 +75,6 @@ class AuthController extends Controller{
 
 		$destination = RouteServiceProvider::homeForUser($user, $app);
 		return $this->redirectIntended($destination, 'Inicio de sesión completado');
-	}
-
-	private function attemptFirebasePasswordLogin(string $email, string $password, bool $remember, ?string $app): bool
-	{
-		$firebase = app(FirebaseIdentityService::class);
-		if (!$firebase->isConfigured()) {
-			return false;
-		}
-
-		try {
-			$identity = $firebase->signInWithPassword($email, $password);
-		} catch (\Throwable $e) {
-			return false;
-		}
-
-		$accounts = app(\App\Services\UserAccountService::class);
-		$user = $accounts->findByFirebaseIdentity($identity['localId'], $email, null);
-
-		if (!$user) {
-			if (in_array($app, ['conductor', 'empresa'], true)) {
-				return false;
-			}
-
-			$user = Users::create([
-				'firebase_uid' => $identity['localId'],
-				'name'         => explode('@', $email)[0],
-				'email'        => $email,
-				'telefono'     => 'fb_' . substr($identity['localId'], 0, 12),
-				'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
-				'estado'       => 1,
-			]);
-			$user->assignRole('Pasajero');
-			try {
-				app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
-			} catch (\Throwable $e) {
-				report($e);
-			}
-		} else {
-			$accounts->linkFirebaseUid($user, $identity['localId']);
-			if ((int) ($user->estado ?? 1) !== 1) {
-				return false;
-			}
-		}
-
-		app(ReferralService::class)->ensureUserCode($user);
-		app(ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
-
-		Auth::login($user, $remember);
-
-		try {
-			app(FirestoreUserService::class)->upsertFromUser($user, $app ?: 'pasajero');
-		} catch (\Throwable $e) {
-			report($e);
-		}
-
-		return true;
-	}
-
-	private function validateLoginGate($user, ?string $app): ?string
-	{
-		if ((int) ($user->estado ?? 1) !== 1) {
-			return 'Tu cuenta está inactiva. Por favor comunícate con el Equipo de Taxpiya.';
-		}
-
-		if ($app === 'conductor') {
-			if (!$user->hasRole('Conductor')) {
-				return 'Acceso exclusivo para Conductores.';
-			}
-			$conductor = DB::table('conductores')->where('user_id', $user->id)->first();
-			if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
-				return 'Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.';
-			}
-
-			DB::table('conductores')
-				->where('id', (int) $conductor->id)
-				->update([
-					'disponible' => 0,
-					'updated_at' => now()->format('Y-m-d H:i:s'),
-				]);
-		} elseif ($app === 'pasajero') {
-			if (!$user->hasRole('Pasajero')) {
-				return 'Este acceso es solo para Pasajeros.';
-			}
-		} elseif ($app === 'empresa') {
-			if (!$user->hasRole('Empresa')) {
-				return 'Acceso exclusivo para empresas afiliadas.';
-			}
-			$empresa = DB::table('empresas')->where('user_id', $user->id)->first();
-			if (!$empresa) {
-				return 'Tu cuenta no tiene una empresa vinculada.';
-			}
-		}
-
-		return null;
 	}
 
 	/**
@@ -219,6 +129,12 @@ class AuthController extends Controller{
      * @return \Illuminate\Http\Response
      */
 	function register_store(UsersRegisterRequest $request){
+		if (PortalAuthService::firebasePasajeroConductorEnabled()) {
+			return back()
+				->withErrors('El registro con correo se hace por Firebase. Completa el formulario y pulsa «Crear cuenta», o usa Google.')
+				->withInput($request->except('password'));
+		}
+
 		$modeldata = $this->normalizeFormData($request->validated());
 		$referralCode = $request->input('codigo_referido');
 		unset($modeldata['codigo_referido']);
@@ -245,26 +161,12 @@ class AuthController extends Controller{
 			unset($modeldata['fotoperfil']);
 		}
 
-		$firebase = app(FirebaseIdentityService::class);
-		if ($firebase->isConfigured() && !empty($modeldata['email'])) {
-			try {
-				$identity = $firebase->signUp($modeldata['email'], $plainPassword);
-				$modeldata['firebase_uid'] = $identity['localId'];
-			} catch (\Throwable $e) {
-				return back()
-					->withErrors($e->getMessage())
-					->withInput($request->except('password'));
-			}
-		}
-
 		$modeldata['password'] = bcrypt($plainPassword);
-		
-		//save Users record
-		$user = $record = Users::create($modeldata);
-		$user->assignRole("Pasajero"); //set default role for user
+		$user = Users::create($modeldata);
+		$user->assignRole('Pasajero');
 
 		$referrals->ensureUserCode($user);
-		$referrals->registerReferral($referralCode, (int) $user->id, 'pasajero');
+		$referrals->applyPasajeroReferral($referralCode, (int) $user->id, true, true);
 
 		try {
 			app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);

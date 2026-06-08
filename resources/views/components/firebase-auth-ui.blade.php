@@ -5,13 +5,13 @@
 @endphp
 @if($fbEnabled && $fbSupported)
 <div class="txp-firebase-auth" data-app="{{ $fbApp }}">
-    <div class="txp-auth-divider">o continúa con</div>
+    <div class="txp-auth-divider">Inicio con correo (Firebase)</div>
     <div class="d-grid gap-2">
         <button type="button" class="txp-auth-btn txp-auth-btn--google" id="txp-firebase-google">
             <i class="fa-brands fa-google"></i> Continuar con Google
         </button>
         <button type="button" class="txp-auth-btn txp-auth-btn--ghost" id="txp-firebase-email-toggle">
-            <i class="fa-solid fa-envelope"></i> Correo electrónico (Firebase)
+            <i class="fa-solid fa-envelope"></i> Correo y contraseña
         </button>
     </div>
     <div id="txp-firebase-email-panel" class="mt-3" style="display:none;">
@@ -25,6 +25,7 @@
             Iniciar sesión
         </button>
     </div>
+    <p class="small text-muted mt-2 mb-0">El formulario de arriba es solo para <strong>celular</strong>. Correo y Google usan Firebase Auth.</p>
     <div id="txp-firebase-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
 </div>
 <script>
@@ -91,26 +92,17 @@
       if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
     });
 
-    function submitLaravelLogin(form) {
-      if (!form) return;
-      form.removeAttribute('data-txp-fb-submitting');
-      if (typeof form.requestSubmit === 'function') {
-        form.requestSubmit();
-      } else {
-        form.submit();
-      }
-    }
-
-    async function firebaseEmailLogin(email, pass, form) {
+    async function firebaseEmailLogin(email, pass) {
       hideErr();
       if (!email || !pass) { showErr('Ingresa correo y contraseña'); return false; }
-      if (!window.TaxpiyaFirebase) return false;
+      if (!window.TaxpiyaFirebase) { showErr('Firebase no disponible'); return false; }
       try {
         await window.TaxpiyaFirebase.init();
         const data = await window.TaxpiyaFirebase.loginEmail(email, pass, meta);
         goHome(data);
         return true;
       } catch (e) {
+        showErr(e.message);
         return false;
       }
     }
@@ -118,29 +110,23 @@
     document.getElementById('txp-firebase-email-login')?.addEventListener('click', async () => {
       const email = document.getElementById('txp-fb-email')?.value?.trim();
       const pass  = document.getElementById('txp-fb-password')?.value || '';
-      const ok = await firebaseEmailLogin(email, pass, loginForm);
-      if (!ok) showErr('No se pudo con Firebase. Usa celular o contacta soporte.');
+      await firebaseEmailLogin(email, pass);
     });
 
     loginForm?.addEventListener('submit', async (e) => {
       const username = document.getElementById('txp-username')?.value?.trim() || '';
-      const password = document.getElementById('txp-password')?.value || '';
       if (!username.includes('@')) return;
-      if (loginForm.dataset.txpFbSubmitting === '1') return;
 
       e.preventDefault();
       hideErr();
-
-      if (!window.TaxpiyaFirebase) {
-        submitLaravelLogin(loginForm);
-        return;
+      const pass = document.getElementById('txp-password')?.value || '';
+      const emailPanel = document.getElementById('txp-firebase-email-panel');
+      const fbEmail = document.getElementById('txp-fb-email');
+      if (emailPanel && fbEmail) {
+        emailPanel.style.display = 'block';
+        fbEmail.value = username;
       }
-
-      const ok = await firebaseEmailLogin(username, password, loginForm);
-      if (!ok) {
-        loginForm.dataset.txpFbSubmitting = '1';
-        submitLaravelLogin(loginForm);
-      }
+      await firebaseEmailLogin(username, pass);
     });
   }
 

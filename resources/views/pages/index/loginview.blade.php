@@ -40,11 +40,22 @@
     @endif
 
     <div class="txp-auth-field">
-        <label class="txp-auth-label" for="txp-username">Celular o correo</label>
+        <label class="txp-auth-label" for="txp-username">
+            @if(($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
+                Celular
+            @else
+                Celular o correo
+            @endif
+        </label>
         <div class="txp-auth-input-wrap">
             <i class="fa-solid fa-user txp-auth-input-icon"></i>
-            <input id="txp-username" name="username" type="text" class="txp-auth-input" placeholder="300 123 4567 o correo@email.com" required autocomplete="username">
+            <input id="txp-username" name="username" type="text" class="txp-auth-input"
+                   placeholder="{{ ($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') ? '300 123 4567' : '300 123 4567 o correo@email.com' }}"
+                   required autocomplete="username">
         </div>
+        @if(($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
+            <p class="small text-muted mt-1 mb-0">Para correo o Google usa las opciones de Firebase debajo.</p>
+        @endif
     </div>
 
     <div class="txp-auth-field">
@@ -69,7 +80,7 @@
         </button>
 
         @if($isPasajero)
-            <a href="{{ route('auth.register') }}" class="txp-auth-btn txp-auth-btn--ghost">
+            <a href="{{ route('pasajero.register') }}" class="txp-auth-btn txp-auth-btn--ghost">
                 <i class="fa-solid fa-user-plus"></i> Crear cuenta
             </a>
         @endif

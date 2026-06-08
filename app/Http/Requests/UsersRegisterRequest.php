@@ -2,6 +2,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class UsersRegisterRequest extends FormRequest
 {
@@ -22,17 +24,34 @@ class UsersRegisterRequest extends FormRequest
      */
     public function rules()
     {
-		
+        $email = strtolower(trim((string) $this->input('email', '')));
+        $telefono = trim((string) $this->input('telefono', ''));
+        $existing = null;
+
+        if ($email !== '') {
+            $existing = DB::table('users')->whereRaw('LOWER(email) = ?', [$email])->first();
+        }
+
+        $relinking = $existing
+            && $telefono !== ''
+            && (string) $existing->telefono === $telefono;
+
         return [
-            
-				"telefono" => "required|string|unique:users,telefono",
-				"password" => "required",
-				"name" => "required|string|unique:users,name",
-				"email" => "required|email|unique:users,email",
-				"fotoperfil" => "nullable",
-				"fotoperfil_file" => "nullable|image|max:5120",
-				"codigo_referido" => "nullable|string|max:20",
-            
+            'telefono' => [
+                'required',
+                'string',
+                $relinking ? Rule::exists('users', 'telefono') : Rule::unique('users', 'telefono'),
+            ],
+            'password' => 'required',
+            'name'     => 'required|string|max:120',
+            'email'    => [
+                'required',
+                'email',
+                $relinking ? Rule::exists('users', 'email') : Rule::unique('users', 'email'),
+            ],
+            'fotoperfil'      => 'nullable',
+            'fotoperfil_file' => 'nullable|image|max:5120',
+            'codigo_referido' => 'nullable|string|max:20',
         ];
     }
 

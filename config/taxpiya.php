@@ -43,6 +43,13 @@ return [
     | Firebase (migración futura)
     |--------------------------------------------------------------------------
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Firebase Auth (pasajero/conductor)
+    |--------------------------------------------------------------------------
+    | Firebase verifica identidad (correo/Google). Laravel guarda users.id para
+    | viajes, billetera, referidos y sesión web. Empresa/admin: solo Laravel.
+    */
     'firebase' => [
         'project_id'        => env('FIREBASE_PROJECT_ID', 'tax-piya'),
         'use_firestore'     => env('TAXPIYA_USE_FIRESTORE', true),

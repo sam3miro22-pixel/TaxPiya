@@ -243,7 +243,7 @@ Route::middleware(['auth'])->group(function () {
 
 
 	
-	Route::get('index/register', 'AuthController@register')->name('auth.register')->middleware(['redirect.to.home']);
+	Route::redirect('index/register', '/pasajero/registro', 301);
 	Route::post('index/register', 'AuthController@register_store')->name('auth.register_store');
 
 	Route::get('auth/password/forgotpassword', 'AuthController@showForgotPassword')->name('password.forgotpassword');

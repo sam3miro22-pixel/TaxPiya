@@ -140,17 +140,13 @@ class FirebaseAuthController extends Controller
         app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
         $referrals->processPendingBonusesForReferrerUser((int) $user->id);
 
-        if ($isNew && $referrals->normalizeCode($refCode)) {
-            $reg = $referrals->registerReferral($refCode, (int) $user->id, 'pasajero');
-            if (!empty($reg['referido_id'])) {
-                $resolved = $referrals->resolveCode($refCode);
-                $referrerUserId = $resolved && $resolved['type'] === 'user'
-                    ? (int) $resolved['user_id']
-                    : (int) ($resolved['user_id'] ?? 0);
-                if ($referrerUserId > 0) {
-                    $referrals->processPendingBonusesForReferrerUser($referrerUserId);
-                }
-            }
+        if ($app === 'pasajero') {
+            $referrals->applyPasajeroReferral(
+                $refCode,
+                (int) $user->id,
+                $isNew,
+                $request->boolean('is_register')
+            );
         }
 
         Auth::login($user, true);

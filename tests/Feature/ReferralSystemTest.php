@@ -61,4 +61,45 @@ class ReferralSystemTest extends TestCase
             $this->assertTrue($bonus['ok'] || !empty($bonus['already_paid']));
         }
     }
+
+    public function test_apply_referral_on_existing_user_when_reregistering(): void
+    {
+        if (!Schema::hasTable('referidos')) {
+            $this->markTestSkipped('Tabla referidos no disponible');
+        }
+
+        $service = app(ReferralService::class);
+
+        $referrerId = DB::table('users')->insertGetId([
+            'name' => 'Referrer Rereg',
+            'email' => 'referrer_rereg_' . uniqid() . '@test.local',
+            'telefono' => '397' . random_int(1000000, 9999999),
+            'password' => bcrypt('test'),
+            'estado' => 1,
+            'user_role_id' => 2,
+        ]);
+
+        $referredId = DB::table('users')->insertGetId([
+            'name' => 'Referred Rereg',
+            'email' => 'referred_rereg_' . uniqid() . '@test.local',
+            'telefono' => '396' . random_int(1000000, 9999999),
+            'password' => bcrypt('test'),
+            'estado' => 1,
+            'user_role_id' => 2,
+            'firebase_uid' => 'old_firebase_uid_' . uniqid(),
+        ]);
+
+        $code = $service->ensureUserCode($referrerId);
+        $this->assertFalse($service->userHasReferral($referredId));
+
+        $result = $service->applyPasajeroReferral($code, $referredId, false, true);
+
+        $this->assertTrue($result['ok']);
+        $this->assertTrue($service->userHasReferral($referredId));
+        $this->assertDatabaseHas('referidos', [
+            'referred_user_id' => $referredId,
+            'referrer_user_id' => $referrerId,
+            'estado' => 'activo',
+        ]);
+    }
 }

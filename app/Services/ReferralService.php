@@ -104,6 +104,44 @@ class ReferralService
         return ['ok' => true, 'code' => $resolved['code'], 'type' => $resolved['type']];
     }
 
+    public function userHasReferral(int $userId): bool
+    {
+        if ($userId <= 0 || !Schema::hasTable('referidos')) {
+            return false;
+        }
+
+        return DB::table('referidos')->where('referred_user_id', $userId)->exists();
+    }
+
+    /**
+     * Aplica código de referido en registro Firebase/Laravel (incluye re-registro con mismo email).
+     *
+     * @return array{ok:bool,message?:string,referido_id?:int,skipped?:bool,reason?:string}
+     */
+    public function applyPasajeroReferral(?string $rawCode, int $userId, bool $isNew, bool $isRegister): array
+    {
+        if (!$this->normalizeCode($rawCode)) {
+            return ['ok' => true, 'skipped' => true];
+        }
+
+        if (!$isNew && !$isRegister && $this->userHasReferral($userId)) {
+            return ['ok' => true, 'skipped' => true, 'reason' => 'already_linked'];
+        }
+
+        $result = $this->registerReferral($rawCode, $userId, 'pasajero');
+        if (!empty($result['referido_id'])) {
+            $resolved = $this->resolveCode($rawCode);
+            $referrerUserId = $resolved && $resolved['type'] === 'user'
+                ? (int) $resolved['user_id']
+                : (int) ($resolved['user_id'] ?? 0);
+            if ($referrerUserId > 0) {
+                $this->processPendingBonusesForReferrerUser($referrerUserId);
+            }
+        }
+
+        return $result;
+    }
+
     /**
      * @return array{ok:bool,message?:string,referido_id?:int,empresa_id?:int}
      */

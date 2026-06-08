@@ -25,7 +25,7 @@
         @endif
 
         <form id="users-userregister-form" role="form" novalidate enctype="multipart/form-data"
-              class="form page-form" action="{{ route('auth.register_store') }}" method="post">
+              class="form page-form" action="{{ route('pasajero.register_store') }}" method="post">
             @csrf
 
             <div class="txp-auth-field">
@@ -108,7 +108,7 @@
                     <i class="fa-brands fa-google"></i> Crear con Google
                 </button>
             </div>
-            <p class="small text-muted mt-2 mb-0">Al crear cuenta con correo, tu acceso queda guardado en Firebase Auth.</p>
+            <p class="small text-muted mt-2 mb-0">Correo y Google se registran en <strong>Firebase Auth</strong>. La foto de perfil puedes subirla después en Mi perfil.</p>
             <div id="txp-register-fb-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
         </div>
         <script>
@@ -167,8 +167,7 @@
                 const data = await window.TaxpiyaFirebase.registerEmail(email, pass, profile());
                 window.location.href = data?.redirect || '/home';
               } catch (ex) {
-                form.dataset.txpFbSubmitting = '1';
-                form.submit();
+                showErr(ex.message || 'No se pudo crear la cuenta. Verifica el correo o intenta con Google.');
               }
             });
 
