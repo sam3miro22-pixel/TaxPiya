@@ -46,6 +46,7 @@ php artisan view:cache
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   php artisan migrate --force 2>/dev/null || true
   php artisan taxpiya:ensure-schema --no-interaction || true
+  php artisan taxpiya:referral-pay-pending 2>/dev/null || true
   if [ "${TAXPIYA_PURGE_NON_DEMO:-false}" = "true" ]; then
     php artisan taxpiya:purge-non-demo --force --reseed --once 2>/dev/null || true
   fi

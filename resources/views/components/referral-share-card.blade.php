@@ -7,8 +7,10 @@
     <p class="small text-muted mb-2">Gana <strong>${{ number_format((float)($referral['bono_por_referido'] ?? 5000), 0, ',', '.') }}</strong> por cada referido cuando confirme su cuenta. El bono se acredita a tu billetera.</p>
     <div class="txp-info-row"><span>Tu código</span><strong><code id="txp-my-referral-code">{{ $code }}</code></strong></div>
     <div class="txp-info-row"><span>Referidos</span><strong>{{ $referral['total'] ?? 0 }} ({{ $referral['activos'] ?? 0 }} activos)</strong></div>
-    @if(($referral['ganancia_total'] ?? 0) > 0)
-    <div class="txp-info-row"><span>Ganado</span><strong>${{ number_format((float)$referral['ganancia_total'], 0, ',', '.') }}</strong></div>
+    @if(($referral['bonos_pagados'] ?? 0) > 0)
+    <div class="txp-info-row"><span>Bonos pagados</span><strong>{{ $referral['bonos_pagados'] }} · ${{ number_format((float)($referral['ganancia_total'] ?? 0), 0, ',', '.') }}</strong></div>
+    @elseif(($referral['activos'] ?? 0) > 0)
+    <div class="txp-info-row"><span>Bono pendiente</span><strong class="text-warning">Abre Mi billetera para acreditar</strong></div>
     @endif
     <button type="button" class="txp-mobile-btn mt-2" id="txp-copy-referral" data-code="{{ $code }}" data-url="{{ $shareUrl }}">
         <i class="fa-solid fa-copy"></i> Copiar enlace de invitación

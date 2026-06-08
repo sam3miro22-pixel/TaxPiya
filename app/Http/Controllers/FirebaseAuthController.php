@@ -77,15 +77,26 @@ class FirebaseAuthController extends Controller
         $user  = $result['user'];
         $isNew = $result['is_new'];
 
-        try {
-            if ($app === 'pasajero') {
-                $referrals->applyPasajeroReferral(
+        if ($app === 'pasajero') {
+            try {
+                $apply = $referrals->applyPasajeroReferral(
                     $refCode,
                     (int) $user->id,
                     $isNew,
                     $request->boolean('is_register')
                 );
+                if (!empty($apply['referido_id'])) {
+                    $resolved = $referrals->resolveCode($refCode);
+                    $referrerId = (int) ($resolved['user_id'] ?? 0);
+                    if ($referrerId > 0) {
+                        $referrals->processPendingBonusesForReferrerUser($referrerId);
+                    }
+                }
+            } catch (\Throwable) {
             }
+        }
+
+        try {
             app(FirestoreUserService::class)->upsertFromUser($user, $app);
         } catch (\Throwable) {
         }

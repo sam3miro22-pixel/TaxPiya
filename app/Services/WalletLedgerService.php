@@ -354,9 +354,10 @@ class WalletLedgerService
             }
 
             $now = now()->toDateTimeString();
-            $conductorId = $data['conductor_id'] ?? $locked->conductor_id;
+            // wallet_movimientos.conductor_id es NOT NULL en SQLite legacy; pasajero/empresa usan 0.
+            $conductorId = (int) ($data['conductor_id'] ?? $locked->conductor_id ?? 0);
 
-            $movId = DB::table('wallet_movimientos')->insertGetId([
+            $movPayload = $this->filterExistingColumns('wallet_movimientos', [
                 'cuenta_id'          => $cuentaId,
                 'conductor_id'       => $conductorId,
                 'viaje_id'           => $data['viaje_id'] ?? null,
@@ -378,13 +379,15 @@ class WalletLedgerService
                 'anulado'            => 0,
                 'created_at'         => $now,
             ]);
+            $movId = DB::table('wallet_movimientos')->insertGetId($movPayload);
 
-            DB::table('wallet_cuentas')->where('id', $cuentaId)->update([
+            $cuentaPayload = $this->filterExistingColumns('wallet_cuentas', [
                 'saldo_actual'       => $saldoDespues,
                 'last_movimiento_id' => $movId,
                 'last_movimiento_at' => $now,
                 'updated_at'         => $now,
             ]);
+            DB::table('wallet_cuentas')->where('id', $cuentaId)->update($cuentaPayload);
 
             if ($locked->tipo === 'conductor' && $locked->conductor_id) {
                 DB::table('wallet_saldos')->updateOrInsert(

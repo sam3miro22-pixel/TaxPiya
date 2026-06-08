@@ -59,6 +59,20 @@ class ReferralSystemTest extends TestCase
         if (Schema::hasTable('wallet_cuentas')) {
             $bonus = $service->payReferralBonus((int) $result['referido_id']);
             $this->assertTrue($bonus['ok'] || !empty($bonus['already_paid']));
+
+            $cuenta = DB::table('wallet_cuentas')
+                ->where('tipo', 'pasajero')
+                ->where('user_id', $referrerId)
+                ->first();
+            $this->assertNotNull($cuenta);
+            $this->assertGreaterThanOrEqual(5000, (float) $cuenta->saldo_actual);
+
+            $mov = DB::table('wallet_movimientos')
+                ->where('idempotencia', 'referido_bonus_' . $result['referido_id'])
+                ->where('anulado', 0)
+                ->first();
+            $this->assertNotNull($mov);
+            $this->assertSame('bono_referido', $mov->motivo);
         }
     }
 

@@ -114,6 +114,21 @@ class ReferralService
             }
         }
 
+        // Legacy: TXP-164 (sin P) → user id 164
+        if (preg_match('/^TXP-(\d+)$/i', $code, $m) && !preg_match('/^TXP-[EP]/i', $code)) {
+            $userId = (int) $m[1];
+            if ($userId > 0) {
+                $user = DB::table('users')->where('id', $userId)->first();
+                if ($user) {
+                    return [
+                        'type'    => 'user',
+                        'user_id' => $userId,
+                        'code'    => !empty($user->codigo_referido) ? strtoupper($user->codigo_referido) : $this->codeForUser($userId),
+                    ];
+                }
+            }
+        }
+
         if (preg_match('/^TXP-E0*(\d+)$/i', $code, $m)) {
             $empresaId = (int) $m[1];
             if ($empresaId > 0) {
