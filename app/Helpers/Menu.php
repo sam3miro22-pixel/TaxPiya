@@ -20,6 +20,11 @@ class Menu{
             'icon' => '<i class="fa fa-id-card"></i>'
         ],
         [
+            'path' => 'empresas',
+            'label' => "Empresas",
+            'icon' => '<i class="fa fa-building"></i>'
+        ],
+        [
             'path' => 'viajes',
             'label' => "Viajes",
             'icon' => '<i class="fa fa-car"></i>'
@@ -35,7 +40,7 @@ class Menu{
             'icon' => '<i class="fa fa-dollar"></i>'
         ],
         [
-            'path' => 'wallet',
+            'path' => 'walletsaldos',
             'label' => "Wallet",
             'icon' => '<i class="fa fa-credit-card"></i>'
         ]

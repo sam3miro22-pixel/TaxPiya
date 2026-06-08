@@ -105,6 +105,8 @@ SQL);
             DB::table('roles')->insert(['role_id' => $roleId, 'role_name' => 'Empresa']);
         }
 
+        $this->ensureEmpresasPermissions();
+
         $this->info('Schema SQLite verificado.');
         return self::SUCCESS;
     }
@@ -129,6 +131,30 @@ SQL);
         }
         $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
         $this->warn("  Columna {$table}.{$column} creada");
+    }
+
+    private function ensureEmpresasPermissions(): void
+    {
+        if (!Schema::hasTable('permissions')) {
+            return;
+        }
+
+        $paths = ['empresas/index', 'empresas/view', 'empresas/edit'];
+        $adminRoleId = DB::table('roles')->where('role_name', 'Admin')->value('role_id') ?: 1;
+
+        foreach ($paths as $path) {
+            $exists = DB::table('permissions')
+                ->where('permission', $path)
+                ->where('role_id', $adminRoleId)
+                ->exists();
+            if (!$exists) {
+                DB::table('permissions')->insert([
+                    'permission' => $path,
+                    'role_id'    => $adminRoleId,
+                ]);
+                $this->warn("  Permiso admin: {$path}");
+            }
+        }
     }
 
     private function tableExists(\PDO $pdo, string $table): bool

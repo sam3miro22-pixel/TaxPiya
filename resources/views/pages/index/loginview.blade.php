@@ -3,7 +3,7 @@
     $isConductor = ($app === 'conductor');
     $isPasajero  = ($app === 'pasajero');
     $isEmpresa   = ($app === 'empresa');
-    $isAdmin     = (!$isConductor && !$isPasajero && !$isEmpresa);
+    $isAdmin     = ($app === 'admin' || (!$isConductor && !$isPasajero && !$isEmpresa));
 
     if ($isConductor) {
         $roleLabel = 'Conductor';

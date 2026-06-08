@@ -42,7 +42,7 @@ class AppServiceProvider extends ServiceProvider
 			$user = request()->user();
 			$view->with('user', $user);
 
-			$authRoutes = ['pasajero.login', 'conductor.login', 'empresa.login', 'empresa.afiliarse', 'empresa.afiliarse.ok', 'auth.register', 'pasajero.register'];
+			$authRoutes = ['login', 'pasajero.login', 'conductor.login', 'empresa.login', 'empresa.afiliarse', 'empresa.afiliarse.ok', 'auth.register', 'pasajero.register'];
 			$seg1 = request()->segment(1) ?? 'index';
 			$seg2 = request()->segment(2) ?? 'index';
 			$isAuthPage = request()->routeIs($authRoutes)

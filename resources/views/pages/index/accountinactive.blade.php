@@ -1,16 +1,15 @@
 @extends('layouts.info')
+@section('title', 'Cuenta inactiva')
 @section('content')
 <div class="container">
-    <div class="my-4 text-center p-4 card-4">
-        <i class="material-icons mi-lg text-danger">block</i>
-        <div class="h4 text-bold text-danger my-3">
-        Your account is not active
-        </div>
+    <div class="my-4 text-center p-4 card bg-dark border-secondary rounded-3">
+        <i class="fa-solid fa-ban fa-3x text-danger mb-3"></i>
+        <div class="h4 fw-bold text-danger my-3">Tu cuenta no está activa</div>
         <div class="text-muted">
-            Póngase en contacto con el administrador del sistema para obtener más información
+            Contacta al administrador del sistema para más información.
         </div>
-        <hr class="my-md" />
-        <a href="{{ url('/') }}" class="btn btn-primary"><i class="material-icons">home</i> Continuar</a>
+        <hr class="my-4" />
+        <a href="{{ url('/') }}" class="btn btn-primary"><i class="fa-solid fa-house"></i> Ir al inicio</a>
     </div>
 </div>
 @endsection

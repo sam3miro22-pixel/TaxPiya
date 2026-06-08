@@ -229,8 +229,7 @@ Route::middleware(['auth'])->group(function () {
 	
 	Route::get('index/register', 'AuthController@register')->name('auth.register')->middleware(['redirect.to.home']);
 	Route::post('index/register', 'AuthController@register_store')->name('auth.register_store');
-		
-	Route::post('auth/login', 'AuthController@login')->name('auth.login');
+
 	Route::get('auth/password/forgotpassword', 'AuthController@showForgotPassword')->name('password.forgotpassword');
 	Route::post('auth/password/sendemail', 'AuthController@sendPasswordResetLink')->name('password.email');
 	Route::get('auth/password/reset', 'AuthController@showResetPassword')->name('password.reset.token');
@@ -327,6 +326,10 @@ Route::middleware(['auth', 'rbac'])->group(function () {
 	Route::any('conductores/edit/{rec_id}', 'ConductoresController@edit')->name('conductores.edit');	
 	Route::get('conductores/delete/{rec_id}', 'ConductoresController@delete');
 
+	Route::get('empresas', 'EmpresasController@index')->name('empresas');
+	Route::get('empresas/index/{filter?}/{filtervalue?}', 'EmpresasController@index')->name('empresas.index');
+	Route::get('empresas/view/{rec_id}', 'EmpresasController@view')->name('empresas.view');
+	Route::any('empresas/edit/{rec_id}', 'EmpresasController@edit')->name('empresas.edit');
 
 	Route::get('conductorposicionactual', 'ConductorPosicionActualController@index')->name('conductorposicionactual');
 	Route::get('conductorposicionactual/index/{filter?}/{filtervalue?}', 'ConductorPosicionActualController@index')->name('conductorposicionactual.index');	

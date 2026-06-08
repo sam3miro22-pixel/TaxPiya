@@ -267,6 +267,10 @@ class AuthController extends Controller{
 		return view("pages.index.accountpending");
 	}
 
+	function accountinactive(Request $request){
+		return view("pages.index.accountinactive");
+	}
+
 	/**
      * Display forgot password page
      * @return \Illuminate\View\View
