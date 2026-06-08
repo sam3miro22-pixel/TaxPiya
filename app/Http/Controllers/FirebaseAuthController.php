@@ -37,16 +37,7 @@ class FirebaseAuthController extends Controller
 
         try {
             return $this->processFirebaseSync($request);
-        } catch (\Throwable $e) {
-            try {
-                Log::error('Firebase sync falló', [
-                    'err'   => $e->getMessage(),
-                    'file'  => $e->getFile(),
-                    'line'  => $e->getLine(),
-                ]);
-            } catch (\Throwable) {
-            }
-
+        } catch (\Throwable) {
             return response()->json([
                 'ok'      => false,
                 'message' => 'No se pudo completar el inicio de sesión. Intenta de nuevo o usa celular.',
@@ -160,20 +151,17 @@ class FirebaseAuthController extends Controller
 
         try {
             $referrals->ensureUserCode($user);
-        } catch (\Throwable $e) {
-            Log::warning('ensureUserCode falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+        } catch (\Throwable) {
         }
 
         try {
             app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
-        } catch (\Throwable $e) {
-            Log::warning('ensureCuenta falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+        } catch (\Throwable) {
         }
 
         try {
             $referrals->processPendingBonusesForReferrerUser((int) $user->id);
-        } catch (\Throwable $e) {
-            Log::warning('processPendingBonuses falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+        } catch (\Throwable) {
         }
 
         if ($app === 'pasajero') {
@@ -184,8 +172,7 @@ class FirebaseAuthController extends Controller
                     $isNew,
                     $request->boolean('is_register')
                 );
-            } catch (\Throwable $e) {
-                Log::warning('applyPasajeroReferral falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+            } catch (\Throwable) {
             }
         }
 
@@ -199,11 +186,6 @@ class FirebaseAuthController extends Controller
                 $request->session()->regenerate();
                 $request->session()->save();
             } catch (\Throwable $e2) {
-                Log::error('Firebase sync: sesión no guardada', [
-                    'user_id' => $user->id,
-                    'err'     => $e2->getMessage(),
-                ]);
-
                 return response()->json([
                     'ok'      => false,
                     'message' => 'Cuenta creada pero no se pudo iniciar sesión. Recarga la página e inicia sesión con tu correo.',
@@ -214,14 +196,19 @@ class FirebaseAuthController extends Controller
         try {
             app(FirestoreUserService::class)->upsertFromUser($user, $app);
         } catch (\Throwable $e) {
-            Log::warning('Firestore upsert omitido en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+            // Firestore es opcional; no debe bloquear el login.
+        }
+
+        $redirect = RouteServiceProvider::homeForUser($user, $app);
+        if ($redirect === '' || $redirect[0] !== '/') {
+            $redirect = '/home';
         }
 
         return response()->json([
             'ok'       => true,
             'user_id'  => $user->id,
             'is_new'   => $isNew,
-            'redirect' => url(RouteServiceProvider::homeForUser($user, $app)),
+            'redirect' => $redirect,
         ]);
     }
 
