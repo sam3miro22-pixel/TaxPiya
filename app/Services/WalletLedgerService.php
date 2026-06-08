@@ -32,11 +32,12 @@ class WalletLedgerService
         }
 
         $defaults = $this->defaultsForTipo($tipo, $refId);
-        $id = DB::table('wallet_cuentas')->insertGetId(array_merge($defaults, [
+        $payload = $this->filterExistingColumns('wallet_cuentas', array_merge($defaults, [
             'tipo'       => $tipo,
             'created_at' => now()->toDateTimeString(),
             'updated_at' => now()->toDateTimeString(),
         ]));
+        $id = DB::table('wallet_cuentas')->insertGetId($payload);
 
         if ($tipo === 'conductor') {
             $this->legacyWallet->ensureSaldoRow($refId);
@@ -418,5 +419,16 @@ class WalletLedgerService
             'depositos'       => (float) (clone $base)->where('motivo', 'deposito')->sum('monto'),
             'retiros'         => (float) (clone $base)->where('motivo', 'retiro')->sum('monto'),
         ];
+    }
+
+    /** Evita 500 si la BD en producción aún no tiene columnas nuevas de wallet_cuentas. */
+    private function filterExistingColumns(string $table, array $data): array
+    {
+        $columns = Schema::getColumnListing($table);
+        if ($columns === []) {
+            return $data;
+        }
+
+        return array_intersect_key($data, array_flip($columns));
     }
 }

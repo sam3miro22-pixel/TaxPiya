@@ -18564,6 +18564,15 @@ This typically indicates that your device does not have a healthy Internet conne
     if (code === "auth/popup-closed-by-user") {
       return "Cerraste la ventana de Google antes de completar el inicio de sesi\xF3n.";
     }
+    if (code === "auth/email-already-in-use" || /EMAIL_EXISTS/i.test(msg)) {
+      return "Ese correo ya tiene cuenta. Usa \xABIniciar sesi\xF3n\xBB o recupera la contrase\xF1a.";
+    }
+    if (code === "auth/weak-password" || /WEAK_PASSWORD/i.test(msg)) {
+      return "La contrase\xF1a debe tener al menos 6 caracteres.";
+    }
+    if (code === "auth/invalid-email" || /INVALID_EMAIL/i.test(msg)) {
+      return "Correo electr\xF3nico no v\xE1lido.";
+    }
     return msg.replace(/^Firebase:\s*/i, "").replace(/^Error\s*\([^)]+\)\.\s*/i, "");
   }
   async function syncWithLaravel(idToken, extra = {}) {

@@ -311,8 +311,16 @@ class Users extends Authenticatable
 	*/
 	public function assignRole($roleName){
 		$roleId = Roles::select('role_id')->where('role_name', $roleName)->value('role_id');
-		$this->user_role_id = $roleId;
-		$this->save();
+		if (!$roleId && is_string($roleName)) {
+			$roleId = Roles::select('role_id')->whereRaw('LOWER(role_name) = ?', [strtolower($roleName)])->value('role_id');
+		}
+		if (!$roleId && $roleName === 'Pasajero') {
+			$roleId = 2;
+		}
+		if ($roleId) {
+			$this->user_role_id = $roleId;
+			$this->save();
+		}
 	}
 
 	

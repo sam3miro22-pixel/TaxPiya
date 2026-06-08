@@ -99,6 +99,7 @@ SQL);
         $this->ensureColumn($pdo, 'conductores', 'empresa_id', 'INTEGER NULL');
         $this->ensureColumn($pdo, 'conductores', 'disponible', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn($pdo, 'conductores', 'estado_operitivo', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn($pdo, 'users', 'firebase_uid', 'TEXT NULL');
         $this->ensureColumn($pdo, 'users', 'codigo_referido', 'TEXT NULL');
         $this->ensureColumn($pdo, 'empresas', 'codigo_referido', 'TEXT NULL');
 
@@ -124,6 +125,15 @@ CREATE TABLE IF NOT EXISTS wallet_cuentas (
     updated_at TEXT NULL
 )
 SQL);
+
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'motivo_bloqueo', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'puede_depositar', 'INTEGER NOT NULL DEFAULT 1');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'puede_retirar', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'solo_lectura', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'last_movimiento_id', 'INTEGER NULL');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'last_movimiento_at', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'created_at', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'wallet_cuentas', 'updated_at', 'TEXT NULL');
 
         $this->ensureTable($pdo, 'wallet_solicitudes', <<<'SQL'
 CREATE TABLE IF NOT EXISTS wallet_solicitudes (
@@ -186,10 +196,7 @@ CREATE TABLE IF NOT EXISTS referidos (
 )
 SQL);
 
-        if (Schema::hasTable('roles') && !DB::table('roles')->where('role_name', 'Empresa')->exists()) {
-            $roleId = (int) (DB::table('roles')->max('role_id') ?? 0) + 1;
-            DB::table('roles')->insert(['role_id' => $roleId, 'role_name' => 'Empresa']);
-        }
+        $this->ensureDefaultRoles();
 
         $this->ensureEmpresasPermissions();
         $this->ensureReferidosPermissions();
@@ -208,6 +215,28 @@ SQL);
 
         $this->info('Schema SQLite verificado.');
         return self::SUCCESS;
+    }
+
+    private function ensureDefaultRoles(): void
+    {
+        if (!Schema::hasTable('roles')) {
+            return;
+        }
+
+        $defaults = [
+            1 => 'Admin',
+            2 => 'Pasajero',
+            3 => 'Conductor',
+            4 => 'Empresa',
+        ];
+
+        foreach ($defaults as $roleId => $roleName) {
+            $exists = DB::table('roles')->where('role_id', $roleId)->orWhere('role_name', $roleName)->exists();
+            if (!$exists) {
+                DB::table('roles')->insert(['role_id' => $roleId, 'role_name' => $roleName]);
+                $this->warn("  Rol creado: {$roleName}");
+            }
+        }
     }
 
     private function ensureTable(\PDO $pdo, string $table, string $sql): void

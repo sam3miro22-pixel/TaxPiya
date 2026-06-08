@@ -125,6 +125,15 @@ export function formatFirebaseError(err) {
   if (code === 'auth/popup-closed-by-user') {
     return 'Cerraste la ventana de Google antes de completar el inicio de sesión.';
   }
+  if (code === 'auth/email-already-in-use' || /EMAIL_EXISTS/i.test(msg)) {
+    return 'Ese correo ya tiene cuenta. Usa «Iniciar sesión» o recupera la contraseña.';
+  }
+  if (code === 'auth/weak-password' || /WEAK_PASSWORD/i.test(msg)) {
+    return 'La contraseña debe tener al menos 6 caracteres.';
+  }
+  if (code === 'auth/invalid-email' || /INVALID_EMAIL/i.test(msg)) {
+    return 'Correo electrónico no válido.';
+  }
   return msg.replace(/^Firebase:\s*/i, '').replace(/^Error\s*\([^)]+\)\.\s*/i, '');
 }
 

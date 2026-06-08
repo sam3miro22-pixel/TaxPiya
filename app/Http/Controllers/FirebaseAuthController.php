@@ -38,10 +38,14 @@ class FirebaseAuthController extends Controller
         try {
             return $this->processFirebaseSync($request);
         } catch (\Throwable $e) {
-            Log::error('Firebase sync falló', [
-                'err'   => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            try {
+                Log::error('Firebase sync falló', [
+                    'err'   => $e->getMessage(),
+                    'file'  => $e->getFile(),
+                    'line'  => $e->getLine(),
+                ]);
+            } catch (\Throwable) {
+            }
 
             return response()->json([
                 'ok'      => false,
@@ -97,7 +101,7 @@ class FirebaseAuthController extends Controller
 
             $isNew = true;
             $name  = $request->input('name') ?: ($claims['name'] ?? 'Usuario Taxpiya');
-            $tel   = $telefono ?: ('fb_' . substr($uid, 0, 12));
+            $tel   = $telefono ?: ('fb_' . preg_replace('/[^a-zA-Z0-9]/', '', $uid));
 
             $user = Users::create([
                 'firebase_uid'  => $uid,
@@ -106,14 +110,9 @@ class FirebaseAuthController extends Controller
                 'telefono'      => $tel,
                 'password'      => bcrypt(Str::random(32)),
                 'estado'        => 1,
+                'user_role_id'  => 2,
             ]);
             $user->assignRole('Pasajero');
-
-            try {
-                app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
-            } catch (\Throwable $e) {
-                report($e);
-            }
         } else {
             try {
                 $accounts->linkFirebaseUid($user, $uid);
@@ -159,21 +158,56 @@ class FirebaseAuthController extends Controller
             }
         }
 
-        $referrals->ensureUserCode($user);
-        app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
-        $referrals->processPendingBonusesForReferrerUser((int) $user->id);
-
-        if ($app === 'pasajero') {
-            $referrals->applyPasajeroReferral(
-                $refCode,
-                (int) $user->id,
-                $isNew,
-                $request->boolean('is_register')
-            );
+        try {
+            $referrals->ensureUserCode($user);
+        } catch (\Throwable $e) {
+            Log::warning('ensureUserCode falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
         }
 
-        Auth::login($user, true);
-        $request->session()->regenerate();
+        try {
+            app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+        } catch (\Throwable $e) {
+            Log::warning('ensureCuenta falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+        }
+
+        try {
+            $referrals->processPendingBonusesForReferrerUser((int) $user->id);
+        } catch (\Throwable $e) {
+            Log::warning('processPendingBonuses falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+        }
+
+        if ($app === 'pasajero') {
+            try {
+                $referrals->applyPasajeroReferral(
+                    $refCode,
+                    (int) $user->id,
+                    $isNew,
+                    $request->boolean('is_register')
+                );
+            } catch (\Throwable $e) {
+                Log::warning('applyPasajeroReferral falló en sync', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+            }
+        }
+
+        try {
+            Auth::login($user, true);
+            $request->session()->regenerate();
+        } catch (\Throwable $e) {
+            try {
+                Auth::login($user, false);
+                $request->session()->regenerate();
+            } catch (\Throwable $e2) {
+                Log::error('Firebase sync: sesión no guardada', [
+                    'user_id' => $user->id,
+                    'err'     => $e2->getMessage(),
+                ]);
+
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Cuenta creada pero no se pudo iniciar sesión. Recarga la página e inicia sesión con tu correo.',
+                ], 500);
+            }
+        }
 
         app(FirestoreUserService::class)->upsertFromUser($user, $app);
 
