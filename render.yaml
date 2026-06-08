@@ -23,7 +23,7 @@ services:
       - key: TAXPIYA_SEED_DEMO
         value: "false"
       - key: TAXPIYA_PURGE_NON_DEMO
-        value: "true"
+        value: "false"
       - key: SESSION_DRIVER
         value: database
       - key: SESSION_LIFETIME
