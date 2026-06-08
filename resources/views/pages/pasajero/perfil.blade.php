@@ -36,7 +36,11 @@
             <p class="text-muted small mt-2 mb-0">Pasajero TaxPiya</p>
         </div>
 
-        @include('components.referral-share-card', ['referral' => $referral ?? [], 'referralShareUrl' => $referralShareUrl ?? null])
+        @include('components.referral-share-card', [
+            'referral' => $referral ?? [],
+            'referralShareUrl' => $referralShareUrl ?? null,
+            'walletSaldo' => $walletSaldo ?? null,
+        ])
 
         <div class="txp-mobile-card">
             <div class="txp-info-row"><span>Celular</span><strong>{{ $user->telefono ?? '—' }}</strong></div>

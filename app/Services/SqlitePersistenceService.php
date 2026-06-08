@@ -26,6 +26,27 @@ class SqlitePersistenceService
         return $this->persistenceActive();
     }
 
+    /**
+     * Respalda SQLite al terminar la petición HTTP (no bloquea la respuesta al usuario).
+     */
+    public static function scheduleBackupAfterRequest(): void
+    {
+        if (!app()->bound('db')) {
+            return;
+        }
+
+        app()->terminating(static function (): void {
+            try {
+                $service = app(self::class);
+                if ($service->canBackup()) {
+                    $service->backup();
+                }
+            } catch (Throwable) {
+                // no interrumpir el ciclo de vida de la petición
+            }
+        });
+    }
+
     public function canBackup(): bool
     {
         return $this->persistenceActive() && $this->githubToken() !== '';

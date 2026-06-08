@@ -43,10 +43,20 @@ class HomeController extends Controller{
 			return redirect()->route('home');
 		}
 		$referrals = app(ReferralService::class);
+		$ledger = app(\App\Services\WalletLedgerService::class);
 		$referrals->processPendingBonusesForReferrerUser((int) $user->id);
 		$referral = $referrals->statsForUser((int) $user->id);
 		$referralShareUrl = url('/pasajero/registro?ref=' . urlencode($referral['codigo'] ?? ''));
-		return view('pages.pasajero.perfil', ['user' => $user, 'saved' => session('profile_saved'), 'referral' => $referral, 'referralShareUrl' => $referralShareUrl]);
+		$cuenta = $ledger->ensureCuenta('pasajero', (int) $user->id);
+		$walletSaldo = (float) ($cuenta->saldo_actual ?? 0);
+
+		return view('pages.pasajero.perfil', [
+			'user'             => $user,
+			'saved'            => session('profile_saved'),
+			'referral'         => $referral,
+			'referralShareUrl' => $referralShareUrl,
+			'walletSaldo'      => $walletSaldo,
+		]);
 	}
 
 	function pasajeroPerfilUpdate(Request $request){

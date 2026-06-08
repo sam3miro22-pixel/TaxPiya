@@ -7,6 +7,7 @@ use App\Services\Firebase\FirestoreUserService;
 use App\Services\PortalAuthService;
 use App\Services\ReferralService;
 use App\Services\UserAccountService;
+use App\Services\SqlitePersistenceService;
 use App\Services\WalletLedgerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -104,6 +105,13 @@ class FirebaseAuthController extends Controller
                 'referido_id'=> $referralResult['referido_id'] ?? null,
                 'bonus_ok'   => $referralResult['bonus']['ok'] ?? null,
             ];
+            if (!empty($referralResult['bonus']['ok'])) {
+                SqlitePersistenceService::scheduleBackupAfterRequest();
+            }
+        }
+
+        if ($isNew) {
+            SqlitePersistenceService::scheduleBackupAfterRequest();
         }
 
         return response()->json($payload);
