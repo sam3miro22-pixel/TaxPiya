@@ -16,6 +16,8 @@ class WalletPortalController extends Controller
             return redirect()->route('home');
         }
 
+        app(\App\Services\ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
+
         $cuenta = $ledger->ensureCuenta('pasajero', (int) $user->id);
         $movimientos = $cuenta ? $ledger->getMovimientos((int) $cuenta->id) : [];
 

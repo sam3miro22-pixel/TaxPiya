@@ -81,6 +81,14 @@ class FirebaseAuthController extends Controller
                 'estado'        => 1,
             ]);
             $user->assignRole($app === 'conductor' ? 'Conductor' : 'Pasajero');
+
+            if ($app === 'pasajero') {
+                try {
+                    app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
         } else {
             if (empty($user->firebase_uid)) {
                 $user->firebase_uid = $uid;
@@ -116,7 +124,18 @@ class FirebaseAuthController extends Controller
         $referrals->ensureUserCode($user);
         if ($isNew && $referrals->normalizeCode($refCode)) {
             $tipo = $app === 'conductor' ? 'conductor' : ($app === 'empresa' ? 'empresa' : 'pasajero');
-            $referrals->registerReferral($refCode, (int) $user->id, $tipo);
+            $reg = $referrals->registerReferral($refCode, (int) $user->id, $tipo);
+            if (!empty($reg['referido_id'])) {
+                $resolved = $referrals->resolveCode($refCode);
+                $referrerUserId = $resolved && $resolved['type'] === 'user'
+                    ? (int) $resolved['user_id']
+                    : (int) ($resolved['user_id'] ?? 0);
+                if ($referrerUserId > 0) {
+                    $referrals->processPendingBonusesForReferrerUser($referrerUserId);
+                }
+            }
+        } elseif (!$isNew) {
+            $referrals->processPendingBonusesForReferrerUser((int) $user->id);
         }
 
         Auth::login($user, true);

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Users;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class ReferralService
@@ -152,14 +153,31 @@ class ReferralService
                 ]);
         }
 
+        $bonus = ['ok' => false];
         if ($estado === 'activo') {
-            $this->payReferralBonus((int) $referidoId);
+            $bonus = $this->payReferralBonus((int) $referidoId);
+            if (!$bonus['ok'] && empty($bonus['already_paid'])) {
+                $referrerUserId = $resolved['type'] === 'user'
+                    ? (int) $resolved['user_id']
+                    : (int) ($resolved['user_id'] ?? 0);
+                if ($referrerUserId > 0) {
+                    $this->processPendingBonusesForReferrerUser($referrerUserId);
+                    $bonus = $this->payReferralBonus((int) $referidoId);
+                }
+                if (!$bonus['ok'] && empty($bonus['already_paid'])) {
+                    Log::warning('Bono referido no acreditado al registrar', [
+                        'referido_id' => $referidoId,
+                        'message'     => $bonus['message'] ?? 'desconocido',
+                    ]);
+                }
+            }
         }
 
         return [
             'ok'          => true,
             'referido_id' => (int) $referidoId,
             'empresa_id'  => $empresaId,
+            'bonus'       => $bonus,
         ];
     }
 
@@ -212,8 +230,12 @@ class ReferralService
             return ['ok' => false, 'message' => 'Referido aún no confirmado'];
         }
 
-        if (!empty($row->bonus_paid_at)) {
+        if ($this->isBonusAlreadyPaid($referidoId, $row)) {
             return ['ok' => true, 'already_paid' => true];
+        }
+
+        if (!Schema::hasTable('wallet_cuentas')) {
+            return ['ok' => false, 'message' => 'Sistema de billetera no disponible'];
         }
 
         $cuentaId = $this->resolveReferrerCuentaId($row);
@@ -230,20 +252,118 @@ class ReferralService
                 'monto'          => $amount,
                 'moneda'         => 'COP',
                 'descripcion'    => 'Bono referido #' . $referidoId . ' (' . $row->tipo_referido . ')',
+                'user_id'        => $row->referrer_user_id,
                 'idempotencia'   => 'referido_bonus_' . $referidoId,
             ]);
 
-            DB::table('referidos')->where('id', $referidoId)->update([
-                'bonus_monto'   => $amount,
-                'bonus_paid_at' => now()->toDateTimeString(),
-                'updated_at'    => now()->toDateTimeString(),
-            ]);
+            $this->markBonusPaid($referidoId, $amount);
 
             return ['ok' => true, 'monto' => $amount, 'movimiento_id' => $movId];
         } catch (\Throwable $e) {
             report($e);
+            Log::warning('payReferralBonus falló', [
+                'referido_id' => $referidoId,
+                'err'         => $e->getMessage(),
+            ]);
 
             return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Reintenta bonos pendientes del referidor (p. ej. billetera creada después del registro).
+     */
+    public function processPendingBonusesForReferrerUser(int $userId): int
+    {
+        if ($userId <= 0 || !Schema::hasTable('referidos')) {
+            return 0;
+        }
+
+        $ledger = app(WalletLedgerService::class);
+        $ledger->ensureCuenta('pasajero', $userId);
+
+        $empresaId = DB::table('empresas')->where('user_id', $userId)->value('id');
+        if ($empresaId) {
+            $ledger->ensureCuenta('empresa', (int) $empresaId);
+        }
+
+        $conductorId = DB::table('conductores')->where('user_id', $userId)->value('id');
+        if ($conductorId) {
+            $ledger->ensureCuenta('conductor', (int) $conductorId);
+        }
+
+        $query = DB::table('referidos')->where('estado', 'activo');
+        if (Schema::hasColumn('referidos', 'bonus_paid_at')) {
+            $query->whereNull('bonus_paid_at');
+        }
+
+        $ids = $query->where(function ($q) use ($userId, $empresaId) {
+            $q->where('referrer_user_id', $userId);
+            if ($empresaId) {
+                $q->orWhere('referrer_empresa_id', (int) $empresaId);
+            }
+        })->pluck('id');
+
+        $paid = 0;
+        foreach ($ids as $id) {
+            $result = $this->payReferralBonus((int) $id);
+            if (!empty($result['ok']) && empty($result['already_paid'])) {
+                $paid++;
+            }
+        }
+
+        return $paid;
+    }
+
+    public function backfillAllUnpaidBonuses(): int
+    {
+        if (!Schema::hasTable('referidos') || !Schema::hasTable('wallet_cuentas')) {
+            return 0;
+        }
+
+        $query = DB::table('referidos')->where('estado', 'activo');
+        if (Schema::hasColumn('referidos', 'bonus_paid_at')) {
+            $query->whereNull('bonus_paid_at');
+        }
+
+        $total = 0;
+        foreach ($query->pluck('id') as $id) {
+            $result = $this->payReferralBonus((int) $id);
+            if (!empty($result['ok']) && empty($result['already_paid'])) {
+                $total++;
+            }
+        }
+
+        return $total;
+    }
+
+    private function isBonusAlreadyPaid(int $referidoId, object $row): bool
+    {
+        if (Schema::hasColumn('referidos', 'bonus_paid_at') && !empty($row->bonus_paid_at)) {
+            return true;
+        }
+
+        if (!Schema::hasTable('wallet_movimientos')) {
+            return false;
+        }
+
+        return DB::table('wallet_movimientos')
+            ->where('idempotencia', 'referido_bonus_' . $referidoId)
+            ->where('anulado', 0)
+            ->exists();
+    }
+
+    private function markBonusPaid(int $referidoId, float $amount): void
+    {
+        $payload = ['updated_at' => now()->toDateTimeString()];
+        if (Schema::hasColumn('referidos', 'bonus_monto')) {
+            $payload['bonus_monto'] = $amount;
+        }
+        if (Schema::hasColumn('referidos', 'bonus_paid_at')) {
+            $payload['bonus_paid_at'] = now()->toDateTimeString();
+        }
+        if (count($payload) > 1) {
+            DB::table('referidos')->where('id', $referidoId)->update($payload);
         }
     }
 
@@ -267,7 +387,9 @@ class ReferralService
             return null;
         }
 
-        if ($user->hasRole('Empresa')) {
+        $roleId = (int) ($user->user_role_id ?? 0);
+
+        if ($roleId === 4 || $user->hasRole('Empresa')) {
             $empresaId = DB::table('empresas')->where('user_id', $userId)->value('id');
             if ($empresaId) {
                 $cuenta = $ledger->ensureCuenta('empresa', (int) $empresaId);
@@ -276,7 +398,7 @@ class ReferralService
             }
         }
 
-        if ($user->hasRole('Conductor')) {
+        if ($roleId === 3 || $user->hasRole('Conductor')) {
             $conductorId = DB::table('conductores')->where('user_id', $userId)->value('id');
             if ($conductorId) {
                 $cuenta = $ledger->ensureCuenta('conductor', (int) $conductorId);

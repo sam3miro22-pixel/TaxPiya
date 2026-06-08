@@ -39,7 +39,9 @@ class HomeController extends Controller{
 		if (!$user || !$user->hasRole('Pasajero')) {
 			return redirect()->route('home');
 		}
-		$referral = app(ReferralService::class)->statsForUser((int) $user->id);
+		$referrals = app(ReferralService::class);
+		$referrals->processPendingBonusesForReferrerUser((int) $user->id);
+		$referral = $referrals->statsForUser((int) $user->id);
 		$referralShareUrl = url('/pasajero/registro?ref=' . urlencode($referral['codigo'] ?? ''));
 		return view('pages.pasajero.perfil', ['user' => $user, 'saved' => session('profile_saved'), 'referral' => $referral, 'referralShareUrl' => $referralShareUrl]);
 	}

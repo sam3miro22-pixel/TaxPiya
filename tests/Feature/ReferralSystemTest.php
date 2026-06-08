@@ -55,5 +55,10 @@ class ReferralSystemTest extends TestCase
             'tipo_referido' => 'pasajero',
             'estado' => 'activo',
         ]);
+
+        if (Schema::hasTable('wallet_cuentas')) {
+            $bonus = $service->payReferralBonus((int) $result['referido_id']);
+            $this->assertTrue($bonus['ok'] || !empty($bonus['already_paid']));
+        }
     }
 }

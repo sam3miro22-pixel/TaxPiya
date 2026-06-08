@@ -181,6 +181,11 @@ SQL);
         app(\App\Services\ReferralService::class)->backfillCodes();
         $this->backfillWalletCuentas();
 
+        $bonos = app(\App\Services\ReferralService::class)->backfillAllUnpaidBonuses();
+        if ($bonos > 0) {
+            $this->line("  Bonos referidos acreditados: {$bonos}");
+        }
+
         $this->info('Schema SQLite verificado.');
         return self::SUCCESS;
     }
