@@ -82,7 +82,13 @@ class UserAccountService
         DB::transaction(function () use ($keepId, $discardId) {
             if (Schema::hasTable('referidos')) {
                 DB::table('referidos')->where('referrer_user_id', $discardId)->update(['referrer_user_id' => $keepId]);
-                DB::table('referidos')->where('referred_user_id', $discardId)->update(['referred_user_id' => $keepId]);
+
+                $keepAlreadyReferred = DB::table('referidos')->where('referred_user_id', $keepId)->exists();
+                if ($keepAlreadyReferred) {
+                    DB::table('referidos')->where('referred_user_id', $discardId)->delete();
+                } else {
+                    DB::table('referidos')->where('referred_user_id', $discardId)->update(['referred_user_id' => $keepId]);
+                }
             }
 
             if (Schema::hasTable('wallet_cuentas')) {

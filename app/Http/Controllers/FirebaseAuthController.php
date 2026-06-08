@@ -36,6 +36,23 @@ class FirebaseAuthController extends Controller
         }
 
         try {
+            return $this->processFirebaseSync($request);
+        } catch (\Throwable $e) {
+            Log::error('Firebase sync falló', [
+                'err'   => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => 'No se pudo completar el inicio de sesión. Intenta de nuevo o usa celular.',
+            ], 500);
+        }
+    }
+
+    private function processFirebaseSync(Request $request)
+    {
+        try {
             $claims = $this->verifyIdToken($request->input('id_token'));
         } catch (\Throwable $e) {
             Log::warning('Firebase token inválido', ['err' => $e->getMessage()]);
@@ -62,7 +79,7 @@ class FirebaseAuthController extends Controller
 
         $user = $accounts->findByFirebaseIdentity($uid, $email, $telefono);
 
-        if (!$user && $referrals->normalizeCode($refCode)) {
+        if ($request->boolean('is_register') && $referrals->normalizeCode($refCode)) {
             $check = $referrals->validateCode($refCode);
             if (!$check['ok']) {
                 return response()->json(['ok' => false, 'message' => $check['message'] ?? 'Código de referido inválido'], 422);
@@ -98,7 +115,13 @@ class FirebaseAuthController extends Controller
                 report($e);
             }
         } else {
-            $accounts->linkFirebaseUid($user, $uid);
+            try {
+                $accounts->linkFirebaseUid($user, $uid);
+            } catch (\Throwable $e) {
+                Log::warning('linkFirebaseUid falló, actualizando uid directo', ['user_id' => $user->id, 'err' => $e->getMessage()]);
+                $user->firebase_uid = $uid;
+                $user->save();
+            }
 
             if ($request->filled('name')) {
                 $user->name = $request->input('name');

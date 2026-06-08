@@ -91,6 +91,43 @@ class ReferralService
             ];
         }
 
+        if (preg_match('/^TXP-P0*(\d+)$/i', $code, $m)) {
+            $userId = (int) $m[1];
+            if ($userId > 0) {
+                $user = DB::table('users')->where('id', $userId)->first();
+                if ($user) {
+                    $canonical = !empty($user->codigo_referido)
+                        ? strtoupper($user->codigo_referido)
+                        : $this->codeForUser($userId);
+
+                    return [
+                        'type'    => 'user',
+                        'user_id' => $userId,
+                        'code'    => $canonical,
+                    ];
+                }
+            }
+        }
+
+        if (preg_match('/^TXP-E0*(\d+)$/i', $code, $m)) {
+            $empresaId = (int) $m[1];
+            if ($empresaId > 0) {
+                $empresa = DB::table('empresas')->where('id', $empresaId)->first();
+                if ($empresa) {
+                    $canonical = !empty($empresa->codigo_referido)
+                        ? strtoupper($empresa->codigo_referido)
+                        : $this->codeForEmpresa($empresaId);
+
+                    return [
+                        'type'       => 'empresa',
+                        'empresa_id' => $empresaId,
+                        'user_id'    => (int) $empresa->user_id,
+                        'code'       => $canonical,
+                    ];
+                }
+            }
+        }
+
         return null;
     }
 

@@ -26,10 +26,6 @@
         @include('components.firebase-auth')
     @endif
     @stack('firebase-scripts')
-    <script src="{{ secure_asset('js/plugins/dropzone.min.js') }}"></script>
-    <script src="{{ secure_asset('js/page-scripts.js') }}"></script>
-    <script src="{{ secure_asset('js/form-page-scripts.js') }}"></script>
     @yield('pagejs')
-    @include('components.firebase-session-guard', ['firebaseApp' => request()->is('conductor*') ? 'conductor' : 'pasajero'])
 </body>
 </html>

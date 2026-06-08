@@ -18580,7 +18580,15 @@ This typically indicates that your device does not have a healthy Internet conne
       },
       body: JSON.stringify({ id_token: idToken, ...extra })
     });
-    const data = await res.json().catch(() => ({}));
+    let data = {};
+    const raw = await res.text().catch(() => "");
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      if (res.status >= 500) {
+        throw new Error("Error del servidor al iniciar sesi\xF3n. Intenta de nuevo en unos segundos.");
+      }
+    }
     if (!res.ok || !data.ok) {
       const detail = data.message || (res.status === 419 ? "Sesi\xF3n expirada. Recarga la p\xE1gina e intenta de nuevo." : "No se pudo sincronizar la sesi\xF3n");
       throw new Error(detail);

@@ -54,7 +54,7 @@
                    required autocomplete="username">
         </div>
         @if(($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
-            <p class="small text-muted mt-1 mb-0">Para correo o Google usa las opciones de Firebase debajo.</p>
+            <p class="small text-muted mt-1 mb-0">Solo número de celular. Si usas correo, elige Google o «Correo y contraseña» abajo.</p>
         @endif
     </div>
 

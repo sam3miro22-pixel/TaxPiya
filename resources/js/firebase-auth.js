@@ -144,9 +144,18 @@ async function syncWithLaravel(idToken, extra = {}) {
     body: JSON.stringify({ id_token: idToken, ...extra }),
   });
 
-  const data = await res.json().catch(() => ({}));
+  let data = {};
+  const raw = await res.text().catch(() => '');
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch (_) {
+    if (res.status >= 500) {
+      throw new Error('Error del servidor al iniciar sesión. Intenta de nuevo en unos segundos.');
+    }
+  }
   if (!res.ok || !data.ok) {
-    const detail = data.message || (res.status === 419 ? 'Sesión expirada. Recarga la página e intenta de nuevo.' : 'No se pudo sincronizar la sesión');
+    const detail = data.message
+      || (res.status === 419 ? 'Sesión expirada. Recarga la página e intenta de nuevo.' : 'No se pudo sincronizar la sesión');
     throw new Error(detail);
   }
   return data;

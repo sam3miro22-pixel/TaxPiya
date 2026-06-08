@@ -5,7 +5,7 @@
 @endphp
 @if($fbEnabled && $fbSupported)
 <div class="txp-firebase-auth" data-app="{{ $fbApp }}">
-    <div class="txp-auth-divider">Inicio con correo (Firebase)</div>
+    <div class="txp-auth-divider">o con correo / Google</div>
     <div class="d-grid gap-2">
         <button type="button" class="txp-auth-btn txp-auth-btn--google" id="txp-firebase-google">
             <i class="fa-brands fa-google"></i> Continuar con Google
@@ -16,20 +16,22 @@
     </div>
     <div id="txp-firebase-email-panel" class="mt-3" style="display:none;">
         <div class="txp-auth-field mb-2">
-            <input type="email" id="txp-fb-email" class="txp-auth-input" style="padding-left:16px" placeholder="Correo electrónico">
+            <input type="email" id="txp-fb-email" class="txp-auth-input" style="padding-left:16px" placeholder="Correo electrónico" autocomplete="email">
         </div>
         <div class="txp-auth-field mb-2">
-            <input type="password" id="txp-fb-password" class="txp-auth-input" style="padding-left:16px" placeholder="Contraseña">
+            <input type="password" id="txp-fb-password" class="txp-auth-input" style="padding-left:16px" placeholder="Contraseña" autocomplete="current-password">
         </div>
         <button type="button" class="txp-auth-btn txp-auth-btn--primary w-100" id="txp-firebase-email-login">
-            Iniciar sesión
+            <i class="fa-solid fa-right-to-bracket"></i> Entrar con correo
         </button>
     </div>
-    <p class="small text-muted mt-2 mb-0">El formulario de arriba es solo para <strong>celular</strong>. Correo y Google usan Firebase Auth.</p>
     <div id="txp-firebase-error" class="txp-auth-alert txp-auth-alert--error mt-2" style="display:none;"></div>
 </div>
 <script>
 (function () {
+  if (window.__txpFirebaseUiBooted) return;
+  window.__txpFirebaseUiBooted = true;
+
   function whenFirebaseReady(cb, tries) {
     tries = tries || 0;
     if (window.TaxpiyaFirebase) return cb();
@@ -42,9 +44,12 @@
     if (!wrap) return;
 
     const app = wrap.dataset.app || 'pasajero';
-    const meta = { app };
-    const refCode = document.getElementById('txp-referral-code')?.value?.trim();
-    if (refCode) meta.referral_code = refCode;
+    const meta = () => {
+      const m = { app };
+      const refCode = document.getElementById('txp-referral-code')?.value?.trim();
+      if (refCode) m.referral_code = refCode;
+      return m;
+    };
     const errEl = document.getElementById('txp-firebase-error');
     const loginForm = document.querySelector('form[name="loginForm"]');
 
@@ -65,23 +70,16 @@
       window.location.href = data?.redirect || '/home';
     }
 
-    if (window.__txpFbRedirectError) {
-      showErr(window.__txpFbRedirectError);
-    }
+    if (window.__txpFbRedirectError) showErr(window.__txpFbRedirectError);
 
-    window.addEventListener('txp-firebase-auth-error', (e) => {
-      showErr(e?.detail || 'Error al volver de Google');
-    });
-
-    window.addEventListener('txp-firebase-auth-done', (e) => {
-      if (e?.detail?.ok) goHome(e.detail);
-    });
+    window.addEventListener('txp-firebase-auth-error', (e) => showErr(e?.detail || 'Error al volver de Google'));
+    window.addEventListener('txp-firebase-auth-done', (e) => { if (e?.detail?.ok) goHome(e.detail); });
 
     document.getElementById('txp-firebase-google')?.addEventListener('click', async () => {
       hideErr();
       try {
         await window.TaxpiyaFirebase.init();
-        const data = await window.TaxpiyaFirebase.loginGoogle(meta);
+        const data = await window.TaxpiyaFirebase.loginGoogle(meta());
         if (data?.redirect) return;
         goHome(data);
       } catch (e) { showErr(e.message); }
@@ -98,7 +96,7 @@
       if (!window.TaxpiyaFirebase) { showErr('Firebase no disponible'); return false; }
       try {
         await window.TaxpiyaFirebase.init();
-        const data = await window.TaxpiyaFirebase.loginEmail(email, pass, meta);
+        const data = await window.TaxpiyaFirebase.loginEmail(email, pass, meta());
         goHome(data);
         return true;
       } catch (e) {
@@ -120,12 +118,6 @@
       e.preventDefault();
       hideErr();
       const pass = document.getElementById('txp-password')?.value || '';
-      const emailPanel = document.getElementById('txp-firebase-email-panel');
-      const fbEmail = document.getElementById('txp-fb-email');
-      if (emailPanel && fbEmail) {
-        emailPanel.style.display = 'block';
-        fbEmail.value = username;
-      }
       await firebaseEmailLogin(username, pass);
     });
   }

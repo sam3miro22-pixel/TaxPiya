@@ -62,6 +62,25 @@ class ReferralSystemTest extends TestCase
         }
     }
 
+    public function test_resolve_referral_code_without_leading_zeros(): void
+    {
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Referrer Pad',
+            'email' => 'referrer_pad_' . uniqid() . '@test.local',
+            'telefono' => '392' . random_int(1000000, 9999999),
+            'password' => bcrypt('test'),
+            'estado' => 1,
+            'user_role_id' => 2,
+        ]);
+
+        $service = app(ReferralService::class);
+        $canonical = $service->ensureUserCode($userId);
+        $shortCode = 'TXP-P' . $userId;
+
+        $this->assertTrue($service->validateCode($shortCode)['ok']);
+        $this->assertTrue($service->validateCode($canonical)['ok']);
+    }
+
     public function test_apply_referral_on_existing_user_when_reregistering(): void
     {
         if (!Schema::hasTable('referidos')) {
