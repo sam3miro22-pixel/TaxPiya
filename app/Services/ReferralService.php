@@ -22,12 +22,12 @@ class ReferralService
 
     public function codeForUser(int $userId): string
     {
-        return 'TXP-P' . str_pad((string) $userId, 6, '0', STR_PAD_LEFT);
+        return 'TXP-P' . $userId;
     }
 
     public function codeForEmpresa(int $empresaId): string
     {
-        return 'TXP-E' . str_pad((string) $empresaId, 6, '0', STR_PAD_LEFT);
+        return 'TXP-E' . $empresaId;
     }
 
     public function ensureUserCode(Users|int $user): string
@@ -72,12 +72,17 @@ class ReferralService
             return null;
         }
 
-        $user = DB::table('users')->where('codigo_referido', $code)->first();
+        $user = DB::table('users')
+            ->where('codigo_referido', $code)
+            ->orWhereRaw('UPPER(TRIM(codigo_referido)) = ?', [$code])
+            ->first();
         if ($user) {
+            $canonical = $this->codeForUser((int) $user->id);
+
             return [
                 'type'    => 'user',
                 'user_id' => (int) $user->id,
-                'code'    => $code,
+                'code'    => $canonical,
             ];
         }
 
@@ -544,11 +549,13 @@ class ReferralService
             return;
         }
 
-        $userIds = DB::table('users')->whereNull('codigo_referido')->orWhere('codigo_referido', '')->pluck('id');
+        $userIds = DB::table('users')->pluck('id');
         foreach ($userIds as $id) {
-            DB::table('users')->where('id', $id)->update([
-                'codigo_referido' => $this->codeForUser((int) $id),
-            ]);
+            $canonical = $this->codeForUser((int) $id);
+            $current = DB::table('users')->where('id', $id)->value('codigo_referido');
+            if ($current !== $canonical) {
+                DB::table('users')->where('id', $id)->update(['codigo_referido' => $canonical]);
+            }
         }
 
         if (Schema::hasTable('empresas') && Schema::hasColumn('empresas', 'codigo_referido')) {
