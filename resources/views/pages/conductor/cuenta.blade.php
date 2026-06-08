@@ -15,6 +15,8 @@
         <p class="text-muted mb-0">Conductor TaxPiya</p>
     </div>
 
+    @include('components.referral-share-card', ['referral' => $referral ?? [], 'referralShareUrl' => $referralShareUrl ?? null])
+
     <div class="txp-mobile-card">
         <div class="txp-info-row"><span>Celular</span><strong>{{ $user->telefono ?? '—' }}</strong></div>
         <div class="txp-info-row"><span>Email</span><strong>{{ $user->email ?? '—' }}</strong></div>

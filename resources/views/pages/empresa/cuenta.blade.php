@@ -17,6 +17,8 @@
         <p class="txp-empresa-sub mb-0">{{ $empresa->razon_social ?? '' }}</p>
     </div>
 
+    @include('components.referral-share-card', ['referral' => $referral ?? [], 'referralShareUrl' => $referralShareUrl ?? null])
+
     <div class="txp-mobile-card">
         <div class="txp-info-row"><span>NIT</span><strong>{{ $empresa->nit ?? '—' }}</strong></div>
         <div class="txp-info-row"><span>Ciudad</span><strong>{{ $empresa->ciudad ?? '—' }}</strong></div>

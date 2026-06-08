@@ -30,6 +30,7 @@ class UsersRegisterRequest extends FormRequest
 				"name" => "required|string|unique:users,name",
 				"email" => "required|email|unique:users,email",
 				"fotoperfil" => "nullable",
+				"codigo_referido" => "nullable|string|max:20",
             
         ];
     }

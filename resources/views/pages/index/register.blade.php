@@ -73,6 +73,8 @@
                 <div class="check-status small mt-1"></div>
             </div>
 
+            @include('components.referral-code-field')
+
             <div class="txp-auth-field">
                 <label class="txp-auth-label">Foto de perfil <span style="font-weight:400;opacity:.7">(opcional)</span></label>
                 <div id="ctrl-fotoperfil-holder">
@@ -136,6 +138,8 @@
               app: 'pasajero',
               name: document.getElementById('ctrl-name')?.value?.trim(),
               telefono: document.getElementById('ctrl-telefono')?.value?.trim(),
+              referral_code: document.getElementById('txp-referral-code')?.value?.trim() || null,
+              is_register: true,
             });
 
             if (window.__txpFbRedirectError) showErr(window.__txpFbRedirectError);

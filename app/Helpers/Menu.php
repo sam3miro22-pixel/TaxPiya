@@ -25,6 +25,11 @@ class Menu{
             'icon' => '<i class="fa fa-building"></i>'
         ],
         [
+            'path' => 'referidos',
+            'label' => "Referidos",
+            'icon' => '<i class="fa fa-gift"></i>'
+        ],
+        [
             'path' => 'viajes',
             'label' => "Viajes",
             'icon' => '<i class="fa fa-car"></i>'

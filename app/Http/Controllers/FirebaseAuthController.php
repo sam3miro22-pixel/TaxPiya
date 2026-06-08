@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Users;
 use App\Providers\RouteServiceProvider;
 use App\Services\Firebase\FirestoreUserService;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,8 @@ class FirebaseAuthController extends Controller
             'app'         => 'nullable|in:pasajero,conductor',
             'name'        => 'nullable|string|max:255',
             'telefono'    => 'nullable|string|max:125',
-            'is_register' => 'nullable|boolean',
+            'is_register'   => 'nullable|boolean',
+            'referral_code' => 'nullable|string|max:20',
         ]);
 
         if (!config('taxpiya.firebase.use_firebase_auth')) {
@@ -50,6 +52,15 @@ class FirebaseAuthController extends Controller
             $user = Users::query()->where('email', $email)->first();
         }
 
+        $referrals = app(ReferralService::class);
+        $refCode = $request->input('referral_code');
+        if (!$user && $referrals->normalizeCode($refCode)) {
+            $check = $referrals->validateCode($refCode);
+            if (!$check['ok']) {
+                return response()->json(['ok' => false, 'message' => $check['message'] ?? 'Código de referido inválido'], 422);
+            }
+        }
+
         $isNew = false;
         if (!$user) {
             $isNew = true;
@@ -64,7 +75,7 @@ class FirebaseAuthController extends Controller
                 'password'      => bcrypt(Str::random(32)),
                 'estado'        => 1,
             ]);
-            $user->assignRole('Pasajero');
+            $user->assignRole($app === 'conductor' ? 'Conductor' : 'Pasajero');
         } else {
             if (empty($user->firebase_uid)) {
                 $user->firebase_uid = $uid;
@@ -96,6 +107,12 @@ class FirebaseAuthController extends Controller
         }
         if ($app === 'pasajero' && !$user->hasRole('Pasajero')) {
             return response()->json(['ok' => false, 'message' => 'Acceso solo para Pasajeros'], 403);
+        }
+
+        $referrals->ensureUserCode($user);
+        if ($isNew && $referrals->normalizeCode($refCode)) {
+            $tipo = $app === 'conductor' ? 'conductor' : ($app === 'empresa' ? 'empresa' : 'pasajero');
+            $referrals->registerReferral($refCode, (int) $user->id, $tipo);
         }
 
         Auth::login($user, true);

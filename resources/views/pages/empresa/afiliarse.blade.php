@@ -59,6 +59,8 @@
                 <label class="txp-auth-label">Confirmar contraseña</label>
                 <input type="password" name="password_confirmation" class="txp-auth-input" required>
             </div>
+            @include('components.referral-code-field')
+
             <div class="txp-auth-check mb-3">
                 <input type="checkbox" name="acepta" id="acepta" value="1" required>
                 <label for="acepta">Acepto los términos y autorizo la verificación de mi empresa</label>

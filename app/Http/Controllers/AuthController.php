@@ -8,6 +8,7 @@ use App\Http\Requests\UsersRegisterRequest;
 use App\Providers\RouteServiceProvider;
 use App\Services\Firebase\FirebaseIdentityService;
 use App\Services\Firebase\FirestoreUserService;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Message;
 
@@ -207,6 +208,15 @@ class AuthController extends Controller{
      */
 	function register_store(UsersRegisterRequest $request){
 		$modeldata = $this->normalizeFormData($request->validated());
+		$referralCode = $request->input('codigo_referido');
+		unset($modeldata['codigo_referido']);
+		$referrals = app(ReferralService::class);
+		if ($referrals->normalizeCode($referralCode)) {
+			$check = $referrals->validateCode($referralCode);
+			if (!$check['ok']) {
+				return back()->withErrors($check['message'] ?? 'Código de referido inválido')->withInput($request->except('password'));
+			}
+		}
 		$plainPassword = $request->input('password');
 		
 		if( array_key_exists("fotoperfil", $modeldata) ){
@@ -232,6 +242,9 @@ class AuthController extends Controller{
 		//save Users record
 		$user = $record = Users::create($modeldata);
 		$user->assignRole("Pasajero"); //set default role for user
+
+		$referrals->ensureUserCode($user);
+		$referrals->registerReferral($referralCode, (int) $user->id, 'pasajero');
 
 		try {
 			app(FirestoreUserService::class)->upsertFromUser($user, 'pasajero');

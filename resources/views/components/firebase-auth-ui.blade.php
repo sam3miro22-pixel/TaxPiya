@@ -40,6 +40,8 @@
 
     const app = wrap.dataset.app || null;
     const meta = app ? { app } : {};
+    const refCode = document.getElementById('txp-referral-code')?.value?.trim();
+    if (refCode) meta.referral_code = refCode;
     const errEl = document.getElementById('txp-firebase-error');
     const loginForm = document.querySelector('form[name="loginForm"]');
 

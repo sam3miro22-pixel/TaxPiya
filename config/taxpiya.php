@@ -54,6 +54,10 @@ return [
     | Wallet / billetera conductores
     |--------------------------------------------------------------------------
     */
+    'referrals' => [
+        'enabled' => env('TAXPIYA_REFERRALS_ENABLED', true),
+    ],
+
     'wallet' => [
         'commission_percent'    => (float) env('TAXPIYA_WALLET_COMMISSION_PERCENT', 10),
         'commission_min'        => (float) env('TAXPIYA_WALLET_COMMISSION_MIN', 500),

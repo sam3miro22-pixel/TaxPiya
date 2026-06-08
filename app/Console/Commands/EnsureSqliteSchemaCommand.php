@@ -99,6 +99,24 @@ SQL);
         $this->ensureColumn($pdo, 'conductores', 'empresa_id', 'INTEGER NULL');
         $this->ensureColumn($pdo, 'conductores', 'disponible', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn($pdo, 'conductores', 'estado_operitivo', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn($pdo, 'users', 'codigo_referido', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'empresas', 'codigo_referido', 'TEXT NULL');
+
+        $this->ensureTable($pdo, 'referidos', <<<'SQL'
+CREATE TABLE IF NOT EXISTS referidos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_usado TEXT NOT NULL,
+    referrer_tipo TEXT NOT NULL,
+    referrer_user_id INTEGER NULL,
+    referrer_empresa_id INTEGER NULL,
+    referred_user_id INTEGER NOT NULL,
+    tipo_referido TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'registrado',
+    notas TEXT NULL,
+    created_at TEXT NULL,
+    updated_at TEXT NULL
+)
+SQL);
 
         if (Schema::hasTable('roles') && !DB::table('roles')->where('role_name', 'Empresa')->exists()) {
             $roleId = (int) (DB::table('roles')->max('role_id') ?? 0) + 1;
@@ -106,6 +124,8 @@ SQL);
         }
 
         $this->ensureEmpresasPermissions();
+        $this->ensureReferidosPermissions();
+        app(\App\Services\ReferralService::class)->backfillCodes();
 
         $this->info('Schema SQLite verificado.');
         return self::SUCCESS;
@@ -131,6 +151,28 @@ SQL);
         }
         $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
         $this->warn("  Columna {$table}.{$column} creada");
+    }
+
+    private function ensureReferidosPermissions(): void
+    {
+        if (!Schema::hasTable('permissions')) {
+            return;
+        }
+
+        $adminRoleId = DB::table('roles')->where('role_name', 'Admin')->value('role_id') ?: 1;
+        foreach (['referidos/index'] as $path) {
+            $exists = DB::table('permissions')
+                ->where('permission', $path)
+                ->where('role_id', $adminRoleId)
+                ->exists();
+            if (!$exists) {
+                DB::table('permissions')->insert([
+                    'permission' => $path,
+                    'role_id'    => $adminRoleId,
+                ]);
+                $this->warn("  Permiso admin: {$path}");
+            }
+        }
     }
 
     private function ensureEmpresasPermissions(): void

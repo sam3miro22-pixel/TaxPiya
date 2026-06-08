@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Services\WalletService;
+use App\Services\ReferralService;
 /**
  * Home Page Controller
  * @category  Controller
@@ -38,7 +39,9 @@ class HomeController extends Controller{
 		if (!$user || !$user->hasRole('Pasajero')) {
 			return redirect()->route('home');
 		}
-		return view('pages.pasajero.perfil', ['user' => $user, 'saved' => session('profile_saved')]);
+		$referral = app(ReferralService::class)->statsForUser((int) $user->id);
+		$referralShareUrl = url('/pasajero/registro?ref=' . urlencode($referral['codigo'] ?? ''));
+		return view('pages.pasajero.perfil', ['user' => $user, 'saved' => session('profile_saved'), 'referral' => $referral, 'referralShareUrl' => $referralShareUrl]);
 	}
 
 	function pasajeroPerfilUpdate(Request $request){
@@ -84,7 +87,9 @@ class HomeController extends Controller{
 		$vehiculo = $conductor
 			? DB::table('vehiculos')->where('conductor_id', $conductor->id)->first()
 			: null;
-		return view('pages.conductor.cuenta', compact('user', 'conductor', 'vehiculo'));
+		$referral = app(ReferralService::class)->statsForUser((int) $user->id);
+		$referralShareUrl = url('/conductor/aplicar?ref=' . urlencode($referral['codigo'] ?? ''));
+		return view('pages.conductor.cuenta', compact('user', 'conductor', 'vehiculo', 'referral', 'referralShareUrl'));
 	}
 
 	function conductorViajes(){
@@ -139,7 +144,16 @@ class HomeController extends Controller{
 			'placa'           => 'nullable|string|max:16',
 			'marca'           => 'nullable|string|max:64',
 			'linea'           => 'nullable|string|max:64',
+			'codigo_referido' => 'nullable|string|max:20',
 		]);
+
+		$referrals = app(ReferralService::class);
+		if ($referrals->normalizeCode($data['codigo_referido'] ?? null)) {
+			$check = $referrals->validateCode($data['codigo_referido']);
+			if (!$check['ok']) {
+				return back()->withInput()->with('error', $check['message'] ?? 'Código de referido inválido');
+			}
+		}
 
 		$exists = DB::table('users')->where('telefono', $data['telefono'])->first();
 		if ($exists) {
@@ -194,6 +208,9 @@ class HomeController extends Controller{
                 'verificacion_estado' => 'pendiente',
             ]);
         }
+
+		$referrals->ensureUserCode((int) $userId);
+		$referrals->registerReferral($data['codigo_referido'] ?? null, (int) $userId, 'conductor');
 
 		return redirect()->route('conductor.aplicar')->with('success', 'Solicitud enviada. Un administrador revisará tus datos y activará tu cuenta.');
 	}

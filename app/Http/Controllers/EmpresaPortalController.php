@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Users;
 use App\Services\WalletService;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -246,7 +247,9 @@ class EmpresaPortalController extends Controller
 
         $user = auth()->user();
         $empresa = $this->empresaForUser((int) $user->id);
-        return view('pages.empresa.cuenta', compact('empresa', 'user'));
+        $referral = app(ReferralService::class)->statsForEmpresa((int) $empresa->id);
+        $referralShareUrl = url('/empresa/afiliarse?ref=' . urlencode($referral['codigo'] ?? ''));
+        return view('pages.empresa.cuenta', compact('empresa', 'user', 'referral', 'referralShareUrl'));
     }
 
     public function afiliarse()
@@ -267,7 +270,16 @@ class EmpresaPortalController extends Controller
             'email'            => 'required|email|max:120|unique:users,email',
             'password'         => 'required|string|min:6|confirmed',
             'acepta'           => 'accepted',
+            'codigo_referido'  => 'nullable|string|max:20',
         ]);
+
+        $referrals = app(ReferralService::class);
+        if ($referrals->normalizeCode($data['codigo_referido'] ?? null)) {
+            $check = $referrals->validateCode($data['codigo_referido']);
+            if (!$check['ok']) {
+                return back()->withErrors($check['message'] ?? 'Código de referido inválido')->withInput();
+            }
+        }
 
         $roleEmpresa = DB::table('roles')->where('role_name', 'Empresa')->value('role_id') ?: 4;
         $now = now()->toDateTimeString();
@@ -283,7 +295,7 @@ class EmpresaPortalController extends Controller
                 'user_role_id' => $roleEmpresa,
             ]);
 
-            DB::table('empresas')->insert([
+            $empresaId = DB::table('empresas')->insertGetId([
                 'user_id'             => $userId,
                 'nombre_comercial'    => $data['nombre_comercial'],
                 'razon_social'        => $data['razon_social'] ?? $data['nombre_comercial'],
@@ -297,6 +309,10 @@ class EmpresaPortalController extends Controller
                 'created_at'          => $now,
                 'updated_at'          => $now,
             ]);
+
+            $referrals->ensureUserCode((int) $userId);
+            $referrals->ensureEmpresaCode((int) $empresaId);
+            $referrals->registerReferral($data['codigo_referido'] ?? null, (int) $userId, 'empresa');
 
             DB::commit();
         } catch (\Throwable $e) {

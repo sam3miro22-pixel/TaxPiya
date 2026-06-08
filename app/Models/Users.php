@@ -24,7 +24,7 @@ class Users extends Authenticatable
      * @var string
      */
 	protected $primaryKey = 'id';
-	protected $fillable = ['firebase_uid','telefono','password','name','email','fotoperfil','remember_token','estado','user_role_id'];
+	protected $fillable = ['firebase_uid','codigo_referido','telefono','password','name','email','fotoperfil','remember_token','estado','user_role_id'];
 
 	public $timestamps = false;
 	

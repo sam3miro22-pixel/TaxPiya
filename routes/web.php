@@ -17,6 +17,7 @@ use App\Support\GeoDistance;
 
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
+Route::get('/api/referral/validate', [\App\Http\Controllers\ReferidosController::class, 'validateCode'])->name('api.referral.validate');
 
 Route::get('/api/internal/sqlite-dump', function (Request $request) {
     if (config('database.default') !== 'sqlite') {
@@ -330,6 +331,9 @@ Route::middleware(['auth', 'rbac'])->group(function () {
 	Route::get('empresas/index/{filter?}/{filtervalue?}', 'EmpresasController@index')->name('empresas.index');
 	Route::get('empresas/view/{rec_id}', 'EmpresasController@view')->name('empresas.view');
 	Route::any('empresas/edit/{rec_id}', 'EmpresasController@edit')->name('empresas.edit');
+
+	Route::get('referidos', 'ReferidosController@index')->name('referidos');
+	Route::get('referidos/index/{filter?}/{filtervalue?}', 'ReferidosController@index')->name('referidos.index');
 
 	Route::get('conductorposicionactual', 'ConductorPosicionActualController@index')->name('conductorposicionactual');
 	Route::get('conductorposicionactual/index/{filter?}/{filtervalue?}', 'ConductorPosicionActualController@index')->name('conductorposicionactual.index');	

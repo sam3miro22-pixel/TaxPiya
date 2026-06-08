@@ -744,7 +744,14 @@ if (Schema::hasTable('viaje_estados_log')) {
 		$record = $query->findOrFail($rec_id, Conductores::editFields());
 		if ($request->isMethod('post')) {
 			$modeldata = $this->normalizeFormData($request->validated());
+			$wasActive = (int) ($record->estado_operitivo ?? 0) === 1;
 			$record->update($modeldata);
+			if (!$wasActive && (int) ($record->estado_operitivo ?? 0) === 1) {
+				$userId = (int) DB::table('conductores')->where('id', $rec_id)->value('user_id');
+				if ($userId) {
+					app(\App\Services\ReferralService::class)->activateReferral($userId, 'conductor');
+				}
+			}
 			return $this->redirect("conductores", "Registro actualizado con éxito");
 		}
 		return $this->renderView("pages.conductores.edit", ["data" => $record, "rec_id" => $rec_id]);

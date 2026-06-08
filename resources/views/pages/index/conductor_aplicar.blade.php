@@ -39,6 +39,8 @@
             <label class="form-label">Placa del vehículo</label>
             <input type="text" name="placa" class="form-control" value="{{ old('placa') }}" placeholder="ABC123">
         </div>
+        @include('components.referral-code-field')
+
         <div class="row g-2 mb-3">
             <div class="col-6">
                 <label class="form-label">Marca</label>

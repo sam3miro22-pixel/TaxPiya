@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\ReferralService;
 
 class EmpresasController extends Controller
 {
@@ -84,6 +85,7 @@ class EmpresasController extends Controller
 
             if ($data['estado'] === 'activa') {
                 DB::table('users')->where('id', $record->user_id)->update(['estado' => 1]);
+                app(ReferralService::class)->activateReferral((int) $record->user_id, 'empresa');
             } elseif (in_array($data['estado'], ['suspendida', 'rechazada'], true)) {
                 DB::table('users')->where('id', $record->user_id)->update(['estado' => 2]);
             }
