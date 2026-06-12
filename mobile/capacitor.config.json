@@ -1,0 +1,45 @@
+{
+  "appId": "com.taxpiya.pasajero",
+  "appName": "Taxpiya",
+  "webDir": "www",
+  "server": {
+    "url": "https://taxpiya.onrender.com",
+    "cleartext": false,
+    "androidScheme": "https",
+    "allowNavigation": [
+      "taxpiya.onrender.com",
+      "*.taxpiya.onrender.com",
+      "*.google.com",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "*.firebaseapp.com",
+      "*.firebaseio.com",
+      "accounts.google.com",
+      "identitytoolkit.googleapis.com",
+      "securetoken.googleapis.com"
+    ]
+  },
+  "android": {
+    "backgroundColor": "#0b132b",
+    "webContentsDebuggingEnabled": true,
+    "allowMixedContent": true,
+    "appendUserAgent": " Taxpiya/Android"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0b132b",
+      "androidSplashResourceName": "splash",
+      "showSpinner": true,
+      "spinnerColor": "#FFD166"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0b132b"
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Taxpiya</string>
+    <string name="title_activity_main">Taxpiya</string>
+    <string name="package_name">com.taxpiya.pasajero</string>
+    <string name="custom_url_scheme">com.taxpiya.pasajero</string>
+</resources>

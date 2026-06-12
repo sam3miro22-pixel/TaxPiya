@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b132b" />
+  <title>Taxpiya</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #fff;
+      background:
+        radial-gradient(900px 600px at 15% -10%, rgba(255,209,102,.42) 0%, transparent 70%),
+        radial-gradient(900px 650px at 110% 10%, rgba(244,140,6,.38) 0%, transparent 72%),
+        linear-gradient(135deg, #0b132b 0%, #161e33 55%, #0f1627 100%);
+      display: grid;
+      place-items: center;
+      padding: 2rem 1rem;
+    }
+    .card {
+      width: 100%;
+      max-width: 540px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 18px;
+      background: rgba(20, 26, 44, 0.55);
+      backdrop-filter: blur(10px);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      box-shadow: 0 28px 70px rgba(0,0,0,.5);
+    }
+    .logo {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,209,102,.65);
+      box-shadow: 0 0 45px rgba(255,183,3,.55);
+      object-fit: contain;
+      background: #fff;
+      margin: 0 auto 1rem;
+      display: block;
+    }
+    h1 { margin: 0 0 .5rem; font-size: 1.8rem; }
+    .brand { color: #FFD166; }
+    p { color: rgba(255,255,255,.85); margin: 0 0 1.5rem; }
+    .actions { display: grid; gap: .85rem; }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      padding: .95rem 1.2rem;
+      border-radius: 999px;
+      font-weight: 700;
+      text-decoration: none;
+      border: 0;
+      font-size: 1rem;
+    }
+    .btn-brand {
+      background: linear-gradient(90deg, #FFD166 0%, #FFB703 55%, #F48C06 100%);
+      color: #1b1b1b;
+    }
+    .btn-glass {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.45);
+      color: #fff;
+    }
+    .btn-empresa {
+      border-color: rgba(167,139,250,.55);
+      background: rgba(124,58,237,.12);
+    }
+    .footer { margin-top: 1.25rem; font-size: .8rem; color: rgba(255,255,255,.5); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="logo.png" alt="Taxpiya" />
+    <h1>¡Bienvenido a <span class="brand">Taxpiya</span>!</h1>
+    <p>Tu viaje, más fácil y seguro. Elige cómo quieres entrar.</p>
+    <div class="actions">
+      <a class="btn btn-brand" href="https://taxpiya.onrender.com/pasajero/login">
+        <i class="fa fa-user"></i> Entrar como Pasajero
+      </a>
+      <a class="btn btn-glass" href="https://taxpiya.onrender.com/conductor/login">
+        <i class="fa fa-taxi"></i> Entrar como Conductor
+      </a>
+      <a class="btn btn-glass btn-empresa" href="https://taxpiya.onrender.com/empresa/login">
+        <i class="fa fa-building"></i> Entrar como Empresa / Flota
+      </a>
+    </div>
+    <div class="footer">© 2026 Taxpiya. Todos los derechos reservados.</div>
+  </div>
+  <script>
+    // En APK con server.url configurado, Capacitor abre Render directamente.
+    // Este HTML queda como respaldo offline / primera carga local.
+    if (window.Capacitor?.isNativePlatform?.()) {
+      window.location.replace('https://taxpiya.onrender.com/');
+    }
+  </script>
+</body>
+</html>
