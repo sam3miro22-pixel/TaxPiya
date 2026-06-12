@@ -59,7 +59,8 @@ class FirebaseAuthController extends Controller
 
         try {
             $claims = $this->verifyIdToken($request->input('id_token'));
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            report($e);
             return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
         }
 
@@ -221,9 +222,13 @@ class FirebaseAuthController extends Controller
                 ->withServiceAccount($credentials)
                 ->createAuth();
 
-            $verified = $auth->verifyIdToken($idToken);
+            try {
+                $verified = $auth->verifyIdToken($idToken);
 
-            return $verified->claims()->all();
+                return $verified->claims()->all();
+            } catch (\Throwable) {
+                return $this->verifyIdTokenViaGoogle($idToken);
+            }
         }
 
         return $this->verifyIdTokenViaGoogle($idToken);
@@ -234,11 +239,21 @@ class FirebaseAuthController extends Controller
      */
     private function verifyIdTokenViaGoogle(string $idToken): array
     {
-        $url = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' . urlencode(config('firebase.web.api_key'));
+        $apiKey = config('firebase.web.api_key');
+        if (!$apiKey) {
+            throw new \RuntimeException('FIREBASE_API_KEY no configurada');
+        }
+
+        $url = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' . urlencode($apiKey);
         $client = new \GuzzleHttp\Client(['timeout' => 10]);
         $res = $client->post($url, [
             'json' => ['idToken' => $idToken],
         ]);
+
+        if ($res->getStatusCode() >= 300) {
+            throw new \RuntimeException('Token lookup failed: HTTP ' . $res->getStatusCode());
+        }
+
         $body = json_decode((string) $res->getBody(), true);
         $u = $body['users'][0] ?? null;
         if (!$u) {
@@ -246,9 +261,10 @@ class FirebaseAuthController extends Controller
         }
 
         return [
-            'sub'   => $u['localId'],
-            'email' => $u['email'] ?? null,
-            'name'  => $u['displayName'] ?? null,
+            'sub'      => $u['localId'],
+            'user_id'  => $u['localId'],
+            'email'    => $u['email'] ?? null,
+            'name'     => $u['displayName'] ?? null,
         ];
     }
 }

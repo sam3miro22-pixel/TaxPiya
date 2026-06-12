@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -233,22 +234,44 @@ function nativeFirebaseAuthPlugin() {
   return plugins?.FirebaseAuthentication || null;
 }
 
+async function getNativeFirebaseIdToken(FA) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const tokenResult = await FA.getIdToken({ forceRefresh: attempt < 2 });
+      if (tokenResult?.token) {
+        return tokenResult.token;
+      }
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 350));
+  }
+  return null;
+}
+
 async function loginGoogleNative(meta = {}) {
   const FA = nativeFirebaseAuthPlugin();
   if (!FA?.signInWithGoogle) {
     throw new Error('Inicio con Google nativo no disponible. Actualiza la app Taxpiya.');
   }
 
+  await ensureInit();
   const result = await FA.signInWithGoogle();
-  let idToken = result?.credential?.idToken || null;
 
-  if (!idToken && typeof FA.getIdToken === 'function') {
-    const tokenResult = await FA.getIdToken({ forceRefresh: true });
-    idToken = tokenResult?.token || null;
+  let idToken = null;
+
+  if (typeof FA.getIdToken === 'function') {
+    idToken = await getNativeFirebaseIdToken(FA);
+  }
+
+  if (!idToken && result?.credential?.idToken && auth) {
+    try {
+      const cred = GoogleAuthProvider.credential(result.credential.idToken);
+      const userCred = await signInWithCredential(auth, cred);
+      idToken = await userCred.user.getIdToken(true);
+    } catch (_) {}
   }
 
   if (!idToken) {
-    throw new Error('No se pudo obtener el token de Google. Intenta de nuevo.');
+    throw new Error('No se pudo obtener el token de Firebase. Cierra la app, ábrela de nuevo e intenta otra vez.');
   }
 
   return syncWithLaravel(idToken, meta);
