@@ -4,4 +4,5 @@
     <string name="title_activity_main">Taxpiya</string>
     <string name="package_name">com.taxpiya.pasajero</string>
     <string name="custom_url_scheme">com.taxpiya.pasajero</string>
+    <string name="default_web_client_id">902300007872-mdgja53kj9e52drkp5d7q4k1iuo53n6g.apps.googleusercontent.com</string>
 </resources>

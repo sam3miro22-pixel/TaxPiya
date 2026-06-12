@@ -22,6 +22,18 @@ Tras compilar, la APK queda en:
 Taxpiya/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Google Sign-In en la APK
+
+Si Google muestra **Error 403: disallowed_useragent**, instala la **última APK** (v1.0.1+). Usa inicio nativo con Google, no WebView.
+
+En [Firebase Console](https://console.firebase.google.com/) → proyecto **tax-piya** → Configuración → Tus apps → Android `com.taxpiya.pasajero`:
+
+1. Agrega la huella **SHA-1** del keystore debug (para pruebas):
+   ```powershell
+   keytool -list -v -keystore $env:USERPROFILE\.android\debug.keystore -alias androiddebugkey -storepass android
+   ```
+2. Descarga de nuevo `google-services.json` si Firebase lo pide y cópialo a `mobile/android/app/`.
+
 ## Compilar en Windows (requiere Java 17+ y Android SDK)
 
 ### 1. Instalar dependencias

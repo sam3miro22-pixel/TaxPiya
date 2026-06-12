@@ -125,6 +125,9 @@ export function formatFirebaseError(err) {
   if (code === 'auth/popup-closed-by-user') {
     return 'Cerraste la ventana de Google antes de completar el inicio de sesión.';
   }
+  if (/disallowed_useragent/i.test(msg)) {
+    return 'Google no permite iniciar sesión dentro del navegador embebido. Actualiza la app Taxpiya a la última versión.';
+  }
   if (code === 'auth/email-already-in-use' || /EMAIL_EXISTS/i.test(msg)) {
     return 'Ese correo ya tiene cuenta. Usa «Iniciar sesión» o recupera la contraseña.';
   }
@@ -224,8 +227,44 @@ export async function registerEmail(email, password, profile = {}) {
   }
 }
 
+function nativeFirebaseAuthPlugin() {
+  if (!isNativeWebView()) return null;
+  const plugins = window.Capacitor?.Plugins;
+  return plugins?.FirebaseAuthentication || null;
+}
+
+async function loginGoogleNative(meta = {}) {
+  const FA = nativeFirebaseAuthPlugin();
+  if (!FA?.signInWithGoogle) {
+    throw new Error('Inicio con Google nativo no disponible. Actualiza la app Taxpiya.');
+  }
+
+  const result = await FA.signInWithGoogle();
+  let idToken = result?.credential?.idToken || null;
+
+  if (!idToken && typeof FA.getIdToken === 'function') {
+    const tokenResult = await FA.getIdToken({ forceRefresh: true });
+    idToken = tokenResult?.token || null;
+  }
+
+  if (!idToken) {
+    throw new Error('No se pudo obtener el token de Google. Intenta de nuevo.');
+  }
+
+  return syncWithLaravel(idToken, meta);
+}
+
 export async function loginGoogle(meta = {}) {
   if (!(await ensureInit())) throw new Error('Firebase no inicializado');
+
+  if (isNativeWebView()) {
+    try {
+      return await loginGoogleNative(meta);
+    } catch (e) {
+      throw new Error(formatFirebaseError(e));
+    }
+  }
+
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
 

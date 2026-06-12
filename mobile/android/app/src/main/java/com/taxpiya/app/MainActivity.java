@@ -34,7 +34,14 @@ public class MainActivity extends BridgeActivity {
         ws.setDatabaseEnabled(true);
         ws.setGeolocationEnabled(true);
         ws.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
-        ws.setUserAgentString(ws.getUserAgentString() + " Taxpiya/Android");
+
+        // UA de Chrome estándar: Google bloquea OAuth en WebView (Error 403 disallowed_useragent).
+        String baseUA = ws.getUserAgentString();
+        if (baseUA != null && baseUA.contains("; wv)")) {
+            ws.setUserAgentString(baseUA.replace("; wv)", ")") + " Taxpiya/Android");
+        } else {
+            ws.setUserAgentString(baseUA + " Taxpiya/Android");
+        }
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
@@ -51,7 +58,22 @@ public class MainActivity extends BridgeActivity {
         });
 
         webView.setWebViewClient(new BridgeWebViewClient(bridge) {
-            private boolean isAllowed(Uri uri) {
+            private boolean isGoogleOAuth(Uri uri) {
+                if (uri == null) {
+                    return false;
+                }
+                String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+                String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();
+                if (host.contains("accounts.google.com")) {
+                    return true;
+                }
+                if (host.contains("google.com") && (path.contains("oauth") || path.contains("signin"))) {
+                    return true;
+                }
+                return host.endsWith("firebaseapp.com") && path.contains("__/auth/handler");
+            }
+
+            private boolean isAppHost(Uri uri) {
                 if (uri == null) {
                     return false;
                 }
@@ -66,14 +88,7 @@ public class MainActivity extends BridgeActivity {
                 if (!"https".equals(scheme) && !"http".equals(scheme)) {
                     return false;
                 }
-                return host.endsWith("taxpiya.com")
-                        || host.endsWith("onrender.com")
-                        || host.endsWith("google.com")
-                        || host.contains(".google.")
-                        || host.endsWith("googleapis.com")
-                        || host.endsWith("gstatic.com")
-                        || host.endsWith("firebaseapp.com")
-                        || host.endsWith("googleusercontent.com");
+                return host.endsWith("taxpiya.com") || host.endsWith("onrender.com");
             }
 
             @Override
@@ -82,7 +97,11 @@ public class MainActivity extends BridgeActivity {
                     return super.shouldOverrideUrlLoading(view, request);
                 }
                 Uri uri = request.getUrl();
-                if (isAllowed(uri)) {
+                if (isGoogleOAuth(uri)) {
+                    openCustomTab(uri.toString());
+                    return true;
+                }
+                if (isAppHost(uri)) {
                     return false;
                 }
                 openCustomTab(uri.toString());
