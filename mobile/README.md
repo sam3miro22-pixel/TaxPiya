@@ -24,15 +24,24 @@ Taxpiya/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
 ## Google Sign-In en la APK
 
-Si Google muestra **Error 403: disallowed_useragent**, instala la **última APK** (v1.0.1+). Usa inicio nativo con Google, no WebView.
+Firebase pide la **huella SHA-1** (solo números y dos puntos), **no** el comando `keytool`.
 
-En [Firebase Console](https://console.firebase.google.com/) → proyecto **tax-piya** → Configuración → Tus apps → Android `com.taxpiya.pasajero`:
+### Huellas para pegar en Firebase Console
 
-1. Agrega la huella **SHA-1** del keystore debug (para pruebas):
-   ```powershell
-   keytool -list -v -keystore $env:USERPROFILE\.android\debug.keystore -alias androiddebugkey -storepass android
-   ```
-2. Descarga de nuevo `google-services.json` si Firebase lo pide y cópialo a `mobile/android/app/`.
+Proyecto **tax-piya** → Configuración → App Android `com.taxpiya.pasajero` → **Agregar huella digital**:
+
+| Uso | SHA-1 |
+|-----|-------|
+| APK v1.0.1 (ya instalada) | `84:25:5C:7E:8B:A8:EC:2A:ED:71:2B:F3:18:98:29:E4:39:BA:09:93` |
+| APK v1.0.2+ (keystore fijo) | `27:F5:AB:4F:A3:8B:03:6B:5B:DB:F8:B3:0D:61:8B:30:F8:37:E3:77` |
+
+Agrega **las dos** si no estás seguro de qué APK tienes. Luego pulsa **Guardar**.
+
+Para ver huellas de un APK local:
+
+```powershell
+powershell -File mobile\scripts\print-sha1.ps1
+```
 
 ## Compilar en Windows (requiere Java 17+ y Android SDK)
 
