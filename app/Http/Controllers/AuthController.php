@@ -26,7 +26,7 @@ class AuthController extends Controller{
      */
 	public function login(Request $request)
 	{
-		return app(\App\Services\FormLoginService::class)->handle($request);
+		abort(404, 'Login gestionado por routes/web.php');
 	}
 
 	/**

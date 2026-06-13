@@ -289,80 +289,78 @@ Route::middleware(['auth'])->group(function () {
 
 		$username = trim((string) $request->input('username'));
 		$password = (string) $request->input('password');
+		$remember = $request->boolean('rememberme', (bool) config('taxpiya.session.remember_default', true));
 		$app      = $request->input('app');
 		$isEmail  = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
+		$loginPath = match ($app) {
+			'pasajero'  => '/pasajero/login',
+			'conductor' => '/conductor/login',
+			'empresa'   => '/empresa/login',
+			default     => '/index/login',
+		};
+		$fail = fn (string $message) => redirect($loginPath)
+			->with('auth_error', $message)
+			->with('old_username', $username);
+
+		if ($isEmail && \App\Services\PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
+			return $fail('Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.');
+		}
+
+		$portalAuth = app(\App\Services\PortalAuthService::class);
+		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+			$candidate = \App\Models\Users::query()
+				->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
+				->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
+				->first();
+			if ($candidate) {
+				$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
+				if ($roleError) {
+					return $fail($roleError);
+				}
+			}
+		}
+
 		$credentials = $isEmail
 			? ['email' => $username, 'password' => $password]
 			: ['telefono' => $username, 'password' => $password];
 
-		if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
-			$path = match ($app) {
-				'pasajero'  => '/pasajero/login',
-				'conductor' => '/conductor/login',
-				'empresa'   => '/empresa/login',
-				default     => '/index/login',
-			};
-
-			return redirect($path)
-				->with('auth_error', 'Nombre de usuario o contraseña no correctos')
-				->with('old_username', $username);
+		$loggedIn = \Illuminate\Support\Facades\Auth::attempt($credentials, false);
+		if (!$loggedIn) {
+			$user = \App\Models\Users::query()
+				->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
+				->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
+				->first();
+			if ($user && \Illuminate\Support\Facades\Hash::check($password, (string) $user->password)) {
+				\Illuminate\Support\Facades\Auth::login($user, $remember);
+				$loggedIn = true;
+			}
+		} elseif ($remember) {
+			\Illuminate\Support\Facades\Auth::login(\Illuminate\Support\Facades\Auth::user(), true);
 		}
 
-		$request->session()->regenerate();
+		if (!$loggedIn) {
+			return $fail('Nombre de usuario o contraseña no correctos');
+		}
 
-		return redirect()->intended(\App\Providers\RouteServiceProvider::homeForUser(\Illuminate\Support\Facades\Auth::user(), $app));
-	})->name('auth.login');
-	Route::post('auth/login-debug', function (Request $request) {
-		$steps = [];
 		try {
-			$request->validate([
-				'username' => 'required',
-				'password' => 'required',
-			]);
-			$steps['validate'] = 'ok';
-
-			$username = trim((string) $request->input('username'));
-			$password = (string) $request->input('password');
-			$isEmail  = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
-			$steps['is_email'] = $isEmail;
-
-			$credentials = $isEmail
-				? ['email' => $username, 'password' => $password]
-				: ['telefono' => $username, 'password' => $password];
-
-			try {
-				$loggedIn = \Illuminate\Support\Facades\Auth::attempt($credentials, false);
-				$steps['attempt'] = $loggedIn ? 'true' : 'false';
-				$loggedInRemember = \Illuminate\Support\Facades\Auth::attempt($credentials, true);
-				$steps['attempt_remember'] = $loggedInRemember ? 'true' : 'false';
-			} catch (\Throwable $e) {
-				$steps['attempt'] = 'error: ' . $e->getMessage();
-			}
-
-			try {
-				$user = \App\Models\Users::query()->where('telefono', $username)->first();
-				$steps['find_user'] = $user ? 'found' : 'missing';
-			} catch (\Throwable $e) {
-				$steps['find_user'] = 'error: ' . $e->getMessage();
-			}
-
-			try {
-				$redirect = redirect('/index/login')->with('auth_error', 'debug-probe');
-				$steps['redirect'] = $redirect->getTargetUrl();
-			} catch (\Throwable $e) {
-				$steps['redirect'] = 'error: ' . $e->getMessage();
-			}
-
-			return response()->json(['ok' => true, 'steps' => $steps]);
+			$request->session()->regenerate();
+			$request->session()->save();
 		} catch (\Throwable $e) {
-			return response()->json([
-				'ok'    => false,
-				'error' => $e->getMessage(),
-				'class' => get_class($e),
-				'steps' => $steps,
-			], 500);
+			report($e);
 		}
-	})->name('auth.login.debug');
+
+		$user = \Illuminate\Support\Facades\Auth::user();
+		$gateError = $portalAuth->validateLoginGate($user, $app);
+		if ($gateError) {
+			\Illuminate\Support\Facades\Auth::logout();
+			$request->session()->invalidate();
+			$request->session()->regenerateToken();
+
+			return $fail($gateError);
+		}
+
+		return redirect()->intended(\App\Providers\RouteServiceProvider::homeForUser($user, $app));
+	})->name('auth.login');
 	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.sync');
 	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.diag-sync');
 	Route::get('auth/firebase/diag', function () {
