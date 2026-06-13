@@ -36,69 +36,54 @@ class AuthController extends Controller{
 		$password = (string) $request->input('password');
 		$remember = $request->boolean('rememberme', (bool) config('taxpiya.session.remember_default', true));
 		$app      = $request->input('app');
+		$isEmail  = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
+
+		if ($isEmail && PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
+			return $this->loginErrorResponse($request, $app, 'Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.');
+		}
+
+		$portalAuth = app(PortalAuthService::class);
+		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+			$candidate = $this->findPortalUser($username, $isEmail);
+			if ($candidate) {
+				$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
+				if ($roleError) {
+					return $this->loginErrorResponse($request, $app, $roleError);
+				}
+			}
+		}
+
+		if (!$this->attemptPortalLogin($username, $password, $isEmail, $remember)) {
+			return $this->loginErrorResponse($request, $app, 'Nombre de usuario o contraseña no correctos');
+		}
 
 		try {
-			$isEmail = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
-
-			if ($isEmail && PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
-				return $this->loginErrorResponse($request, $app, 'Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.');
-			}
-
-			$portalAuth = app(PortalAuthService::class);
-			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-				$candidate = $this->findPortalUser($username, $isEmail);
-				if ($candidate) {
-					$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
-					if ($roleError) {
-						return $this->loginErrorResponse($request, $app, $roleError);
-					}
-				}
-			}
-
-			$loggedIn = $this->attemptPortalLogin($username, $password, $isEmail, $remember);
-			if (!$loggedIn) {
-				return $this->loginErrorResponse($request, $app, 'Nombre de usuario o contraseña no correctos');
-			}
-
-			try {
-				$request->session()->regenerate();
-				$request->session()->save();
-			} catch (\Throwable $e) {
-				report($e);
-				if (Auth::user()) {
-					Auth::login(Auth::user(), false);
-					$request->session()->regenerate();
-					$request->session()->save();
-				}
-			}
-
-			$user = Auth::user();
-			if (!$user) {
-				return $this->loginErrorResponse($request, $app, 'No se pudo iniciar sesión. Intenta de nuevo.');
-			}
-			$gateError = $portalAuth->validateLoginGate($user, $app);
-			if ($gateError) {
-				Auth::logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-
-				return $this->loginErrorResponse($request, $app, $gateError);
-			}
-
-			$destination = RouteServiceProvider::homeForUser($user, $app);
-
-			return redirect()->intended($destination);
-		} catch (\Illuminate\Validation\ValidationException $e) {
-			throw $e;
+			$request->session()->regenerate();
+			$request->session()->save();
 		} catch (\Throwable $e) {
 			report($e);
-
-			return $this->loginErrorResponse(
-				$request,
-				$app,
-				'Error al iniciar sesión. Intenta de nuevo en unos segundos.'
-			);
+			if (Auth::user()) {
+				Auth::login(Auth::user(), false);
+				$request->session()->regenerate();
+				$request->session()->save();
+			}
 		}
+
+		$user = Auth::user();
+		if (!$user) {
+			return $this->loginErrorResponse($request, $app, 'No se pudo iniciar sesión. Intenta de nuevo.');
+		}
+
+		$gateError = $portalAuth->validateLoginGate($user, $app);
+		if ($gateError) {
+			Auth::logout();
+			$request->session()->invalidate();
+			$request->session()->regenerateToken();
+
+			return $this->loginErrorResponse($request, $app, $gateError);
+		}
+
+		return redirect()->intended(RouteServiceProvider::homeForUser($user, $app));
 	}
 
 	private function findPortalUser(string $username, bool $isEmail): ?Users
@@ -135,19 +120,18 @@ class AuthController extends Controller{
 
 	private function loginErrorResponse(Request $request, ?string $app, string $message)
 	{
-		return redirect()
-			->to($this->loginUrlForApp($app))
+		return redirect($this->loginPathForApp($app))
 			->with('auth_error', $message)
 			->with('old_username', (string) $request->input('username', ''));
 	}
 
-	private function loginUrlForApp(?string $app): string
+	private function loginPathForApp(?string $app): string
 	{
 		return match ($app) {
-			'pasajero'  => url('/pasajero/login'),
-			'conductor' => url('/conductor/login'),
-			'empresa'   => url('/empresa/login'),
-			default     => url('/index/login'),
+			'pasajero'  => '/pasajero/login',
+			'conductor' => '/conductor/login',
+			'empresa'   => '/empresa/login',
+			default     => '/index/login',
 		};
 	}
 
