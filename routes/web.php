@@ -301,43 +301,53 @@ Route::middleware(['auth'])->group(function () {
 			->with('auth_error', $message)
 			->with('old_username', $username);
 
-		$credentials = $isEmail
-			? ['email' => $username, 'password' => $password]
-			: ['telefono' => $username, 'password' => $password];
-
-		if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
-			return $fail('Nombre de usuario o contraseña no correctos');
-		}
-
 		try {
-			$request->session()->regenerate();
-		} catch (\Throwable $e) {
-			report($e);
-		}
+			$credentials = $isEmail
+				? ['email' => $username, 'password' => $password]
+				: ['telefono' => $username, 'password' => $password];
 
-		$user = \Illuminate\Support\Facades\Auth::user();
-		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+			if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
+				return $fail('Nombre de usuario o contraseña no correctos');
+			}
+
 			try {
-				$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
-				if ($gateError) {
-					\Illuminate\Support\Facades\Auth::logout();
-					try {
-						$request->session()->invalidate();
-						$request->session()->regenerateToken();
-					} catch (\Throwable $e) {
-						report($e);
-					}
-
-					return $fail($gateError);
-				}
+				$request->session()->regenerate();
 			} catch (\Throwable $e) {
 				report($e);
 			}
+
+			$user = \Illuminate\Support\Facades\Auth::user();
+			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+				try {
+					$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
+					if ($gateError) {
+						\Illuminate\Support\Facades\Auth::logout();
+						try {
+							$request->session()->invalidate();
+							$request->session()->regenerateToken();
+						} catch (\Throwable $e) {
+							report($e);
+						}
+
+						return $fail($gateError);
+					}
+				} catch (\Throwable $e) {
+					report($e);
+				}
+			}
+
+			$destination = ($app === 'empresa')
+				? '/empresa'
+				: \App\Providers\RouteServiceProvider::homeForUser($user, $app);
+
+			return redirect($destination);
+		} catch (\Illuminate\Validation\ValidationException $e) {
+			throw $e;
+		} catch (\Throwable $e) {
+			report($e);
+
+			return $fail('Error al iniciar sesión. Intenta de nuevo.');
 		}
-
-		$destination = \App\Providers\RouteServiceProvider::homeForUser($user, $app);
-
-		return redirect($destination);
 	})->name('auth.login');
 	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.sync');
 	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.diag-sync');
