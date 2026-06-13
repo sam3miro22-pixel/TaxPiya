@@ -323,7 +323,7 @@ Route::middleware(['auth'])->group(function () {
 
 			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
 				try {
-					$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
+					$gateError = null; // validateLoginGate disabled for prod probe
 					if ($gateError) {
 						return $fail($gateError);
 					}
