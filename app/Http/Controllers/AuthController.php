@@ -55,7 +55,6 @@ class AuthController extends Controller{
 				}
 			}
 
-		try {
 			$loggedIn = $this->attemptPortalLogin($username, $password, $isEmail, $remember);
 			if (!$loggedIn) {
 				return $this->loginErrorResponse($request, $app, 'Nombre de usuario o contraseña no correctos');
