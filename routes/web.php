@@ -280,7 +280,21 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('', 'IndexController@index')->name('index')->middleware(['redirect.to.home']);
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
-	Route::post('auth/login', [\App\Http\Controllers\AuthController::class, 'login'])->name('auth.login');
+	Route::post('auth/login', function (Request $request) {
+		try {
+			return app(\App\Http\Controllers\AuthController::class)->login($request);
+		} catch (\Throwable $e) {
+			report($e);
+
+			return response()->json([
+				'ok'      => false,
+				'message' => $e->getMessage(),
+				'class'   => get_class($e),
+				'file'    => $e->getFile(),
+				'line'    => $e->getLine(),
+			], 500);
+		}
+	})->name('auth.login');
 	Route::post('auth/login-debug', function (Request $request) {
 		$steps = [];
 		try {
