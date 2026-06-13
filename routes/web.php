@@ -404,6 +404,33 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['login_redirect_probe'] = $e->getMessage();
 		}
+		$checks['login_flow_version'] = 'pre-gate-v2';
+		foreach ([
+			'pasajero' => '3009001001',
+			'empresa'  => '3209002001',
+			'admin'    => '3001001001',
+		] as $portal => $telefono) {
+			try {
+				$u = \App\Models\Users::query()->where('telefono', $telefono)->first();
+				if (!$u) {
+					$checks["login_probe_{$portal}"] = 'user_missing';
+					continue;
+				}
+				$app = $portal === 'admin' ? null : $portal;
+				$gate = $app
+					? app(\App\Services\PortalAuthService::class)->validateLoginGate($u, $app)
+					: null;
+				$checks["login_probe_{$portal}"] = [
+					'user_id'       => (int) $u->id,
+					'role_id'       => (int) ($u->user_role_id ?? 0),
+					'has_password'  => !empty($u->password),
+					'gate'          => $gate ?? 'skipped',
+					'empresas_table'=> \Illuminate\Support\Facades\Schema::hasTable('empresas'),
+				];
+			} catch (\Throwable $e) {
+				$checks["login_probe_{$portal}"] = $e->getMessage();
+			}
+		}
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);
