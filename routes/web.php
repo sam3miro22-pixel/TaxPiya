@@ -281,23 +281,7 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
 	Route::post('auth/login', function (Request $request) {
-		$build = '477769b-formlogin-v2';
-		try {
-			if (!class_exists(\App\Services\FormLoginService::class)) {
-				return response()->json(['ok' => false, 'build' => $build, 'error' => 'FormLoginService missing'], 500);
-			}
-
-			return app(\App\Services\FormLoginService::class)->handle($request);
-		} catch (\Throwable $e) {
-			report($e);
-
-			return response()->json([
-				'ok'      => false,
-				'build'   => $build,
-				'message' => $e->getMessage(),
-				'class'   => get_class($e),
-			], 500);
-		}
+		return app(\App\Services\FormLoginService::class)->handle($request);
 	})->name('auth.login');
 	Route::post('auth/login-debug', function (Request $request) {
 		$steps = [];

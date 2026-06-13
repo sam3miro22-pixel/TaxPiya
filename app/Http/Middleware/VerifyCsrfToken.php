@@ -15,5 +15,6 @@ class VerifyCsrfToken extends Middleware
         'auth/firebase/sync',
         'auth/firebase/diag-sync',
         'auth/login-debug',
+        'auth/login',
     ];
 }
