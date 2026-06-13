@@ -317,17 +317,11 @@ Route::middleware(['auth'])->group(function () {
 			}
 
 			$user = \Illuminate\Support\Facades\Auth::user();
-			if ($app && in_array($app, ['pasajero', 'conductor'], true)) {
+			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
 				try {
 					$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
 					if ($gateError) {
 						\Illuminate\Support\Facades\Auth::logout();
-						try {
-							$request->session()->invalidate();
-							$request->session()->regenerateToken();
-						} catch (\Throwable $e) {
-							report($e);
-						}
 
 						return $fail($gateError);
 					}
