@@ -116,7 +116,7 @@ class AuthController extends Controller{
 			: ['telefono' => $username, 'password' => $password];
 
 		try {
-			if (Auth::attempt($credentials, $remember)) {
+			if (Auth::attempt($credentials, false)) {
 				return true;
 			}
 		} catch (\Throwable $e) {

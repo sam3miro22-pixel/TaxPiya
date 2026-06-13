@@ -280,7 +280,7 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('', 'IndexController@index')->name('index')->middleware(['redirect.to.home']);
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
-	Route::post('auth/login', 'AuthController@login')->name('auth.login');
+	Route::post('auth/login', [\App\Http\Controllers\AuthController::class, 'login'])->name('auth.login');
 	Route::post('auth/login-debug', function (Request $request) {
 		$steps = [];
 		try {
@@ -302,8 +302,17 @@ Route::middleware(['auth'])->group(function () {
 			try {
 				$loggedIn = \Illuminate\Support\Facades\Auth::attempt($credentials, false);
 				$steps['attempt'] = $loggedIn ? 'true' : 'false';
+				$loggedInRemember = \Illuminate\Support\Facades\Auth::attempt($credentials, true);
+				$steps['attempt_remember'] = $loggedInRemember ? 'true' : 'false';
 			} catch (\Throwable $e) {
 				$steps['attempt'] = 'error: ' . $e->getMessage();
+			}
+
+			try {
+				$user = \App\Models\Users::query()->where('telefono', $username)->first();
+				$steps['find_user'] = $user ? 'found' : 'missing';
+			} catch (\Throwable $e) {
+				$steps['find_user'] = 'error: ' . $e->getMessage();
 			}
 
 			try {
