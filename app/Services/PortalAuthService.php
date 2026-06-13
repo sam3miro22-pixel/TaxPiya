@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Users;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Autenticación de portales móviles.
@@ -100,6 +101,9 @@ class PortalAuthService
                     'updated_at' => now()->format('Y-m-d H:i:s'),
                 ]);
         } elseif ($app === 'empresa') {
+            if (!Schema::hasTable('empresas')) {
+                return 'El portal de empresas no está disponible en este momento.';
+            }
             $empresa = DB::table('empresas')->where('user_id', $user->id)->first();
             if (!$empresa) {
                 return 'Tu cuenta no tiene una empresa vinculada.';

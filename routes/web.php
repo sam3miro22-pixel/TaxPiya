@@ -302,32 +302,31 @@ Route::middleware(['auth'])->group(function () {
 			->with('old_username', $username);
 
 		try {
-			$credentials = $isEmail
-				? ['email' => $username, 'password' => $password]
-				: ['telefono' => $username, 'password' => $password];
+			$userQuery = \App\Models\Users::query();
+			if ($isEmail) {
+				$userQuery->where('email', $username);
+			} else {
+				$userQuery->where('telefono', $username);
+			}
+			$user = $userQuery->first();
 
-			if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
+			if (!$user || !\Illuminate\Support\Facades\Hash::check($password, (string) $user->password)) {
 				return $fail('Nombre de usuario o contraseña no correctos');
 			}
+
+			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+				$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
+				if ($gateError) {
+					return $fail($gateError);
+				}
+			}
+
+			\Illuminate\Support\Facades\Auth::login($user, false);
 
 			try {
 				$request->session()->regenerate();
 			} catch (\Throwable $e) {
 				report($e);
-			}
-
-			$user = \Illuminate\Support\Facades\Auth::user();
-			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-				try {
-					$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
-					if ($gateError) {
-						\Illuminate\Support\Facades\Auth::logout();
-
-						return $fail($gateError);
-					}
-				} catch (\Throwable $e) {
-					report($e);
-				}
 			}
 
 			$destination = ($app === 'empresa')
