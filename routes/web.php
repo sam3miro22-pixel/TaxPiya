@@ -328,6 +328,15 @@ Route::middleware(['auth'])->group(function () {
 		}
 		$checks['firebase_credentials'] = is_readable(config('firebase.credentials'));
 		$checks['kreait_available'] = class_exists(\Kreait\Firebase\Factory::class);
+		try {
+			$loggedIn = \Illuminate\Support\Facades\Auth::attempt([
+				'telefono' => '__diag_missing_user__',
+				'password' => '__diag__',
+			], false);
+			$checks['auth_attempt_missing_user'] = $loggedIn === false ? 'ok' : 'unexpected_true';
+		} catch (\Throwable $e) {
+			$checks['auth_attempt_missing_user'] = $e->getMessage();
+		}
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);

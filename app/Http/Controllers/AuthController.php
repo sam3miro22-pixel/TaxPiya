@@ -15,6 +15,7 @@ use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller{
@@ -25,72 +26,124 @@ class AuthController extends Controller{
      */
 	public function login(Request $request)
 	{
-		// Validación mínima y lectura del contexto (app proviene del blade)
 		$request->validate([
 			'username' => 'required',
 			'password' => 'required',
 			'app'      => 'nullable|in:pasajero,conductor,empresa',
 		]);
 
-		$username = $request->input('username');
-		$password = $request->input('password');
+		$username = trim((string) $request->input('username'));
+		$password = (string) $request->input('password');
 		$remember = $request->boolean('rememberme', (bool) config('taxpiya.session.remember_default', true));
-		$app      = $request->input('app'); // 'pasajero' | 'conductor' | null
+		$app      = $request->input('app');
 
-		$isEmail = filter_var($username, FILTER_VALIDATE_EMAIL);
+		try {
+			$isEmail = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
 
-		if ($isEmail && PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
-			return back()
-				->withErrors('Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.')
-				->withInput($request->only('username'));
+			if ($isEmail && PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
+				return $this->loginErrorResponse($request, $app, 'Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.');
+			}
+
+			$portalAuth = app(PortalAuthService::class);
+			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+				$candidate = $this->findPortalUser($username, $isEmail);
+				if ($candidate) {
+					$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
+					if ($roleError) {
+						return $this->loginErrorResponse($request, $app, $roleError);
+					}
+				}
+			}
+
+			$loggedIn = $this->attemptPortalLogin($username, $password, $isEmail, $remember);
+			if (!$loggedIn) {
+				return $this->loginErrorResponse($request, $app, 'Nombre de usuario o contraseña no correctos');
+			}
+
+			try {
+				$request->session()->regenerate();
+				$request->session()->save();
+			} catch (\Throwable $e) {
+				report($e);
+				Auth::login(Auth::user(), false);
+				$request->session()->regenerate();
+				$request->session()->save();
+			}
+
+			$user = Auth::user();
+			$gateError = $portalAuth->validateLoginGate($user, $app);
+			if ($gateError) {
+				Auth::logout();
+				$request->session()->invalidate();
+				$request->session()->regenerateToken();
+
+				return $this->loginErrorResponse($request, $app, $gateError);
+			}
+
+			$destination = RouteServiceProvider::homeForUser($user, $app);
+
+			return redirect()->intended($destination);
+		} catch (\Illuminate\Validation\ValidationException $e) {
+			throw $e;
+		} catch (\Throwable $e) {
+			report($e);
+
+			return $this->loginErrorResponse(
+				$request,
+				$app,
+				'Error al iniciar sesión. Intenta de nuevo en unos segundos.'
+			);
 		}
+	}
 
+	private function findPortalUser(string $username, bool $isEmail): ?Users
+	{
+		return Users::query()
+			->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
+			->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
+			->first();
+	}
+
+	private function attemptPortalLogin(string $username, string $password, bool $isEmail, bool $remember): bool
+	{
 		$credentials = $isEmail
 			? ['email' => $username, 'password' => $password]
 			: ['telefono' => $username, 'password' => $password];
 
-		$portalAuth = app(PortalAuthService::class);
-		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-			$candidate = Users::query()
-				->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower(trim($username))]))
-				->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
-				->first();
-			if ($candidate) {
-				$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
-				if ($roleError) {
-					return back()
-						->withErrors($roleError)
-						->withInput($request->only('username'));
-				}
+		try {
+			if (Auth::attempt($credentials, $remember)) {
+				return true;
 			}
+		} catch (\Throwable $e) {
+			report($e);
 		}
 
-		$loggedIn = Auth::attempt($credentials, $remember);
-
-		if (!$loggedIn) {
-			return back()
-				->withErrors('Nombre de usuario o contraseña no correctos')
-				->withInput($request->only('username'));
+		$user = $this->findPortalUser($username, $isEmail);
+		if (!$user || !Hash::check($password, (string) $user->password)) {
+			return false;
 		}
 
-		// Seguridad: regenerar la sesión tras autenticación
-		$request->session()->regenerate();
+		Auth::login($user, $remember);
 
-		$user = Auth::user();
+		return true;
+	}
 
-		$gateError = app(PortalAuthService::class)->validateLoginGate($user, $app);
-		if ($gateError) {
-			Auth::logout();
-			$request->session()->invalidate();
-			$request->session()->regenerateToken();
+	private function loginErrorResponse(Request $request, ?string $app, string $message)
+	{
+		return redirect()
+			->to($this->loginUrlForApp($app))
+			->withErrors(['login' => $message])
+			->withInput($request->only('username'));
+	}
 
-			return back()
-				->withErrors($gateError)
-				->withInput($request->only('username'));
-		}
-
-		$destination = RouteServiceProvider::homeForUser($user, $app);
-		return $this->redirectIntended($destination, 'Inicio de sesión completado');
+	private function loginUrlForApp(?string $app): string
+	{
+		return match ($app) {
+			'pasajero'  => route('pasajero.login'),
+			'conductor' => route('conductor.login'),
+			'empresa'   => route('empresa.login'),
+			default     => route('login'),
+		};
 	}
 
 	/**

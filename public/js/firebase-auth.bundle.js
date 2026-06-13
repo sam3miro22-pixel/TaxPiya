@@ -18578,6 +18578,19 @@ This typically indicates that your device does not have a healthy Internet conne
     }
     return msg.replace(/^Firebase:\s*/i, "").replace(/^Error\s*\([^)]+\)\.\s*/i, "");
   }
+  function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    if (meta) return meta;
+    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+    if (match?.[1]) {
+      try {
+        return decodeURIComponent(match[1]);
+      } catch (_) {
+        return match[1];
+      }
+    }
+    return "";
+  }
   async function syncWithLaravel(idToken, extra = {}) {
     const url = window.TAXPIYA_FIREBASE_SYNC_URL;
     if (!url) throw new Error("URL de sincronizaci\xF3n no configurada");
@@ -18587,7 +18600,7 @@ This typically indicates that your device does not have a healthy Internet conne
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.content || "",
+        "X-CSRF-TOKEN": getCsrfToken(),
         "X-Requested-With": "XMLHttpRequest"
       },
       body: JSON.stringify({ id_token: idToken, ...extra })
@@ -18602,7 +18615,7 @@ This typically indicates that your device does not have a healthy Internet conne
       }
     }
     if (!res.ok || !data.ok) {
-      const detail = data.message || (res.status === 419 ? "Sesi\xF3n expirada. Recarga la p\xE1gina e intenta de nuevo." : "No se pudo sincronizar la sesi\xF3n");
+      const detail = data.message || (res.status === 419 ? "CSRF token mismatch. Recarga la p\xE1gina e intenta de nuevo." : "No se pudo sincronizar la sesi\xF3n");
       throw new Error(detail);
     }
     return data;

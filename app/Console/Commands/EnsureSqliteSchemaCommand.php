@@ -163,6 +163,25 @@ SQL);
         $this->ensureColumn($pdo, 'referidos', 'bonus_monto', 'REAL NULL');
         $this->ensureColumn($pdo, 'referidos', 'bonus_paid_at', 'TEXT NULL');
 
+        $this->ensureTable($pdo, 'sos_incidentes', <<<'SQL'
+CREATE TABLE IF NOT EXISTS sos_incidentes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    viaje_id INTEGER NULL,
+    actor_tipo TEXT NOT NULL DEFAULT 'pasajero',
+    actor_user_id INTEGER NULL,
+    conductor_id INTEGER NULL,
+    categoria TEXT DEFAULT 'seguridad',
+    severidad TEXT NOT NULL DEFAULT 'alta',
+    estado TEXT NOT NULL DEFAULT 'abierto',
+    descripcion TEXT NULL,
+    telefono_contacto TEXT NULL,
+    lat REAL NULL,
+    lng REAL NULL,
+    operador_id INTEGER NULL,
+    created_at TEXT NULL
+)
+SQL);
+
         $this->ensureTable($pdo, 'sessions', <<<'SQL'
 CREATE TABLE IF NOT EXISTS sessions (
     id VARCHAR(255) PRIMARY KEY,

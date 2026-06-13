@@ -17,7 +17,10 @@ class HomeController extends Controller{
      */
 	function index(){
 		$user = auth()->user();
-		if ($user && ($user->hasRole('Pasajero') || $user->hasRole('Conductor'))) {
+		if (!$user) {
+			return redirect()->route('login');
+		}
+		if ($user->hasRole('Pasajero') || $user->hasRole('Conductor')) {
 			app(ReferralService::class)->processPendingBonusesForReferrerUser((int) $user->id);
 		}
 		if($user->hasRole('admin')){

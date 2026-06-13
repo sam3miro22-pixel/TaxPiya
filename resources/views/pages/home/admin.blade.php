@@ -82,12 +82,15 @@ $viajesRecientes = DB::table('viajes as v')
     ->limit(5)
     ->get();
 
-$ultimosSos = DB::table('sos_incidentes')
-    ->orderBy('created_at', 'desc')
-    ->limit(3)
-    ->get();
-
-$totalSos = DB::table('sos_incidentes')->count();
+$ultimosSos = collect();
+$totalSos = 0;
+if (\Illuminate\Support\Facades\Schema::hasTable('sos_incidentes')) {
+    $ultimosSos = DB::table('sos_incidentes')
+        ->orderBy('created_at', 'desc')
+        ->limit(3)
+        ->get();
+    $totalSos = DB::table('sos_incidentes')->count();
+}
 
 $walletMovsHoy = DB::table('wallet_movimientos')
     ->whereDate('created_at', $hoy->toDateString())
