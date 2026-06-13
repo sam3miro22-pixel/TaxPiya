@@ -289,7 +289,6 @@ Route::middleware(['auth'])->group(function () {
 
 		$username = trim((string) $request->input('username'));
 		$password = (string) $request->input('password');
-		$remember = $request->boolean('rememberme', (bool) config('taxpiya.session.remember_default', true));
 		$app      = $request->input('app');
 		$isEmail  = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
 		$loginPath = match ($app) {
@@ -302,61 +301,34 @@ Route::middleware(['auth'])->group(function () {
 			->with('auth_error', $message)
 			->with('old_username', $username);
 
-		if ($isEmail && \App\Services\PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
-			return $fail('Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.');
-		}
-
-		$portalAuth = app(\App\Services\PortalAuthService::class);
-		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-			$candidate = \App\Models\Users::query()
-				->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
-				->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
-				->first();
-			if ($candidate) {
-				$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
-				if ($roleError) {
-					return $fail($roleError);
-				}
-			}
-		}
-
 		$credentials = $isEmail
 			? ['email' => $username, 'password' => $password]
 			: ['telefono' => $username, 'password' => $password];
 
-		$loggedIn = \Illuminate\Support\Facades\Auth::attempt($credentials, false);
-		if (!$loggedIn) {
-			$user = \App\Models\Users::query()
-				->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
-				->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
-				->first();
-			if ($user && \Illuminate\Support\Facades\Hash::check($password, (string) $user->password)) {
-				\Illuminate\Support\Facades\Auth::login($user, $remember);
-				$loggedIn = true;
-			}
-		} elseif ($remember) {
-			\Illuminate\Support\Facades\Auth::login(\Illuminate\Support\Facades\Auth::user(), true);
-		}
-
-		if (!$loggedIn) {
+		if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
 			return $fail('Nombre de usuario o contraseña no correctos');
 		}
 
 		try {
 			$request->session()->regenerate();
-			$request->session()->save();
 		} catch (\Throwable $e) {
 			report($e);
 		}
 
 		$user = \Illuminate\Support\Facades\Auth::user();
-		$gateError = $portalAuth->validateLoginGate($user, $app);
-		if ($gateError) {
-			\Illuminate\Support\Facades\Auth::logout();
-			$request->session()->invalidate();
-			$request->session()->regenerateToken();
+		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+			try {
+				$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
+				if ($gateError) {
+					\Illuminate\Support\Facades\Auth::logout();
+					$request->session()->invalidate();
+					$request->session()->regenerateToken();
 
-			return $fail($gateError);
+					return $fail($gateError);
+				}
+			} catch (\Throwable $e) {
+				report($e);
+			}
 		}
 
 		return redirect()->intended(\App\Providers\RouteServiceProvider::homeForUser($user, $app));
