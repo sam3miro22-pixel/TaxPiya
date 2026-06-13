@@ -301,53 +301,24 @@ Route::middleware(['auth'])->group(function () {
 			->with('auth_error', $message)
 			->with('old_username', $username);
 
+		$credentials = $isEmail
+			? ['email' => $username, 'password' => $password]
+			: ['telefono' => $username, 'password' => $password];
+
+		if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
+			return $fail('Nombre de usuario o contraseña no correctos');
+		}
+
 		try {
-			if ($isEmail && \App\Services\PortalAuthService::firebasePasajeroConductorEnabled() && in_array($app, ['pasajero', 'conductor'], true)) {
-				return $fail('Para entrar con correo usa Google o el botón «Correo electrónico (Firebase)» debajo del formulario.');
-			}
+			$request->session()->regenerate();
+		} catch (\Throwable $e) {
+			report($e);
+		}
 
-			$portalAuth = app(\App\Services\PortalAuthService::class);
-			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-				$candidate = \App\Models\Users::query()
-					->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
-					->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
-					->first();
-				if ($candidate) {
-					$roleError = $portalAuth->validateRoleForPortal($candidate, $app);
-					if ($roleError) {
-						return $fail($roleError);
-					}
-				}
-			}
-
-			$credentials = $isEmail
-				? ['email' => $username, 'password' => $password]
-				: ['telefono' => $username, 'password' => $password];
-
-			if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
-				$user = \App\Models\Users::query()
-					->when($isEmail, fn ($q) => $q->whereRaw('LOWER(email) = ?', [strtolower($username)]))
-					->when(!$isEmail, fn ($q) => $q->where('telefono', $username))
-					->first();
-				if (!$user || !\Illuminate\Support\Facades\Hash::check($password, (string) $user->password)) {
-					return $fail('Nombre de usuario o contraseña no correctos');
-				}
-				\Illuminate\Support\Facades\Auth::login($user, $request->boolean('rememberme', true));
-			}
-
+		$user = \Illuminate\Support\Facades\Auth::user();
+		if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
 			try {
-				$request->session()->regenerate();
-			} catch (\Throwable $e) {
-				report($e);
-			}
-
-			$user = \Illuminate\Support\Facades\Auth::user();
-			if (!$user) {
-				return $fail('No se pudo iniciar sesión. Intenta de nuevo.');
-			}
-
-			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-				$gateError = $portalAuth->validateLoginGate($user, $app);
+				$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
 				if ($gateError) {
 					\Illuminate\Support\Facades\Auth::logout();
 					try {
@@ -359,16 +330,14 @@ Route::middleware(['auth'])->group(function () {
 
 					return $fail($gateError);
 				}
+			} catch (\Throwable $e) {
+				report($e);
 			}
-
-			return redirect()->intended(\App\Providers\RouteServiceProvider::homeForUser($user, $app));
-		} catch (\Illuminate\Validation\ValidationException $e) {
-			throw $e;
-		} catch (\Throwable $e) {
-			report($e);
-
-			return $fail('Error al iniciar sesión. Intenta de nuevo en unos segundos.');
 		}
+
+		$destination = \App\Providers\RouteServiceProvider::homeForUser($user, $app);
+
+		return redirect($destination);
 	})->name('auth.login');
 	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.sync');
 	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.diag-sync');
