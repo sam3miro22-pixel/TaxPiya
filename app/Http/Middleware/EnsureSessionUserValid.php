@@ -20,8 +20,11 @@ class EnsureSessionUserValid
         $row = DB::table('users')->where('id', $user->id)->first();
         if (!$row) {
             Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            try {
+                $request->session()->regenerateToken();
+            } catch (\Throwable) {
+                // ignore
+            }
 
             if ($request->expectsJson()) {
                 return response()->json([

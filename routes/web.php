@@ -297,11 +297,18 @@ Route::middleware(['auth'])->group(function () {
 			'empresa'   => '/empresa/login',
 			default     => '/index/login',
 		};
-		$fail = fn (string $message) => redirect($loginPath)
-			->with('auth_error', $message)
-			->with('old_username', $username);
+		$fail = function (string $message) use ($loginPath, $username) {
+			session()->flash('auth_error', $message);
+			session()->flash('old_username', $username);
+
+			return redirect($loginPath);
+		};
 
 		try {
+			$credentials = $isEmail
+				? ['email' => $username, 'password' => $password]
+				: ['telefono' => $username, 'password' => $password];
+
 			$userQuery = \App\Models\Users::query();
 			if ($isEmail) {
 				$userQuery->where('email', $username);
@@ -315,23 +322,34 @@ Route::middleware(['auth'])->group(function () {
 			}
 
 			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-				$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
-				if ($gateError) {
-					return $fail($gateError);
+				try {
+					$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
+					if ($gateError) {
+						return $fail($gateError);
+					}
+				} catch (\Throwable $e) {
+					report($e);
+
+					return $fail('Error al validar tu cuenta. Intenta de nuevo.');
 				}
 			}
 
-			\Illuminate\Support\Facades\Auth::login($user, false);
+			if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
+				return $fail('Nombre de usuario o contraseña no correctos');
+			}
 
 			try {
 				$request->session()->regenerate();
+				$request->session()->save();
 			} catch (\Throwable $e) {
 				report($e);
 			}
 
-			$destination = ($app === 'empresa')
-				? '/empresa'
-				: \App\Providers\RouteServiceProvider::homeForUser($user, $app);
+			$destination = match ($app) {
+				'empresa'   => '/empresa',
+				'pasajero', 'conductor' => '/home',
+				default     => \App\Providers\RouteServiceProvider::homeForUser($user, $app),
+			};
 
 			return redirect($destination);
 		} catch (\Illuminate\Validation\ValidationException $e) {
@@ -404,33 +422,7 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['login_redirect_probe'] = $e->getMessage();
 		}
-		$checks['login_flow_version'] = 'pre-gate-v2';
-		foreach ([
-			'pasajero' => '3009001001',
-			'empresa'  => '3209002001',
-			'admin'    => '3001001001',
-		] as $portal => $telefono) {
-			try {
-				$u = \App\Models\Users::query()->where('telefono', $telefono)->first();
-				if (!$u) {
-					$checks["login_probe_{$portal}"] = 'user_missing';
-					continue;
-				}
-				$app = $portal === 'admin' ? null : $portal;
-				$gate = $app
-					? app(\App\Services\PortalAuthService::class)->validateLoginGate($u, $app)
-					: null;
-				$checks["login_probe_{$portal}"] = [
-					'user_id'       => (int) $u->id,
-					'role_id'       => (int) ($u->user_role_id ?? 0),
-					'has_password'  => !empty($u->password),
-					'gate'          => $gate ?? 'skipped',
-					'empresas_table'=> \Illuminate\Support\Facades\Schema::hasTable('empresas'),
-				];
-			} catch (\Throwable $e) {
-				$checks["login_probe_{$portal}"] = $e->getMessage();
-			}
-		}
+		$checks['login_flow_version'] = 'attempt-pre-gate-v3';
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);
