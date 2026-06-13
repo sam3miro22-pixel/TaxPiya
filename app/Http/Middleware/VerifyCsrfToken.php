@@ -14,5 +14,6 @@ class VerifyCsrfToken extends Middleware
     protected $except = [
         'auth/firebase/sync',
         'auth/firebase/diag-sync',
+        'auth/login-debug',
     ];
 }

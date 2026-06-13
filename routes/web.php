@@ -281,6 +281,48 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
 	Route::post('auth/login', 'AuthController@login')->name('auth.login');
+	Route::post('auth/login-debug', function (Request $request) {
+		$steps = [];
+		try {
+			$request->validate([
+				'username' => 'required',
+				'password' => 'required',
+			]);
+			$steps['validate'] = 'ok';
+
+			$username = trim((string) $request->input('username'));
+			$password = (string) $request->input('password');
+			$isEmail  = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
+			$steps['is_email'] = $isEmail;
+
+			$credentials = $isEmail
+				? ['email' => $username, 'password' => $password]
+				: ['telefono' => $username, 'password' => $password];
+
+			try {
+				$loggedIn = \Illuminate\Support\Facades\Auth::attempt($credentials, false);
+				$steps['attempt'] = $loggedIn ? 'true' : 'false';
+			} catch (\Throwable $e) {
+				$steps['attempt'] = 'error: ' . $e->getMessage();
+			}
+
+			try {
+				$redirect = redirect('/index/login')->with('auth_error', 'debug-probe');
+				$steps['redirect'] = $redirect->getTargetUrl();
+			} catch (\Throwable $e) {
+				$steps['redirect'] = 'error: ' . $e->getMessage();
+			}
+
+			return response()->json(['ok' => true, 'steps' => $steps]);
+		} catch (\Throwable $e) {
+			return response()->json([
+				'ok'    => false,
+				'error' => $e->getMessage(),
+				'class' => get_class($e),
+				'steps' => $steps,
+			], 500);
+		}
+	})->name('auth.login.debug');
 	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.sync');
 	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'diagSyncProbe'])->name('auth.firebase.diag-sync');
 	Route::get('auth/firebase/diag', function () {
