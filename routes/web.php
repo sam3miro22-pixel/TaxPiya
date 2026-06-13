@@ -337,6 +337,12 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['auth_attempt_missing_user'] = $e->getMessage();
 		}
+		try {
+			$probe = redirect('/index/login')->with('auth_error', 'probe');
+			$checks['login_redirect_probe'] = $probe->getTargetUrl() ? 'ok' : 'no_target';
+		} catch (\Throwable $e) {
+			$checks['login_redirect_probe'] = $e->getMessage();
+		}
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);

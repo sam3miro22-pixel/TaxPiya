@@ -55,6 +55,7 @@ class AuthController extends Controller{
 				}
 			}
 
+		try {
 			$loggedIn = $this->attemptPortalLogin($username, $password, $isEmail, $remember);
 			if (!$loggedIn) {
 				return $this->loginErrorResponse($request, $app, 'Nombre de usuario o contraseña no correctos');
@@ -65,12 +66,17 @@ class AuthController extends Controller{
 				$request->session()->save();
 			} catch (\Throwable $e) {
 				report($e);
-				Auth::login(Auth::user(), false);
-				$request->session()->regenerate();
-				$request->session()->save();
+				if (Auth::user()) {
+					Auth::login(Auth::user(), false);
+					$request->session()->regenerate();
+					$request->session()->save();
+				}
 			}
 
 			$user = Auth::user();
+			if (!$user) {
+				return $this->loginErrorResponse($request, $app, 'No se pudo iniciar sesión. Intenta de nuevo.');
+			}
 			$gateError = $portalAuth->validateLoginGate($user, $app);
 			if ($gateError) {
 				Auth::logout();
@@ -132,17 +138,17 @@ class AuthController extends Controller{
 	{
 		return redirect()
 			->to($this->loginUrlForApp($app))
-			->withErrors(['login' => $message])
-			->withInput($request->only('username'));
+			->with('auth_error', $message)
+			->with('old_username', (string) $request->input('username', ''));
 	}
 
 	private function loginUrlForApp(?string $app): string
 	{
 		return match ($app) {
-			'pasajero'  => route('pasajero.login'),
-			'conductor' => route('conductor.login'),
-			'empresa'   => route('empresa.login'),
-			default     => route('login'),
+			'pasajero'  => url('/pasajero/login'),
+			'conductor' => url('/conductor/login'),
+			'empresa'   => url('/empresa/login'),
+			default     => url('/index/login'),
 		};
 	}
 

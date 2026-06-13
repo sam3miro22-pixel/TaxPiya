@@ -30,6 +30,8 @@
 
 @if($errors->any())
     <div class="txp-auth-alert txp-auth-alert--error">{{ $errors->first() }}</div>
+@elseif(session('auth_error'))
+    <div class="txp-auth-alert txp-auth-alert--error">{{ session('auth_error') }}</div>
 @endif
 
 <form name="loginForm" action="{{ route('auth.login') }}" class="txp-auth-form page-form" method="post" novalidate>
@@ -51,6 +53,7 @@
             <i class="fa-solid fa-user txp-auth-input-icon"></i>
             <input id="txp-username" name="username" type="text" class="txp-auth-input"
                    placeholder="{{ ($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') ? '300 123 4567' : '300 123 4567 o correo@email.com' }}"
+                   value="{{ old('username', session('old_username')) }}"
                    required autocomplete="username">
         </div>
         @if(($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
