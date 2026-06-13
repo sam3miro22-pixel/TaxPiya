@@ -322,15 +322,52 @@ Route::middleware(['auth'])->group(function () {
 			}
 
 			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
-				try {
-					$gateError = null; // validateLoginGate disabled for prod probe
-					if ($gateError) {
-						return $fail($gateError);
-					}
-				} catch (\Throwable $e) {
-					report($e);
+				if ((int) ($user->estado ?? 1) !== 1) {
+					return $fail('Tu cuenta está inactiva. Por favor comunícate con el Equipo de Taxpiya.');
+				}
 
-					return $fail('Error al validar tu cuenta. Intenta de nuevo.');
+				$roleName = match ($app) {
+					'pasajero'  => 'Pasajero',
+					'conductor' => 'Conductor',
+					'empresa'   => 'Empresa',
+					default     => null,
+				};
+				if ($roleName) {
+					$expectedRoleId = \Illuminate\Support\Facades\DB::table('roles')
+						->where('role_name', $roleName)
+						->value('role_id');
+					if ($expectedRoleId !== null && (int) $user->user_role_id !== (int) $expectedRoleId) {
+						$roleMsg = match ($app) {
+							'pasajero'  => 'Este acceso es solo para Pasajeros.',
+							'conductor' => 'Acceso exclusivo para Conductores.',
+							'empresa'   => 'Acceso exclusivo para empresas afiliadas.',
+							default     => 'No tienes acceso a este portal.',
+						};
+
+						return $fail($roleMsg);
+					}
+				}
+
+				if ($app === 'conductor') {
+					$conductor = \Illuminate\Support\Facades\DB::table('conductores')
+						->where('user_id', $user->id)
+						->first();
+					if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
+						return $fail('Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.');
+					}
+					\Illuminate\Support\Facades\DB::table('conductores')
+						->where('id', (int) $conductor->id)
+						->update([
+							'disponible' => 0,
+							'updated_at' => now()->format('Y-m-d H:i:s'),
+						]);
+				} elseif ($app === 'empresa') {
+					if (!\Illuminate\Support\Facades\Schema::hasTable('empresas')) {
+						return $fail('El portal de empresas no está disponible en este momento.');
+					}
+					if (!\Illuminate\Support\Facades\DB::table('empresas')->where('user_id', $user->id)->exists()) {
+						return $fail('Tu cuenta no tiene una empresa vinculada.');
+					}
 				}
 			}
 
@@ -422,7 +459,7 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['login_redirect_probe'] = $e->getMessage();
 		}
-		$checks['login_flow_version'] = 'attempt-pre-gate-v3';
+		$checks['login_flow_version'] = 'inline-gate-v4';
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);
