@@ -26,7 +26,8 @@ class AuthController extends Controller{
      */
 	public function login(Request $request)
 	{
-		abort(404, 'Login gestionado por routes/web.php');
+		// Implementado en routes/web.php (closure) para evitar 500 en producción.
+		abort(501);
 	}
 
 	/**
