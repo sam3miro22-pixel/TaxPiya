@@ -317,7 +317,7 @@ Route::middleware(['auth'])->group(function () {
 			}
 
 			$user = \Illuminate\Support\Facades\Auth::user();
-			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
+			if ($app && in_array($app, ['pasajero', 'conductor'], true)) {
 				try {
 					$gateError = app(\App\Services\PortalAuthService::class)->validateLoginGate($user, $app);
 					if ($gateError) {
