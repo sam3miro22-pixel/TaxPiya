@@ -281,19 +281,7 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
 	Route::post('auth/login', function (Request $request) {
-		try {
-			return app(\App\Http\Controllers\AuthController::class)->login($request);
-		} catch (\Throwable $e) {
-			report($e);
-
-			return response()->json([
-				'ok'      => false,
-				'message' => $e->getMessage(),
-				'class'   => get_class($e),
-				'file'    => $e->getFile(),
-				'line'    => $e->getLine(),
-			], 500);
-		}
+		return app(\App\Services\FormLoginService::class)->handle($request);
 	})->name('auth.login');
 	Route::post('auth/login-debug', function (Request $request) {
 		$steps = [];
