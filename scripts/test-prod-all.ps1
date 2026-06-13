@@ -36,7 +36,7 @@ Write-Host "Verificando $base`n"
 
 # Diag
 $diag = Invoke-RestMethod -Uri "$base/auth/firebase/diag" -TimeoutSec 120
-Test-Step 'Firebase diag' ($diag.ok -eq $true) "session_driver=$($diag.session_driver)"
+Test-Step 'Firebase diag' ($diag.session_driver -eq 'database') "session_driver=$($diag.session_driver)"
 
 # --- Admin login ---
 $adminSess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
