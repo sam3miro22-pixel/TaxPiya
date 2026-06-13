@@ -281,7 +281,36 @@ Route::middleware(['auth'])->group(function () {
 	Route::get('index/login', 'IndexController@login')->name('login');
 	
 	Route::post('auth/login', function (Request $request) {
-		return app(\App\Services\FormLoginService::class)->handle($request);
+		$request->validate([
+			'username' => 'required',
+			'password' => 'required',
+			'app'      => 'nullable|in:pasajero,conductor,empresa',
+		]);
+
+		$username = trim((string) $request->input('username'));
+		$password = (string) $request->input('password');
+		$app      = $request->input('app');
+		$isEmail  = filter_var($username, FILTER_VALIDATE_EMAIL) !== false;
+		$credentials = $isEmail
+			? ['email' => $username, 'password' => $password]
+			: ['telefono' => $username, 'password' => $password];
+
+		if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
+			$path = match ($app) {
+				'pasajero'  => '/pasajero/login',
+				'conductor' => '/conductor/login',
+				'empresa'   => '/empresa/login',
+				default     => '/index/login',
+			};
+
+			return redirect($path)
+				->with('auth_error', 'Nombre de usuario o contraseña no correctos')
+				->with('old_username', $username);
+		}
+
+		$request->session()->regenerate();
+
+		return redirect()->intended(\App\Providers\RouteServiceProvider::homeForUser(\Illuminate\Support\Facades\Auth::user(), $app));
 	})->name('auth.login');
 	Route::post('auth/login-debug', function (Request $request) {
 		$steps = [];
