@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\WalletComprobanteService;
 use App\Services\WalletLedgerService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -20,39 +21,38 @@ class WalletPortalController extends Controller
 
         $cuenta = $ledger->ensureCuenta('pasajero', (int) $user->id);
         $movimientos = $cuenta ? $ledger->getMovimientos((int) $cuenta->id) : [];
+        $solicitudes = $cuenta ? $ledger->getSolicitudesForCuenta((int) $cuenta->id, null, 15) : [];
 
         return view('pages.pasajero.wallet', [
             'cuenta'      => $cuenta,
             'movimientos' => $movimientos,
+            'solicitudes' => $solicitudes,
         ]);
     }
 
-    public function pasajeroDepositar(Request $request, WalletLedgerService $ledger)
+    public function pasajeroDepositar(Request $request, WalletLedgerService $ledger, WalletComprobanteService $comprobantes)
     {
         $user = auth()->user();
         if (!$user || !$user->hasRole('Pasajero')) {
             return redirect()->route('home');
         }
 
-        $data = $request->validate(['monto' => 'required|numeric|min:1000|max:50000000']);
         $cuenta = $ledger->ensureCuenta('pasajero', (int) $user->id);
-        $result = $ledger->solicitarDeposito((int) $cuenta->id, (float) $data['monto'], (int) $user->id);
 
-        return redirect()->route('pasajero.wallet')
-            ->with($result['ok'] ? 'wallet_ok' : 'wallet_error', $result['ok'] ? 'Depósito registrado correctamente.' : ($result['message'] ?? 'Error'));
+        return $this->procesarDepositoNequi($request, $ledger, $comprobantes, $cuenta, (int) $user->id, 'pasajero.wallet');
     }
 
-    public function conductorDepositar(Request $request, WalletLedgerService $ledger)
+    public function conductorDepositar(Request $request, WalletLedgerService $ledger, WalletComprobanteService $comprobantes)
     {
-        return $this->conductorOperacion($request, $ledger, 'deposito');
+        return $this->conductorOperacion($request, $ledger, $comprobantes, 'deposito');
     }
 
     public function conductorRetirar(Request $request, WalletLedgerService $ledger)
     {
-        return $this->conductorOperacion($request, $ledger, 'retiro');
+        return $this->conductorOperacion($request, $ledger, null, 'retiro');
     }
 
-    private function conductorOperacion(Request $request, WalletLedgerService $ledger, string $tipo)
+    private function conductorOperacion(Request $request, WalletLedgerService $ledger, ?WalletComprobanteService $comprobantes, string $tipo)
     {
         $user = auth()->user();
         if (!$user || !$user->hasRole('Conductor')) {
@@ -70,15 +70,21 @@ class WalletPortalController extends Controller
             return redirect()->route('conductor.wallet')->with('wallet_error', 'Tu billetera es administrada por la empresa.');
         }
 
-        $min = $tipo === 'retiro' ? 10000 : 1000;
-        $data = $request->validate(['monto' => "required|numeric|min:{$min}|max:50000000"]);
+        if ($tipo === 'deposito') {
+            return $this->procesarDepositoNequi($request, $ledger, $comprobantes, $cuenta, (int) $user->id, 'conductor.wallet');
+        }
 
-        $result = $tipo === 'deposito'
-            ? $ledger->solicitarDeposito((int) $cuenta->id, (float) $data['monto'], (int) $user->id)
-            : $ledger->solicitarRetiro((int) $cuenta->id, (float) $data['monto'], (int) $user->id);
+        $min = 10000;
+        $data = $request->validate(['monto' => "required|numeric|min:{$min}|max:50000000"]);
+        $result = $ledger->solicitarRetiro((int) $cuenta->id, (float) $data['monto'], (int) $user->id);
+        $msg = $result['ok']
+            ? (($result['estado'] ?? '') === 'pendiente'
+                ? 'Solicitud de retiro enviada. Un administrador la revisará.'
+                : 'Retiro registrado.')
+            : ($result['message'] ?? 'Error');
 
         return redirect()->route('conductor.wallet')
-            ->with($result['ok'] ? 'wallet_ok' : 'wallet_error', $result['ok'] ? ucfirst($tipo) . ' registrado.' : ($result['message'] ?? 'Error'));
+            ->with($result['ok'] ? 'wallet_ok' : 'wallet_error', $msg);
     }
 
     public function empresaWallet(WalletLedgerService $ledger)
@@ -90,37 +96,89 @@ class WalletPortalController extends Controller
 
         $cuenta = $ledger->ensureCuenta('empresa', (int) $empresa->id);
         $movimientos = $ledger->getMovimientos((int) $cuenta->id);
+        $solicitudes = $ledger->getSolicitudesForCuenta((int) $cuenta->id, null, 15);
 
-        return view('pages.empresa.wallet', compact('empresa', 'cuenta', 'movimientos'));
+        return view('pages.empresa.wallet', compact('empresa', 'cuenta', 'movimientos', 'solicitudes'));
     }
 
-    public function empresaDepositar(Request $request, WalletLedgerService $ledger)
+    public function empresaDepositar(Request $request, WalletLedgerService $ledger, WalletComprobanteService $comprobantes)
     {
-        return $this->empresaOperacion($request, $ledger, 'deposito');
+        return $this->empresaOperacion($request, $ledger, $comprobantes, 'deposito');
     }
 
     public function empresaRetirar(Request $request, WalletLedgerService $ledger)
     {
-        return $this->empresaOperacion($request, $ledger, 'retiro');
+        return $this->empresaOperacion($request, $ledger, null, 'retiro');
     }
 
-    private function empresaOperacion(Request $request, WalletLedgerService $ledger, string $tipo)
+    private function empresaOperacion(Request $request, WalletLedgerService $ledger, ?WalletComprobanteService $comprobantes, string $tipo)
     {
         $empresa = $this->requireEmpresaActiva();
         if ($empresa instanceof \Illuminate\Http\RedirectResponse) {
             return $empresa;
         }
 
-        $min = $tipo === 'retiro' ? 10000 : 1000;
-        $data = $request->validate(['monto' => "required|numeric|min:{$min}|max:50000000"]);
         $cuenta = $ledger->ensureCuenta('empresa', (int) $empresa->id);
 
-        $result = $tipo === 'deposito'
-            ? $ledger->solicitarDeposito((int) $cuenta->id, (float) $data['monto'], (int) auth()->id())
-            : $ledger->solicitarRetiro((int) $cuenta->id, (float) $data['monto'], (int) auth()->id());
+        if ($tipo === 'deposito') {
+            return $this->procesarDepositoNequi($request, $ledger, $comprobantes, $cuenta, (int) auth()->id(), 'empresa.wallet');
+        }
+
+        $min = 10000;
+        $data = $request->validate(['monto' => "required|numeric|min:{$min}|max:50000000"]);
+        $result = $ledger->solicitarRetiro((int) $cuenta->id, (float) $data['monto'], (int) auth()->id());
+        $msg = $result['ok']
+            ? (($result['estado'] ?? '') === 'pendiente'
+                ? 'Solicitud de retiro enviada. Un administrador la revisará.'
+                : 'Retiro registrado.')
+            : ($result['message'] ?? 'Error');
 
         return redirect()->route('empresa.wallet')
-            ->with($result['ok'] ? 'wallet_ok' : 'wallet_error', $result['ok'] ? ucfirst($tipo) . ' registrado.' : ($result['message'] ?? 'Error'));
+            ->with($result['ok'] ? 'wallet_ok' : 'wallet_error', $msg);
+    }
+
+    private function procesarDepositoNequi(
+        Request $request,
+        WalletLedgerService $ledger,
+        WalletComprobanteService $comprobantes,
+        ?object $cuenta,
+        int $userId,
+        string $redirectRoute
+    ) {
+        if (!$cuenta || !(int) $cuenta->puede_depositar) {
+            return redirect()->route($redirectRoute)->with('wallet_error', 'Depósitos no permitidos en esta cuenta.');
+        }
+
+        $data = $request->validate([
+            'monto'           => 'required|numeric|min:1000|max:50000000',
+            'referencia_pago' => 'required|string|max:64',
+            'comprobante'     => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+        ]);
+
+        try {
+            $comprobantePath = $comprobantes->store($request->file('comprobante'));
+        } catch (\Throwable $e) {
+            return redirect()->route($redirectRoute)->with('wallet_error', $e->getMessage());
+        }
+
+        $result = $ledger->solicitarDeposito(
+            (int) $cuenta->id,
+            (float) $data['monto'],
+            $userId,
+            'nequi',
+            [
+                'referencia_pago'     => trim($data['referencia_pago']),
+                'comprobante_path'    => $comprobantePath,
+                'solicitante_user_id' => $userId,
+            ]
+        );
+
+        $msg = $result['ok']
+            ? 'Solicitud de recarga NEQUI enviada. Un administrador revisará tu comprobante y acreditará el saldo.'
+            : ($result['message'] ?? 'Error al registrar la solicitud.');
+
+        return redirect()->route($redirectRoute)
+            ->with($result['ok'] ? 'wallet_ok' : 'wallet_error', $msg);
     }
 
     public function empresaFlotaWallet(int $conductorId, WalletLedgerService $ledger)

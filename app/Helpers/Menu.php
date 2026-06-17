@@ -48,6 +48,11 @@ class Menu{
             'path' => 'walletsaldos',
             'label' => "Wallet",
             'icon' => '<i class="fa fa-credit-card"></i>'
+        ],
+        [
+            'path' => 'walletsolicitudes',
+            'label' => "Recargas NEQUI",
+            'icon' => '<i class="fa fa-mobile"></i>'
         ]
     ];
 }

@@ -473,7 +473,7 @@ Route::middleware(['auth'])->group(function () {
 	
 	Route::redirect('index/register', '/pasajero/registro', 301);
 	Route::post('index/register', 'AuthController@register_store')->name('auth.register_store');
-
+		
 	Route::get('auth/password/forgotpassword', 'AuthController@showForgotPassword')->name('password.forgotpassword');
 	Route::post('auth/password/sendemail', 'AuthController@sendPasswordResetLink')->name('password.email');
 	Route::get('auth/password/reset', 'AuthController@showResetPassword')->name('password.reset.token');
@@ -777,6 +777,11 @@ Route::middleware(['auth', 'rbac'])->group(function () {
 		
 	Route::any('walletsaldos/edit/{rec_id}', 'WalletSaldosController@edit')->name('walletsaldos.edit');	
 	Route::get('walletsaldos/delete/{rec_id}', 'WalletSaldosController@delete');
+
+	Route::get('walletsolicitudes', 'WalletSolicitudesController@index')->name('walletsolicitudes');
+	Route::get('walletsolicitudes/view/{rec_id}', 'WalletSolicitudesController@view')->name('walletsolicitudes.view');
+	Route::post('walletsolicitudes/aprobar/{rec_id}', 'WalletSolicitudesController@aprobar')->name('walletsolicitudes.aprobar');
+	Route::post('walletsolicitudes/rechazar/{rec_id}', 'WalletSolicitudesController@rechazar')->name('walletsolicitudes.rechazar');
 });
 
 

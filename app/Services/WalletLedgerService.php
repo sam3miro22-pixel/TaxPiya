@@ -137,17 +137,35 @@ class WalletLedgerService
             ->all();
     }
 
-    public function solicitarDeposito(int $cuentaId, float $monto, ?int $userId = null, ?string $metodo = null): array
+    public function solicitarDeposito(int $cuentaId, float $monto, ?int $userId = null, ?string $metodo = null, array $extra = []): array
     {
-        return $this->crearSolicitud($cuentaId, 'deposito', $monto, $userId, $metodo);
+        return $this->crearSolicitud($cuentaId, 'deposito', $monto, $userId, $metodo, $extra);
     }
 
-    public function solicitarRetiro(int $cuentaId, float $monto, ?int $userId = null, ?string $metodo = null): array
+    public function solicitarRetiro(int $cuentaId, float $monto, ?int $userId = null, ?string $metodo = null, array $extra = []): array
     {
-        return $this->crearSolicitud($cuentaId, 'retiro', $monto, $userId, $metodo);
+        return $this->crearSolicitud($cuentaId, 'retiro', $monto, $userId, $metodo, $extra);
     }
 
-    private function crearSolicitud(int $cuentaId, string $operacion, float $monto, ?int $userId, ?string $metodo): array
+    public function getSolicitudesForCuenta(int $cuentaId, ?string $estado = null, int $limit = 20): array
+    {
+        if (!Schema::hasTable('wallet_solicitudes')) {
+            return [];
+        }
+
+        $query = DB::table('wallet_solicitudes')
+            ->where('cuenta_id', $cuentaId)
+            ->orderByDesc('id')
+            ->limit($limit);
+
+        if ($estado) {
+            $query->where('estado', $estado);
+        }
+
+        return $query->get()->all();
+    }
+
+    private function crearSolicitud(int $cuentaId, string $operacion, float $monto, ?int $userId, ?string $metodo, array $extra = []): array
     {
         $cuenta = DB::table('wallet_cuentas')->where('id', $cuentaId)->first();
         if (!$cuenta) {
@@ -191,18 +209,26 @@ class WalletLedgerService
             return ['ok' => true, 'movimiento_id' => $movId, 'estado' => 'completado'];
         }
 
-        $autoApprove = (bool) config('taxpiya.wallet.auto_approve_requests', true);
+        $autoApprove = (bool) config('taxpiya.wallet.auto_approve_requests', false);
+        if ($operacion === 'deposito' && ($metodo ?? '') === 'nequi') {
+            $autoApprove = false;
+        }
 
-        $solicitudId = DB::table('wallet_solicitudes')->insertGetId([
-            'cuenta_id'    => $cuentaId,
-            'operacion'    => $operacion,
-            'monto'        => round($monto, 2),
-            'moneda'       => $cuenta->moneda ?? 'COP',
-            'estado'       => $autoApprove ? 'aprobada' : 'pendiente',
-            'metodo_pago'  => $metodo ?? 'manual',
-            'created_at'   => now()->toDateTimeString(),
-            'updated_at'   => now()->toDateTimeString(),
+        $solicitudPayload = $this->filterExistingColumns('wallet_solicitudes', [
+            'cuenta_id'           => $cuentaId,
+            'operacion'           => $operacion,
+            'monto'               => round($monto, 2),
+            'moneda'              => $cuenta->moneda ?? 'COP',
+            'estado'              => $autoApprove ? 'aprobada' : 'pendiente',
+            'metodo_pago'         => $metodo ?? 'manual',
+            'referencia_pago'     => $extra['referencia_pago'] ?? null,
+            'comprobante_path'    => $extra['comprobante_path'] ?? null,
+            'solicitante_user_id' => $extra['solicitante_user_id'] ?? $userId,
+            'notas'               => $extra['notas'] ?? null,
+            'created_at'          => now()->toDateTimeString(),
+            'updated_at'          => now()->toDateTimeString(),
         ]);
+        $solicitudId = DB::table('wallet_solicitudes')->insertGetId($solicitudPayload);
 
         if ($autoApprove) {
             $movId = $this->aplicarSolicitud((int) $solicitudId, $userId);
@@ -244,6 +270,74 @@ class WalletLedgerService
         ]);
 
         return $movId;
+    }
+
+    public function rechazarSolicitud(int $solicitudId, ?int $procesadoPor = null, ?string $notas = null): bool
+    {
+        $sol = DB::table('wallet_solicitudes')->where('id', $solicitudId)->first();
+        if (!$sol || in_array($sol->estado, ['completado', 'rechazada'], true)) {
+            return false;
+        }
+
+        DB::table('wallet_solicitudes')->where('id', $solicitudId)->update([
+            'estado'        => 'rechazada',
+            'procesado_por' => $procesadoPor,
+            'notas'         => $notas ?? $sol->notas,
+            'updated_at'    => now()->toDateTimeString(),
+        ]);
+
+        return true;
+    }
+
+    public function resolveCuentaTitular(?object $cuenta): array
+    {
+        if (!$cuenta) {
+            return ['tipo' => '', 'nombre' => '—', 'detalle' => ''];
+        }
+
+        return match ($cuenta->tipo) {
+            'pasajero' => $this->titularPasajero((int) $cuenta->user_id),
+            'conductor' => $this->titularConductor((int) $cuenta->conductor_id),
+            'empresa' => $this->titularEmpresa((int) $cuenta->empresa_id),
+            default => ['tipo' => (string) $cuenta->tipo, 'nombre' => '—', 'detalle' => ''],
+        };
+    }
+
+    private function titularPasajero(int $userId): array
+    {
+        $user = DB::table('users')->where('id', $userId)->first();
+
+        return [
+            'tipo'    => 'Pasajero',
+            'nombre'  => $user->name ?? 'Pasajero',
+            'detalle' => trim(($user->telefono ?? '') . ' · ' . ($user->email ?? '')),
+        ];
+    }
+
+    private function titularConductor(int $conductorId): array
+    {
+        $row = DB::table('conductores as c')
+            ->join('users as u', 'u.id', '=', 'c.user_id')
+            ->where('c.id', $conductorId)
+            ->selectRaw('u.name, u.telefono, u.email')
+            ->first();
+
+        return [
+            'tipo'    => 'Conductor',
+            'nombre'  => $row->name ?? 'Conductor',
+            'detalle' => trim(($row->telefono ?? '') . ' · ' . ($row->email ?? '')),
+        ];
+    }
+
+    private function titularEmpresa(int $empresaId): array
+    {
+        $row = DB::table('empresas')->where('id', $empresaId)->first();
+
+        return [
+            'tipo'    => 'Empresa',
+            'nombre'  => $row->nombre_comercial ?? 'Empresa',
+            'detalle' => trim(($row->telefono ?? '') . ' · ' . ($row->email ?? '')),
+        ];
     }
 
     public function pagarConductorDesdeEmpresa(int $empresaId, int $conductorId, float $monto, ?int $adminUserId, ?string $nota = null): array

@@ -153,6 +153,7 @@ class HomeController extends Controller{
 		$movimientos = $cuenta
 			? $ledger->getMovimientos((int) $cuenta->id, 40)
 			: DB::table('wallet_movimientos')->where('conductor_id', $conductor->id)->where('anulado', 0)->orderByDesc('id')->limit(40)->get()->all();
+		$solicitudes = $cuenta ? $ledger->getSolicitudesForCuenta((int) $cuenta->id, null, 15) : [];
 		$resumen = $ledger->resumenIngresosConductor((int) $conductor->id);
 		$isFlota = $ledger->isConductorFlota($conductor);
 		if ($cuenta && !$isFlota && (int) ($cuenta->solo_lectura ?? 0) === 1) {
@@ -160,7 +161,7 @@ class HomeController extends Controller{
 			$cuenta = $ledger->ensureCuenta('conductor', (int) $conductor->id);
 		}
 
-		return view('pages.conductor.wallet', compact('saldo', 'movimientos', 'cuenta', 'resumen', 'isFlota'));
+		return view('pages.conductor.wallet', compact('saldo', 'movimientos', 'cuenta', 'resumen', 'isFlota', 'solicitudes'));
 	}
 
 	function conductorAplicar(){

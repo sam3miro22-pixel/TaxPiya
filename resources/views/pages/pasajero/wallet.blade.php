@@ -18,19 +18,10 @@
     </div>
 
     @if($cuenta && (int)$cuenta->puede_depositar)
-    <div class="txp-mobile-card">
-        <h2 class="txp-section-title mt-0">Depositar</h2>
-        <form method="post" action="{{ route('pasajero.wallet.depositar') }}">
-            @csrf
-            <div class="txp-profile-edit-field mb-3">
-                <label>Monto (COP)</label>
-                <input type="number" name="monto" class="form-control txp-input-dark" min="1000" step="1000" required placeholder="Ej: 50000">
-            </div>
-            <button type="submit" class="txp-mobile-btn w-100 border-0"><i class="fa-solid fa-plus"></i> Depositar</button>
-        </form>
-        <p class="small text-muted mt-2 mb-0">La pasarela de pago se conectará próximamente. Por ahora el depósito queda registrado en tu historial.</p>
-    </div>
+        @include('components.wallet-nequi-deposit', ['action' => route('pasajero.wallet.depositar')])
     @endif
+
+    @include('components.wallet-solicitudes-list', ['solicitudes' => $solicitudes ?? []])
 
     <h2 class="txp-section-title">Movimientos</h2>
     @include('components.wallet-movimientos-list', ['movimientos' => $movimientos])
@@ -38,4 +29,9 @@
 @endsection
 @section('pagecss')
 <link rel="stylesheet" href="{{ secure_asset('css/taxpiya-mobile-pages.css') }}?v=2">
+<style>
+.txp-nequi-card { border: 1px solid rgba(218, 0, 130, 0.35); }
+.txp-nequi-info { background: rgba(218, 0, 130, 0.08); border-radius: 12px; padding: 12px; }
+.txp-nequi-info .txp-info-row strong { color: #f9a8d4; }
+</style>
 @endsection

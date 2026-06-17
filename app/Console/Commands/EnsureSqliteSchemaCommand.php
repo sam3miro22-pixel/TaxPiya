@@ -153,6 +153,9 @@ CREATE TABLE IF NOT EXISTS wallet_solicitudes (
 )
 SQL);
 
+        $this->ensureColumn($pdo, 'wallet_solicitudes', 'comprobante_path', 'TEXT NULL');
+        $this->ensureColumn($pdo, 'wallet_solicitudes', 'solicitante_user_id', 'INTEGER NULL');
+
         $this->ensureColumn($pdo, 'wallet_movimientos', 'cuenta_id', 'INTEGER NULL');
         $this->ensureColumn($pdo, 'wallet_movimientos', 'tipo_operacion', 'TEXT NULL');
         $this->ensureColumn($pdo, 'wallet_movimientos', 'estado', "TEXT NOT NULL DEFAULT 'completado'");
@@ -352,7 +355,7 @@ SQL);
         }
 
         $adminRoleId = DB::table('roles')->where('role_name', 'Admin')->value('role_id') ?: 1;
-        foreach (['referidos/index'] as $path) {
+        foreach (['referidos/index', 'walletsolicitudes/index', 'walletsolicitudes/view', 'walletsolicitudes/aprobar', 'walletsolicitudes/rechazar'] as $path) {
             $exists = DB::table('permissions')
                 ->where('permission', $path)
                 ->where('role_id', $adminRoleId)

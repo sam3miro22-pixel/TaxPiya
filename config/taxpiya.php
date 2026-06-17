@@ -81,7 +81,12 @@ return [
         'fee_accept'            => (float) env('TAXPIYA_WALLET_FEE_ACCEPT', 0),
         'default_min_operativo' => (float) env('TAXPIYA_WALLET_MIN_OPERATIVO', 5000),
         'demo_initial_balance'  => (float) env('TAXPIYA_WALLET_DEMO_BALANCE', 100000),
-        'auto_approve_requests' => env('TAXPIYA_WALLET_AUTO_APPROVE', true),
+        'auto_approve_requests' => env('TAXPIYA_WALLET_AUTO_APPROVE', false),
+        'nequi' => [
+            'numero'  => env('TAXPIYA_NEQUI_NUMERO', '3124959199'),
+            'cedula'  => env('TAXPIYA_NEQUI_CEDULA', '1083875427'),
+            'titular' => env('TAXPIYA_NEQUI_TITULAR', 'Medardo Torres'),
+        ],
     ],
 
     /*

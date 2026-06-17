@@ -32,6 +32,14 @@ services:
         value: "525600"
       - key: TAXPIYA_DOCS_EMAIL
         value: taxpiya20@gmail.com
+      - key: TAXPIYA_WALLET_AUTO_APPROVE
+        value: "false"
+      - key: TAXPIYA_NEQUI_NUMERO
+        value: "3124959199"
+      - key: TAXPIYA_NEQUI_CEDULA
+        value: "1083875427"
+      - key: TAXPIYA_NEQUI_TITULAR
+        value: Medardo Torres
       - key: GITHUB_BACKUP_OWNER
         value: sam3miro22-pixel
       - key: GITHUB_BACKUP_REPO
