@@ -1132,13 +1132,17 @@ document.getElementById('drv-btn-aceptar')?.addEventListener('click', async ()=>
     display:none; padding:0 16px;
   `;
   wrap.innerHTML = `
-    <div class="d-flex gap-2 justify-content-center" style="max-width:720px;margin:0 auto;">
-      <button id="drv-act-llego" class="btn btn-warning flex-fill">
-        <i class="fa-solid fa-flag me-1"></i> Llegué al origen
-      </button>
-      <button id="drv-act-terminar" class="btn btn-danger flex-fill">
-        <i class="fa-solid fa-flag-checkered me-1"></i> Terminar viaje
-      </button>
+    <div class="d-flex flex-column gap-2 justify-content-center" style="max-width:720px;margin:0 auto;">
+      <div class="d-flex gap-2">
+        <button id="drv-act-llego" class="btn btn-warning flex-fill">
+          <i class="fa-solid fa-flag me-1"></i> Llegué al origen
+        </button>
+        <button id="drv-act-terminar" class="btn btn-danger flex-fill">
+          <i class="fa-solid fa-flag-checkered me-1"></i> Terminar viaje
+        </button>
+      </div>
+      <input id="drv-codigo-llegada" type="text" maxlength="6" class="form-control form-control-sm text-center"
+        placeholder="Código del pasajero (si GPS falla)" autocomplete="off" inputmode="numeric">
     </div>
   `;
   document.body.appendChild(wrap);
@@ -1167,17 +1171,27 @@ document.getElementById('drv-act-llego')?.addEventListener('click', async ()=>{
   const old = btn.innerHTML;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Enviando…';
   try{
+    let lat = null, lng = null;
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation?.getCurrentPosition(res, rej, { timeout: 8000, enableHighAccuracy: true }) || rej()
+      );
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch (_) {}
+
+    const codigo = document.getElementById('drv-codigo-llegada')?.value?.trim() || '';
     const r = await fetch(VIAJE_LLEGO_URL, {
       method: 'POST',
       headers: { 'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN': getCsrf() },
-      body: JSON.stringify({ viaje_id: window.currentViajeId })
+      body: JSON.stringify({ viaje_id: window.currentViajeId, lat, lng, codigo })
     });
     const j = await r.json();
     if (!r.ok || !j?.ok) throw new Error(j?.message || 'Error');
     showBanner('Marcado como “Llegué”', 'fa-flag');
     if (typeof checkDrvStateOnce === 'function') checkDrvStateOnce();
   }catch(e){
-    showBanner('No se pudo marcar llegada', 'fa-triangle-exclamation');
+    showBanner(e.message || 'No se pudo marcar llegada', 'fa-triangle-exclamation');
   }finally{ btn.disabled = false; btn.innerHTML = old; }
 });
 
@@ -1517,22 +1531,31 @@ function renderMsgs(list){
     }
 
     const role = (m.remitente_rol || m.from || m.role || m.sender || '').toString().toLowerCase();
-    const mine = role.includes('conductor'); 
+    const isSystem = (m.tipo === 'system' || role === 'system');
+    const mine = !isSystem && role.includes('conductor'); 
     const msg  = m.mensaje ?? m.text ?? m.body ?? '';
 
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
     wrap.style.margin = '6px 0';
-    wrap.style.justifyContent = mine ? 'flex-end' : 'flex-start';
+    wrap.style.justifyContent = isSystem ? 'center' : (mine ? 'flex-end' : 'flex-start');
 
     const bub = document.createElement('div');
-    bub.style.maxWidth = '78%';
+    bub.style.maxWidth = isSystem ? '92%' : '78%';
     bub.style.padding = '8px 10px';
     bub.style.borderRadius = '12px';
     bub.style.whiteSpace = 'pre-wrap';
     bub.style.wordBreak = 'break-word';
-    bub.style.background = mine ? '#ffd166' : '#1e293b';
-    bub.style.color = mine ? '#1a1a1a' : '#e5e7eb';
+    if (isSystem) {
+      bub.style.background = 'rgba(255,209,102,.12)';
+      bub.style.color = '#fde68a';
+      bub.style.textAlign = 'center';
+      bub.style.fontSize = '13px';
+      bub.style.border = '1px dashed rgba(255,209,102,.35)';
+    } else {
+      bub.style.background = mine ? '#ffd166' : '#1e293b';
+      bub.style.color = mine ? '#1a1a1a' : '#e5e7eb';
+    }
     bub.textContent = msg;
 
     wrap.appendChild(bub);

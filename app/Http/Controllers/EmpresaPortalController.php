@@ -8,6 +8,8 @@ use App\Services\ReferralService;
 use App\Services\Firebase\FirebaseIdentityService;
 use App\Services\Firebase\FirestoreUserService;
 use App\Services\WalletLedgerService;
+use App\Services\VehiculoConductorService;
+use App\Services\EmpresaContabilidadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -130,11 +132,18 @@ class EmpresaPortalController extends Controller
             })
             ->leftJoin('wallet_saldos as w', 'w.conductor_id', '=', 'c.id')
             ->where('c.empresa_id', $empresa->id)
-            ->selectRaw('c.id, c.disponible, c.estado_operitivo, c.total_viajes, u.name as nombre, u.telefono, u.email, v.placa, v.marca, v.linea, v.color, COALESCE(wc.saldo_actual, w.saldo_actual, 0) as saldo')
+            ->selectRaw('c.id, c.disponible, c.estado_operitivo, c.total_viajes, u.name as nombre, u.telefono, u.email, v.id as vehiculo_id, v.placa, v.marca, v.linea, v.color, COALESCE(wc.saldo_actual, w.saldo_actual, 0) as saldo')
             ->orderByDesc('c.id')
             ->get();
 
-        return view('pages.empresa.flota', compact('empresa', 'items'));
+        $vehiculos = DB::table('vehiculos as v')
+            ->join('conductores as c', 'c.id', '=', 'v.conductor_id')
+            ->where('c.empresa_id', $empresa->id)
+            ->selectRaw('v.id, v.placa, v.marca, v.linea')
+            ->orderBy('v.placa')
+            ->get();
+
+        return view('pages.empresa.flota', compact('empresa', 'items', 'vehiculos'));
     }
 
     public function flotaNuevo()
@@ -209,7 +218,7 @@ class EmpresaPortalController extends Controller
                 'updated_at'          => $now,
             ]);
 
-            DB::table('vehiculos')->insert([
+            $vehiculoId = DB::table('vehiculos')->insertGetId([
                 'conductor_id'        => $conductorId,
                 'placa'               => strtoupper($data['placa']),
                 'marca'               => $data['marca'] ?? null,
@@ -223,6 +232,8 @@ class EmpresaPortalController extends Controller
                 'created_at'          => $now,
                 'updated_at'          => $now,
             ]);
+
+            app(VehiculoConductorService::class)->assignConductor((int) $vehiculoId, (int) $conductorId, true);
 
             app(WalletService::class)->ensureSaldoRow((int) $conductorId);
 
@@ -246,6 +257,89 @@ class EmpresaPortalController extends Controller
         }
 
         return redirect()->route('empresa.flota')->with('flota_ok', 'Taxi registrado correctamente.');
+    }
+
+    public function flotaAsignarConductor(Request $request, int $vehiculoId)
+    {
+        if ($gate = $this->requireEmpresa()) {
+            return $gate;
+        }
+
+        $empresa = $this->empresaForUser((int) auth()->id());
+        $data = $request->validate([
+            'nombre'   => 'required|string|max:120',
+            'telefono' => 'required|string|max:20|unique:users,telefono',
+            'email'    => 'nullable|email|max:120|unique:users,email',
+            'password' => 'required|string|min:6|max:64',
+        ]);
+
+        $vehiculo = DB::table('vehiculos as v')
+            ->join('conductores as c', 'c.id', '=', 'v.conductor_id')
+            ->where('v.id', $vehiculoId)
+            ->where('c.empresa_id', $empresa->id)
+            ->selectRaw('v.id, v.placa')
+            ->first();
+
+        if (!$vehiculo) {
+            return back()->withErrors('Vehículo no encontrado en tu flota.');
+        }
+
+        $now = now()->toDateTimeString();
+        $roleConductor = DB::table('roles')->where('role_name', 'Conductor')->value('role_id') ?: 3;
+
+        $email = $data['email'] ?? (preg_replace('/\D+/', '', $data['telefono']) . '@flota.taxpiya.local');
+
+        DB::beginTransaction();
+        try {
+            $userId = DB::table('users')->insertGetId([
+                'name'         => $data['nombre'],
+                'email'        => $email,
+                'telefono'     => $data['telefono'],
+                'password'     => bcrypt($data['password']),
+                'estado'       => 1,
+                'user_role_id' => $roleConductor,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ]);
+
+            $conductorId = DB::table('conductores')->insertGetId([
+                'user_id'             => $userId,
+                'empresa_id'          => $empresa->id,
+                'estado_operitivo'    => 1,
+                'disponible'          => 0,
+                'total_viajes'        => 0,
+                'verificacion_estado' => 'verificado',
+                'created_at'          => $now,
+                'updated_at'          => $now,
+            ]);
+
+            app(VehiculoConductorService::class)->assignConductor($vehiculoId, (int) $conductorId, false);
+            app(WalletService::class)->ensureSaldoRow((int) $conductorId);
+            app(WalletLedgerService::class)->ensureCuenta('conductor', (int) $conductorId);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->withErrors('No se pudo asignar el conductor: ' . $e->getMessage())->withInput();
+        }
+
+        return redirect()->route('empresa.flota')
+            ->with('flota_ok', "Conductor agregado al taxi {$vehiculo->placa}.");
+    }
+
+    public function contabilidad()
+    {
+        if ($gate = $this->requireEmpresa()) {
+            return $gate;
+        }
+
+        $empresa = $this->empresaForUser((int) auth()->id());
+        $svc = app(EmpresaContabilidadService::class);
+        $stats = $svc->resumen((int) $empresa->id);
+        $movimientos = $svc->movimientosRecientes((int) $empresa->id, 40);
+        $viajes = $svc->viajesRecientes((int) $empresa->id, 25);
+
+        return view('pages.empresa.contabilidad', compact('empresa', 'stats', 'movimientos', 'viajes'));
     }
 
     public function viajes()

@@ -11,6 +11,9 @@
     <a href="{{ route('empresa.wallet') }}" class="txp-empresa-nav__item {{ request()->routeIs('empresa.wallet') ? 'is-active' : '' }}">
         <i class="fa-solid fa-wallet"></i><span>Billetera</span>
     </a>
+    <a href="{{ route('empresa.contabilidad') }}" class="txp-empresa-nav__item {{ request()->routeIs('empresa.contabilidad') ? 'is-active' : '' }}">
+        <i class="fa-solid fa-calculator"></i><span>Conta</span>
+    </a>
     <a href="{{ route('empresa.cuenta') }}" class="txp-empresa-nav__item {{ request()->routeIs('empresa.cuenta') ? 'is-active' : '' }}">
         <i class="fa-solid fa-building"></i><span>Empresa</span>
     </a>

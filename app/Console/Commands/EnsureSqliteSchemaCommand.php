@@ -166,6 +166,22 @@ SQL);
         $this->ensureColumn($pdo, 'referidos', 'bonus_monto', 'REAL NULL');
         $this->ensureColumn($pdo, 'referidos', 'bonus_paid_at', 'TEXT NULL');
 
+        $this->ensureColumn($pdo, 'viajes', 'codigo_llegada', 'TEXT NULL');
+
+        $this->ensureTable($pdo, 'vehiculo_conductores', <<<'SQL'
+CREATE TABLE IF NOT EXISTS vehiculo_conductores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehiculo_id INTEGER NOT NULL,
+    conductor_id INTEGER NOT NULL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    es_titular INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NULL,
+    updated_at TEXT NULL,
+    UNIQUE(vehiculo_id, conductor_id)
+)
+SQL);
+        $pdo->exec('CREATE INDEX IF NOT EXISTS vehiculo_conductores_conductor_idx ON vehiculo_conductores(conductor_id)');
+
         $this->ensureTable($pdo, 'sos_incidentes', <<<'SQL'
 CREATE TABLE IF NOT EXISTS sos_incidentes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,6 +200,8 @@ CREATE TABLE IF NOT EXISTS sos_incidentes (
     created_at TEXT NULL
 )
 SQL);
+
+        app(\App\Services\VehiculoConductorService::class)->backfillFromLegacy();
 
         $this->ensureTable($pdo, 'sessions', <<<'SQL'
 CREATE TABLE IF NOT EXISTS sessions (

@@ -18,6 +18,9 @@ use Exception;
 use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
 use App\Services\WalletService;
+use App\Services\VehiculoConductorService;
+use App\Services\TripGeoService;
+use App\Services\ChatBotService;
 use Illuminate\Validation\ValidationException;
 use App\Support\TripMatching;
 class ConductoresController extends Controller
@@ -148,6 +151,11 @@ public function disponible(Request $req)
                 $tripUpdate['updated_at'] = $now;
             }
             DB::table('viajes')->where('id', $viajeActivo->id)->update($tripUpdate);
+            try {
+                app(ChatBotService::class)->onTripStateChange((int) $viajeActivo->id, 'en_camino');
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         return response()->json(['ok' => true]);
@@ -312,12 +320,13 @@ public function aceptarViaje(Request $request)
     }
 
     $viajeId    = (int) $request->viaje_id;
-    $vehiculoId = DB::table('vehiculos')->where('conductor_id', $conductor->id)->value('id');
+    $vehiculoId = app(VehiculoConductorService::class)->resolveVehiculoId((int) $conductor->id);
+    $codigoLlegada = str_pad((string) random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
 
     $updated     = 0;
     $viajeResult = null;
 
-    DB::transaction(function () use (&$updated, &$viajeResult, $viajeId, $conductor, $vehiculoId, $userId, $request) {
+    DB::transaction(function () use (&$updated, &$viajeResult, $viajeId, $conductor, $vehiculoId, $userId, $request, $codigoLlegada) {
         $viaje = DB::table('viajes')
             ->where('id', $viajeId)
             ->lockForUpdate()
@@ -333,16 +342,18 @@ public function aceptarViaje(Request $request)
 
         $now = now();
 
-        DB::table('viajes')
-            ->where('id', $viajeId)
-            ->update([
-                'conductor_id' => (int) $conductor->id,
-                'vehiculo_id'  => $vehiculoId ? (int) $vehiculoId : $viaje->vehiculo_id,
-                'estado'       => 'asignado',
-                'asignado_at'  => $now,
-                'aceptado_at'  => $now,
-                'updated_at'   => $now,
-            ]);
+        $tripUpdate = [
+            'conductor_id' => (int) $conductor->id,
+            'vehiculo_id'  => $vehiculoId ? (int) $vehiculoId : $viaje->vehiculo_id,
+            'estado'       => 'asignado',
+            'asignado_at'  => $now,
+            'aceptado_at'  => $now,
+            'updated_at'   => $now,
+        ];
+        if (Schema::hasColumn('viajes', 'codigo_llegada')) {
+            $tripUpdate['codigo_llegada'] = $codigoLlegada;
+        }
+        DB::table('viajes')->where('id', $viajeId)->update($tripUpdate);
 
         DB::table('conductores')
             ->where('id', $conductor->id)
@@ -406,6 +417,15 @@ public function aceptarViaje(Request $request)
         ]);
     }
 
+    try {
+        app(ChatBotService::class)->onTripAssigned(
+            $viajeId,
+            Schema::hasColumn('viajes', 'codigo_llegada') ? $codigoLlegada : null
+        );
+    } catch (\Throwable $e) {
+        report($e);
+    }
+
     return response()->json([
         'ok'    => true,
         'viaje' => [
@@ -448,7 +468,7 @@ public function rechazarViaje(Request $request)
 
     $viajeId = (int) $request->viaje_id;
 
-    DB::transaction(function () use ($viajeId, $userId, $request) {
+    DB::transaction(function () use ($viajeId, $userId, $request, $conductor) {
         $viaje = DB::table('viajes')
             ->where('id', $viajeId)
             ->lockForUpdate()
@@ -463,6 +483,14 @@ public function rechazarViaje(Request $request)
             return;
         }
 
+        $activo = DB::table('viajes')
+            ->where('conductor_id', $conductor->id)
+            ->whereIn('estado', ['asignado', 'en_camino', 'llego', 'iniciado'])
+            ->exists();
+        if ($activo) {
+            return;
+        }
+
         $now = now();
 
         
@@ -470,10 +498,10 @@ public function rechazarViaje(Request $request)
             DB::table('viaje_estados_log')->insert([
                 'viaje_id'      => $viajeId,
                 'from_estado'   => 'buscando',
-                'to_estado'     => 'buscando', 
+                'to_estado'     => 'buscando',
                 'actor_tipo'    => 'conductor',
                 'actor_id'      => $userId,
-                'motivo_codigo' => 'flujo', 
+                'motivo_codigo' => 'flujo',
                 'motivo_texto'  => 'Conductor rechazó la solicitud',
                 'app_origen'    => 'app_conductor',
                 'ip'            => $request->ip(),
@@ -494,6 +522,13 @@ public function rechazarViaje(Request $request)
 public function marcarLlegada(Request $req)
 {
     try {
+        $req->validate([
+            'viaje_id' => 'required|integer|exists:viajes,id',
+            'lat'      => 'nullable|numeric',
+            'lng'      => 'nullable|numeric',
+            'codigo'   => 'nullable|string|max:8',
+        ]);
+
         $userId  = auth()->id();
         $viajeId = (int) $req->input('viaje_id');
 
@@ -509,6 +544,27 @@ public function marcarLlegada(Request $req)
 
         if (!in_array($v->estado, ['asignado', 'en_camino'], true)) {
             return response()->json(['ok' => false, 'message' => "Estado no permite 'llego'"], 422);
+        }
+
+        $geo = app(TripGeoService::class);
+        $lat = $req->filled('lat') ? (float) $req->input('lat') : null;
+        $lng = $req->filled('lng') ? (float) $req->input('lng') : null;
+        if ($lat === null || $lng === null) {
+            $pos = DB::table('conductor_posicion_actual')
+                ->where('conductor_id', $conductor->id)
+                ->first();
+            if ($pos) {
+                $lat = (float) $pos->lat;
+                $lng = (float) $pos->lng;
+            }
+        }
+
+        if (!$geo->canConfirmArrival($v, $lat, $lng, $req->input('codigo'))) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Debes estar cerca del pasajero o ingresar el código que te comparta.',
+                'need_code' => true,
+            ], 422);
         }
 
         $now = now()->format('Y-m-d H:i:s');
@@ -555,6 +611,12 @@ public function marcarLlegada(Request $req)
                 'viaje_id' => $viajeId,
                 'err'      => $e->getMessage(),
             ]);
+        }
+
+        try {
+            app(ChatBotService::class)->onTripStateChange($viajeId, 'llego');
+        } catch (\Throwable $e) {
+            report($e);
         }
 
         return response()->json(['ok' => true, 'estado' => 'llego']);

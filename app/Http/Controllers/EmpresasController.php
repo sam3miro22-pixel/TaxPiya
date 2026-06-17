@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\ReferralService;
+use App\Services\EmpresaContabilidadService;
 
 class EmpresasController extends Controller
 {
@@ -59,7 +60,15 @@ class EmpresasController extends Controller
             $record->viajes_count = DB::table('viajes')->whereIn('conductor_id', $conductorIds)->count();
         }
 
-        return $this->renderView('pages.empresas.view', ['data' => $record, 'rec_id' => (int) $rec_id]);
+        $contabilidad = app(EmpresaContabilidadService::class)->resumen((int) $record->id);
+        $movimientos = app(EmpresaContabilidadService::class)->movimientosRecientes((int) $record->id, 15);
+
+        return $this->renderView('pages.empresas.view', [
+            'data' => $record,
+            'rec_id' => (int) $rec_id,
+            'contabilidad' => $contabilidad,
+            'movimientos' => $movimientos,
+        ]);
     }
 
     public function edit(Request $request, $rec_id)

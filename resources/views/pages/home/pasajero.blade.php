@@ -220,6 +220,10 @@
           <div class="txp-ride-title" id="txp-asignado-nombre">—</div>
           <div class="txp-ride-sub" id="txp-asignado-vehiculo">—</div>
           <div class="txp-ride-sub" id="txp-asignado-placa">—</div>
+          <div class="txp-ride-sub txp-arrival-code" id="txp-asignado-codigo-wrap" style="display:none">
+            Código llegada: <strong id="txp-codigo-llegada">----</strong>
+            <span class="d-block small text-muted">Compártelo con el conductor si te lo pide</span>
+          </div>
         </div>
       </div>
       <div class="txp-ride-right">
@@ -361,6 +365,14 @@ body#main #page-content {
     color:#111;
 }
 .mic-btn:hover{ filter:brightness(1.03); }
+.mic-btn.listening{
+    background: linear-gradient(180deg, rgba(239,68,68,.45), rgba(220,38,38,.35));
+    animation: micPulse 1.2s ease-in-out infinite;
+}
+@keyframes micPulse{
+    0%,100%{ box-shadow: 0 0 0 0 rgba(239,68,68,.45); }
+    50%{ box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+}
 .pin-btn.active{ outline:2px solid #ffb100; }
 
 
@@ -1169,10 +1181,23 @@ async function onDriverAccepted(detail){
   $asVehic.textContent  = vehTxt || 'Taxi';
   $asPlaca.textContent  = `Placa ${placa}`;
 
+  if (detail.codigo_llegada) {
+    showArrivalCode(detail.codigo_llegada);
+  }
+
   
   showAsignado();
   focusAssignedDriver();
   startETALoop();
+  startAssignmentWatcher();
+}
+
+function showArrivalCode(code){
+  const wrap = document.getElementById('txp-asignado-codigo-wrap');
+  const el = document.getElementById('txp-codigo-llegada');
+  if (!wrap || !el || !code) return;
+  el.textContent = code;
+  wrap.style.display = 'block';
 }
 
 
@@ -1231,7 +1256,8 @@ async function solicitarViajeThenSearch(){
     window.currentViajeId = j.viaje_id; 
     ocultarSheet();
     startDriverSearch();     
-    startTripStateLoop();    
+    startTripStateLoop();
+    startAssignmentWatcher();
   }catch(e){
     console.error(e);
     alert('Error de red al solicitar viaje.');
@@ -1295,6 +1321,7 @@ function startTripStateLoop(){
   stopTripStateLoop();
 
   checkTripStateOnce();
+  startAssignmentWatcher();
   estadoTimer = setInterval(checkTripStateOnce, 3000);
 }
 function stopTripStateLoop(){
@@ -1308,6 +1335,13 @@ async function checkTripStateOnce(){
     const r = await fetch(`${VIAJE_ESTADO_URL}/${window.currentViajeId}`, { cache:'no-store' });
     const j = await r.json();
     if (!j?.ok) return;
+
+    if (j.conductor_id && j.driver_pos) {
+      updateDriverPositionBubble(j.conductor_id, j.driver_pos);
+    }
+    if (j.codigo_llegada) {
+      showArrivalCode(j.codigo_llegada);
+    }
 
     const est = j.estado;
     if (est === lastEstado) return;
@@ -1325,7 +1359,8 @@ async function checkTripStateOnce(){
     telefono: j.conductor?.telefono,
     placa:  j.vehiculo?.placa,
     marca:  j.vehiculo?.marca,
-    linea:  j.vehiculo?.linea
+    linea:  j.vehiculo?.linea,
+    codigo_llegada: j.codigo_llegada
   });
   if ($sheetAsignado.getAttribute('aria-hidden') === 'true') showAsignado();
   showBanner('Conductor asignado', 'fa-taxi');
@@ -1527,12 +1562,11 @@ async function checkAssignmentOnce(){
     const j = await r.json();
     if (!j.ok) return;
 
-    
-    if (j.conductor_id && j.driver_pos && driverMarkers.has(j.conductor_id)) {
-      const mk = driverMarkers.get(j.conductor_id);
-      const latLng = new google.maps.LatLng(j.driver_pos.lat, j.driver_pos.lng);
-      if (mk?.car)  mk.car.setPosition(latLng);
-      if (mk?.halo) mk.halo.setPosition(latLng);
+    if (j.conductor_id && j.driver_pos) {
+      updateDriverPositionBubble(j.conductor_id, j.driver_pos);
+    }
+    if (j.codigo_llegada) {
+      showArrivalCode(j.codigo_llegada);
     }
 
     switch (j.estado) {
@@ -2037,6 +2071,7 @@ const VIAJE_CHAT_READ_URL  = "{{ route('viaje.chat.read') }}";
     .txp-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.35;word-wrap:break-word;white-space:pre-wrap}
     .txp-me{align-self:flex-end;background:#ffd166;color:#111}
     .txp-other{align-self:flex-start;background:#1e293b;color:#e2e8f0;border:1px solid rgba(255,255,255,.06)}
+    .txp-system{align-self:center;background:rgba(255,209,102,.12);color:#fde68a;font-size:13px;max-width:92%;text-align:center;border-radius:12px;border:1px dashed rgba(255,209,102,.35)}
     .txp-time{font-size:11px;opacity:.7;margin-top:2px}
     .txp-chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(255,255,255,.08)}
   `;
@@ -2151,6 +2186,7 @@ function renderChat(items){
     if (id && renderedIds.has(id)) continue;  
 
     const mine = (m.rol === 'pasajero');
+    const isSystem = (m.tipo === 'system' || m.rol === 'system');
     const text = (m.mensaje ?? '');
     const hash = msgHash(m.rol, text);
 
@@ -2163,7 +2199,7 @@ function renderChat(items){
 
   
     const div = document.createElement('div');
-    div.className = `txp-bubble ${mine ? 'txp-me' : 'txp-other'}`;
+    div.className = isSystem ? 'txp-bubble txp-system' : `txp-bubble ${mine ? 'txp-me' : 'txp-other'}`;
 
 
     let time;
@@ -2378,6 +2414,35 @@ function refreshDriverIconsByZoom() {
   for (const obj of driverMarkers.values()) {
     if (obj?.car) obj.car.setIcon(carIconForZoom(z));
     if (obj?.halo) obj.halo.setIcon(haloIconForZoom(z));
+  }
+}
+
+function updateDriverPositionBubble(conductorId, pos) {
+  if (!map || !conductorId || pos?.lat == null || pos?.lng == null) return;
+  const latLng = new google.maps.LatLng(pos.lat, pos.lng);
+  const z = map.getZoom() || 15;
+  let obj = driverMarkers.get(conductorId);
+  if (!obj) {
+    const halo = new google.maps.Marker({
+      position: latLng,
+      map,
+      clickable: false,
+      zIndex: 450,
+      icon: haloIconForZoom(z)
+    });
+    const car = new google.maps.Marker({
+      position: latLng,
+      map,
+      clickable: true,
+      zIndex: 500,
+      icon: carIconForZoom(z),
+      optimized: true
+    });
+    obj = { halo, car };
+    driverMarkers.set(conductorId, obj);
+  } else {
+    if (obj.halo) obj.halo.setPosition(latLng);
+    if (obj.car) obj.car.setPosition(latLng);
   }
 }
 
@@ -2805,18 +2870,77 @@ function reverseGeocode(latLng, cb){
 function setupVoice(btnId, inputId, onText){
   const btn = document.getElementById(btnId);
   const input = document.getElementById(inputId);
+  if (!btn || !input) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){ if(btn) btn.style.display = 'none'; return; }
+  if(!SR){
+    btn.title = 'Voz no disponible en este navegador';
+    btn.disabled = true;
+    return;
+  }
   const rec = new SR();
-  rec.lang = 'es-CO'; rec.interimResults = false; rec.maxAlternatives = 1;
+  rec.lang = 'es-CO';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  let listening = false;
 
-  btn.addEventListener('click', () => { try{ rec.start(); }catch(e){} btn.classList.add('listening'); });
-  rec.onend = () => btn.classList.remove('listening');
-  rec.onerror = () => btn.classList.remove('listening');
+  const stopListening = () => {
+    listening = false;
+    btn.classList.remove('listening');
+    btn.setAttribute('aria-pressed', 'false');
+  };
+
+  btn.addEventListener('click', async () => {
+    if (listening) {
+      try { rec.stop(); } catch (_) {}
+      stopListening();
+      return;
+    }
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch (_) {
+        alert('Permite el micrófono para dictar la dirección.');
+        return;
+      }
+    }
+    try {
+      rec.start();
+      listening = true;
+      btn.classList.add('listening');
+      btn.setAttribute('aria-pressed', 'true');
+    } catch (e) {
+      stopListening();
+      alert('No se pudo iniciar el micrófono. Intenta de nuevo.');
+    }
+  });
+
+  rec.onend = stopListening;
+  rec.onerror = (ev) => {
+    stopListening();
+    if (ev.error && ev.error !== 'aborted') {
+      console.warn('SpeechRecognition', ev.error);
+    }
+  };
   rec.onresult = (evt) => {
-    const txt = evt.results[0][0].transcript;
+    const txt = evt.results[0][0].transcript.trim();
+    if (!txt) return;
     input.value = txt;
     onText && onText(txt);
+    if (typeof geocodeText === 'function') {
+      geocodeText(txt, (loc, addr) => {
+        if (btnId === 'voice-origin') {
+          originLatLng = loc;
+          input.value = addr || txt;
+          if (typeof putOriginMarker === 'function') putOriginMarker(loc);
+        } else {
+          destLatLng = loc;
+          input.value = addr || txt;
+          if (typeof putDestinationMarker === 'function') putDestinationMarker(loc, addr);
+        }
+        if (typeof tryRoute === 'function') tryRoute();
+      });
+    }
   };
 }
 
@@ -2924,7 +3048,7 @@ function refreshNearbyDrivers(){
 
      
       for(const [id, obj] of driverMarkers){
-        if(!seen.has(id)){
+        if(!seen.has(id) && !(assigned?.active && assigned.conductorId === id)){
           if (obj.halo) obj.halo.setMap(null);
           if (obj.car) obj.car.setMap(null);
           driverMarkers.delete(id);

@@ -40,6 +40,9 @@
         <a href="{{ route('empresa.flota.nuevo') }}" class="txp-mobile-btn txp-mobile-btn--empresa">
             <i class="fa-solid fa-plus"></i> Registrar taxi y conductor
         </a>
+        <a href="{{ route('empresa.contabilidad') }}" class="txp-mobile-btn txp-mobile-btn--ghost">
+            <i class="fa-solid fa-calculator"></i> Contabilidad
+        </a>
         <a href="{{ route('empresa.flota') }}" class="txp-mobile-btn txp-mobile-btn--ghost">
             <i class="fa-solid fa-list"></i> Ver flota completa
         </a>

@@ -19,6 +19,8 @@ use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
 use App\Support\TripMatching;
 use App\Services\Firebase\FirestoreTripSyncService;
+use App\Services\ChatBotService;
+use App\Services\TripGeoService;
 class ViajesController extends Controller
 {
     use ResolvesTripParticipants;
@@ -257,6 +259,13 @@ public function estado($id)
         }
     }
 
+    $uid = auth()->id();
+    [$isPasajero, $isConductor] = $this->resolveTripRoles($rawViaje, $uid);
+    $codigoLlegada = null;
+    if ($isPasajero && Schema::hasColumn('viajes', 'codigo_llegada') && !empty($rawViaje->codigo_llegada)) {
+        $codigoLlegada = (string) $rawViaje->codigo_llegada;
+    }
+
     return response()->json([
         'ok' => true,
         'viaje_id' => (int)$viaje->viaje_id,
@@ -275,6 +284,7 @@ public function estado($id)
             'lat' => (float)$viaje->driver_lat,
             'lng' => (float)$viaje->driver_lng,
         ] : null,
+        'codigo_llegada' => $codigoLlegada,
 		
         'monto'  => $viaje->tarifa_aplicada !== null ? (float)$viaje->tarifa_aplicada : null,
         'moneda' => $viaje->moneda,
@@ -325,6 +335,11 @@ public function cancelar(Request $req)
         [$isPasajero, $isConductor] = $this->resolveTripRoles($viaje, $userId);
         if (!$isPasajero && !$isConductor) {
             $result['message'] = 'No autorizado';
+            return;
+        }
+
+        if ($isConductor && in_array($viaje->estado, ['asignado', 'en_camino'], true)) {
+            $result['message'] = 'No puedes cancelar hasta llegar al pasajero (GPS o código de llegada).';
             return;
         }
 
@@ -678,6 +693,11 @@ if ($isPasajero && !empty($viaje->conductor_id)) {
     }
 }
 
+try {
+    app(ChatBotService::class)->maybeReply((int) $req->viaje_id, $role, (string) $req->input('mensaje', ''));
+} catch (\Throwable $e) {
+    report($e);
+}
 
 return response()->json(['ok'=>true, 'id'=>(int)$id]);
 

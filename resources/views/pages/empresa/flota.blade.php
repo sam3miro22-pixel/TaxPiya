@@ -42,6 +42,28 @@
         <div class="txp-empty">No hay taxis en tu flota todavía.</div>
     @endforelse
 
+    @if(isset($vehiculos) && $vehiculos->isNotEmpty())
+        <h2 class="txp-section-title mt-4">Agregar conductor a un taxi</h2>
+        <div class="txp-mobile-card">
+            <p class="small text-muted mb-3">Un mismo taxi puede tener varios conductores (turnos). Registra aquí un conductor adicional.</p>
+            @foreach($vehiculos as $veh)
+                <details class="mb-3">
+                    <summary class="fw-bold">{{ $veh->placa }} · {{ trim(($veh->marca ?? '') . ' ' . ($veh->linea ?? '')) ?: 'Taxi' }}</summary>
+                    <form method="post" action="{{ route('empresa.flota.asignar', $veh->id) }}" class="mt-2">
+                        @csrf
+                        <input type="text" name="nombre" class="form-control mb-2" placeholder="Nombre conductor" required>
+                        <input type="tel" name="telefono" class="form-control mb-2" placeholder="Celular" required>
+                        <input type="email" name="email" class="form-control mb-2" placeholder="Correo (opcional)">
+                        <input type="password" name="password" class="form-control mb-2" placeholder="Contraseña" required minlength="6">
+                        <button type="submit" class="txp-mobile-btn txp-mobile-btn--empresa w-100">
+                            <i class="fa-solid fa-user-plus"></i> Agregar conductor
+                        </button>
+                    </form>
+                </details>
+            @endforeach
+        </div>
+    @endif
+
     @include('pages.empresa.partials.nav')
 </div>
 @endsection

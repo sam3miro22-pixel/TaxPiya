@@ -130,6 +130,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/empresa/flota', [EmpresaPortalController::class, 'flota'])->name('empresa.flota');
     Route::get('/empresa/flota/nuevo', [EmpresaPortalController::class, 'flotaNuevo'])->name('empresa.flota.nuevo');
     Route::post('/empresa/flota', [EmpresaPortalController::class, 'flotaStore'])->name('empresa.flota.store');
+    Route::post('/empresa/flota/vehiculo/{vehiculoId}/conductor', [EmpresaPortalController::class, 'flotaAsignarConductor'])->name('empresa.flota.asignar');
+    Route::get('/empresa/contabilidad', [EmpresaPortalController::class, 'contabilidad'])->name('empresa.contabilidad');
     Route::get('/empresa/viajes', [EmpresaPortalController::class, 'viajes'])->name('empresa.viajes');
     Route::get('/empresa/cuenta', [EmpresaPortalController::class, 'cuenta'])->name('empresa.cuenta');
     Route::get('/empresa/wallet', [\App\Http\Controllers\WalletPortalController::class, 'empresaWallet'])->name('empresa.wallet');
