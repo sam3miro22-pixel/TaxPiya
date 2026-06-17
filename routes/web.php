@@ -321,19 +321,11 @@ Route::middleware(['auth'])->group(function () {
 				return $fail('Nombre de usuario o contraseña no correctos');
 			}
 
-			if ($app && in_array($app, ['pasajero', 'conductor'], true)) {
-				try {
-					if (\App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
-						$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail((string) ($user->email ?? ''))
-							|| \App\Services\DemoAccountCatalog::isDemoPhone((string) ($user->telefono ?? ''));
-						$linkedFirebase = \Illuminate\Support\Facades\Schema::hasColumn('users', 'firebase_uid')
-							&& !empty($user->firebase_uid);
-						if (!$isDemo && ($isEmail || !$linkedFirebase)) {
-							return $fail('Inicia sesión con Google o con «Correo y contraseña» de Firebase (botón en la pantalla de login). Las cuentas locales sin Firebase ya no están permitidas.');
-						}
-					}
-				} catch (\Throwable $gateErr) {
-					report($gateErr);
+			// Bloqueo solo login por correo sin Firebase (cuentas huérfanas locales).
+			if ($app && in_array($app, ['pasajero', 'conductor'], true) && $isEmail) {
+				$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail((string) ($user->email ?? ''));
+				if (!$isDemo && \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
+					return $fail('Usa Google o «Correo y contraseña» de Firebase. Las cuentas de correo solo en el servidor ya no están permitidas.');
 				}
 			}
 
