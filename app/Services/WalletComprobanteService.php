@@ -13,6 +13,9 @@ class WalletComprobanteService
 
     private const ALLOWED = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
+    /** Ruta relativa dentro de storage/app/public (servida vía /storage/...) */
+    private const STORAGE_PREFIX = 'wallet';
+
     public function store(UploadedFile $file): string
     {
         if (!$file->isValid()) {
@@ -28,15 +31,35 @@ class WalletComprobanteService
             throw new RuntimeException('La imagen supera el límite de 5 MB.');
         }
 
-        $dir = public_path('uploads/wallet');
-        if (!File::isDirectory($dir)) {
-            File::makeDirectory($dir, 0755, true);
-        }
+        $dir = storage_path('app/public/' . self::STORAGE_PREFIX);
+        $this->ensureWritableDirectory($dir);
 
         $name = 'comprobante_' . date('Ymd_His') . '_' . Str::random(8) . '.' . $ext;
         $file->move($dir, $name);
 
-        return 'uploads/wallet/' . $name;
+        return self::STORAGE_PREFIX . '/' . $name;
+    }
+
+    private function ensureWritableDirectory(string $dir): void
+    {
+        if (File::isDirectory($dir)) {
+            if (!is_writable($dir)) {
+                throw new RuntimeException('El servidor no puede escribir comprobantes. Contacta soporte Taxpiya.');
+            }
+
+            return;
+        }
+
+        try {
+            File::makeDirectory($dir, 0775, true);
+        } catch (\Throwable $e) {
+            report($e);
+            throw new RuntimeException('No se pudo preparar el almacén de comprobantes en el servidor.');
+        }
+
+        if (!is_writable($dir)) {
+            throw new RuntimeException('El servidor no puede escribir comprobantes. Contacta soporte Taxpiya.');
+        }
     }
 
     public function publicUrl(?string $path): ?string
@@ -49,6 +72,35 @@ class WalletComprobanteService
             return $path;
         }
 
-        return asset(ltrim($path, '/'));
+        $relative = ltrim($path, '/');
+
+        if (str_starts_with($relative, 'uploads/')) {
+            return asset($relative);
+        }
+
+        if (str_starts_with($relative, 'storage/')) {
+            return asset($relative);
+        }
+
+        return asset('storage/' . $relative);
+    }
+
+    public function absolutePath(?string $path): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+
+        $relative = ltrim($path, '/');
+
+        if (str_starts_with($relative, 'uploads/')) {
+            return public_path($relative);
+        }
+
+        if (str_starts_with($relative, 'storage/')) {
+            $relative = substr($relative, strlen('storage/'));
+        }
+
+        return storage_path('app/public/' . $relative);
     }
 }

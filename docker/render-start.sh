@@ -11,6 +11,9 @@ if [ -n "${FIREBASE_CREDENTIALS_JSON:-}" ]; then
 fi
 
 php artisan storage:link 2>/dev/null || true
+mkdir -p storage/app/public/wallet
+chown -R www-data:www-data storage/app/public 2>/dev/null || true
+chmod -R 775 storage/app/public 2>/dev/null || true
 
 fix_sqlite_perms() {
   if [ "${DB_CONNECTION:-sqlite}" != "sqlite" ]; then

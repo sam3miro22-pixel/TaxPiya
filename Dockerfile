@@ -17,7 +17,7 @@ RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --ignor
 COPY . .
 
 RUN composer dump-autoload --optimize \
-    && mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
+    && mkdir -p storage/framework/{cache,sessions,views} storage/logs storage/app/public/wallet bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache database
 
 COPY docker/nginx.conf /etc/nginx/sites-available/default
