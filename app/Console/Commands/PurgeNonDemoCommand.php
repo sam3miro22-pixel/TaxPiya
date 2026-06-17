@@ -21,7 +21,7 @@ class PurgeNonDemoCommand extends Command
     public function handle(AccountPurgeService $purge): int
     {
         if ($this->option('reset-once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
-            $marker = '_taxpiya_reset_data_v2@internal.local';
+            $marker = '_taxpiya_reset_data_v3@internal.local';
             if (\Illuminate\Support\Facades\DB::table('users')->where('email', $marker)->exists()) {
                 $this->line('Reset de datos demo ya ejecutado (--reset-once).');
 
@@ -29,7 +29,7 @@ class PurgeNonDemoCommand extends Command
             }
             $this->input->setOption('force', true);
             $this->input->setOption('clean-transactions', true);
-            $this->input->setOption('reseed', true);
+            $this->input->setOption('reseed', false);
             $this->input->setOption('no-firebase', true);
         }
 
@@ -100,7 +100,7 @@ class PurgeNonDemoCommand extends Command
         }
 
         if ($this->option('reset-once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
-            $marker = '_taxpiya_reset_data_v2@internal.local';
+            $marker = '_taxpiya_reset_data_v3@internal.local';
             if (!\Illuminate\Support\Facades\DB::table('users')->where('email', $marker)->exists()) {
                 \Illuminate\Support\Facades\DB::table('users')->insert([
                     'name'         => 'Reset Marker',

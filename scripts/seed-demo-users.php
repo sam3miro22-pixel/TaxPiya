@@ -56,21 +56,36 @@ $now = date('Y-m-d H:i:s');
 foreach ($users as $u) {
     echo "\n=== {$u['email']} ===\n";
 
-    $firebaseUid = firebaseSignUp($apiKey, $u['email'], $password);
-    echo "Firebase UID: {$firebaseUid}\n";
+    $firebaseUid = null;
+    if (getenv('TAXPIYA_SEED_NO_FIREBASE') !== '1') {
+        $firebaseUid = firebaseSignUp($apiKey, $u['email'], $password);
+        echo "Firebase UID: {$firebaseUid}\n";
+    } else {
+        echo "Firebase omitido (TAXPIYA_SEED_NO_FIREBASE)\n";
+    }
 
     $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? OR telefono = ? LIMIT 1');
     $stmt->execute([$u['email'], $u['telefono']]);
     $existing = $stmt->fetchColumn();
 
     if ($existing) {
-        $pdo->prepare('UPDATE users SET firebase_uid=?, name=?, password=?, user_role_id=?, estado=1 WHERE id=?')
-            ->execute([$firebaseUid, $u['name'], $hash, $u['role_id'], $existing]);
+        if ($firebaseUid) {
+            $pdo->prepare('UPDATE users SET firebase_uid=?, name=?, password=?, user_role_id=?, estado=1 WHERE id=?')
+                ->execute([$firebaseUid, $u['name'], $hash, $u['role_id'], $existing]);
+        } else {
+            $pdo->prepare('UPDATE users SET name=?, password=?, user_role_id=?, estado=1 WHERE id=?')
+                ->execute([$u['name'], $hash, $u['role_id'], $existing]);
+        }
         $userId = (int) $existing;
         echo "Usuario SQLite actualizado id={$userId}\n";
     } else {
-        $pdo->prepare('INSERT INTO users (firebase_uid,name,password,email,telefono,estado,user_role_id) VALUES (?,?,?,?,?,1,?)')
-            ->execute([$firebaseUid, $u['name'], $hash, $u['email'], $u['telefono'], $u['role_id']]);
+        if ($firebaseUid) {
+            $pdo->prepare('INSERT INTO users (firebase_uid,name,password,email,telefono,estado,user_role_id) VALUES (?,?,?,?,?,1,?)')
+                ->execute([$firebaseUid, $u['name'], $hash, $u['email'], $u['telefono'], $u['role_id']]);
+        } else {
+            $pdo->prepare('INSERT INTO users (name,password,email,telefono,estado,user_role_id) VALUES (?,?,?,?,1,?)')
+                ->execute([$u['name'], $hash, $u['email'], $u['telefono'], $u['role_id']]);
+        }
         $userId = (int) $pdo->lastInsertId();
         echo "Usuario SQLite creado id={$userId}\n";
     }

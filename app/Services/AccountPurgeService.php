@@ -12,25 +12,16 @@ class AccountPurgeService
     public function keepUserIds(): array
     {
         $emails = DemoAccountCatalog::keepEmails();
-        $phones = DemoAccountCatalog::keepPhones();
 
         $ids = DB::table('users')
-            ->where(function ($q) use ($emails, $phones) {
+            ->where(function ($q) use ($emails) {
                 foreach ($emails as $email) {
                     $q->orWhereRaw('LOWER(email) = ?', [strtolower($email)]);
-                }
-                foreach ($phones as $phone) {
-                    $q->orWhere('telefono', $phone);
                 }
             })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
-
-        $adminId = DB::table('users')->where('user_role_id', 1)->orderBy('id')->value('id');
-        if ($adminId) {
-            $ids[] = (int) $adminId;
-        }
 
         return array_values(array_unique($ids));
     }
@@ -47,7 +38,10 @@ class AccountPurgeService
 
         $deleteUserIds = DB::table('users')
             ->whereNotIn('id', $keepIds)
-            ->where('email', '!=', '_taxpiya_purge_done@internal.local')
+            ->where(function ($q) {
+                $q->whereNull('email')
+                    ->orWhere('email', 'not like', '%@internal.local');
+            })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
