@@ -323,8 +323,8 @@ Route::middleware(['auth'])->group(function () {
 
 			if ($app && in_array($app, ['pasajero', 'conductor'], true)
 				&& \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
-				$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail($user->email)
-					|| \App\Services\DemoAccountCatalog::isDemoPhone($user->telefono);
+				$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail((string) ($user->email ?? ''))
+					|| \App\Services\DemoAccountCatalog::isDemoPhone((string) ($user->telefono ?? ''));
 				if (!$isDemo && ($isEmail || empty($user->firebase_uid))) {
 					return $fail('Inicia sesión con Google o con «Correo y contraseña» de Firebase (botón en la pantalla de login). Las cuentas locales sin Firebase ya no están permitidas.');
 				}
