@@ -105,6 +105,19 @@ $conductoresConSaldo = DB::table('wallet_saldos')
     ->where('bloqueado', 0)
     ->count();
 
+$solicitudesPendientes = 0;
+$ultimasSolicitudesWallet = collect();
+if (\Illuminate\Support\Facades\Schema::hasTable('wallet_solicitudes')) {
+    $solicitudesPendientes = DB::table('wallet_solicitudes')->where('estado', 'pendiente')->count();
+    $ultimasSolicitudesWallet = DB::table('wallet_solicitudes as s')
+        ->leftJoin('users as u', 'u.id', '=', 's.solicitante_user_id')
+        ->where('s.estado', 'pendiente')
+        ->select('s.id', 's.operacion', 's.monto', 's.moneda', 's.created_at', 'u.name as solicitante')
+        ->orderByDesc('s.id')
+        ->limit(5)
+        ->get();
+}
+
 $conductoresMapa = DB::table('conductores as c')
     ->join('users as u', 'u.id', '=', 'c.user_id')
     ->join('conductor_posicion_actual as p', 'p.conductor_id', '=', 'c.id')
@@ -366,7 +379,7 @@ $mapCenter = [
                             <div class="txp-card-title">SOS e incidentes</div>
                             <div class="txp-card-subtitle">Últimas alertas de la operación.</div>
                         </div>
-                        <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                        <a href="{{ url('sosincidentes') }}" class="btn btn-sm btn-outline-danger rounded-pill px-3">
                             Ver SOS
                         </a>
                     </div>
@@ -394,24 +407,61 @@ $mapCenter = [
                 </div>
 
                 <div class="txp-card">
-                    <div class="txp-card-header">
-                        <div class="txp-card-title">Wallet conductores</div>
-                        <div class="txp-card-subtitle">
-                            Movimientos y saldos de los conductores.
+                    <div class="txp-card-header d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="txp-card-title">Finanzas y billeteras</div>
+                            <div class="txp-card-subtitle">
+                                Recargas NEQUI, retiros y movimientos de wallet.
+                            </div>
                         </div>
+                        @if($solicitudesPendientes > 0)
+                            <span class="badge bg-warning text-dark rounded-pill px-3 py-2">
+                                {{ $solicitudesPendientes }} pendiente{{ $solicitudesPendientes === 1 ? '' : 's' }}
+                            </span>
+                        @endif
                     </div>
+
+                    <div class="txp-wallet-admin-actions mb-3">
+                        <a href="{{ url('walletsolicitudes') }}" class="txp-wallet-admin-btn txp-wallet-admin-btn--primary">
+                            <i class="fa fa-check-circle"></i>
+                            <span>
+                                <strong>Aprobar depósitos y retiros</strong>
+                                <small>Recargas NEQUI · comprobante y referencia</small>
+                            </span>
+                            <i class="fa fa-chevron-right ms-auto"></i>
+                        </a>
+                    </div>
+
+                    @if($ultimasSolicitudesWallet->isNotEmpty())
+                        <ul class="list-unstyled mb-3 txp-wallet-pending-list">
+                            @foreach($ultimasSolicitudesWallet as $sol)
+                                <li>
+                                    <a href="{{ route('walletsolicitudes.view', $sol->id) }}" class="txp-wallet-pending-item">
+                                        <span class="txp-wallet-pending-id">#{{ $sol->id }}</span>
+                                        <span class="txp-wallet-pending-meta">
+                                            {{ ucfirst($sol->operacion) }} · ${{ number_format((float)$sol->monto, 0, ',', '.') }}
+                                        </span>
+                                        <span class="txp-wallet-pending-user">{{ $sol->solicitante ?? 'Usuario' }}</span>
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @elseif($solicitudesPendientes === 0)
+                        <div class="txp-empty small mb-3">No hay solicitudes pendientes de aprobación.</div>
+                    @endif
+
                     <div class="row g-3 align-items-center">
                         <div class="col-6">
                             <div class="txp-metric-title">Movimientos hoy</div>
                             <div class="txp-metric-value">{{ $walletMovsHoy }}</div>
-                            <a href="#" class="txp-kpi-link small">
+                            <a href="{{ url('walletmovimientos') }}" class="txp-kpi-link small">
                                 Ver movimientos <i class="fa fa-chevron-right ms-1"></i>
                             </a>
                         </div>
                         <div class="col-6">
                             <div class="txp-metric-title">Conductores con saldo</div>
                             <div class="txp-metric-value">{{ $conductoresConSaldo }}</div>
-                            <a href="#" class="txp-kpi-link small">
+                            <a href="{{ url('walletsaldos') }}" class="txp-kpi-link small">
                                 Ver saldos <i class="fa fa-chevron-right ms-1"></i>
                             </a>
                         </div>
@@ -741,6 +791,76 @@ $mapCenter = [
         background: #22d3ee;
         box-shadow: 0 0 12px rgba(56,189,248,.9);
     }
+
+    .txp-wallet-admin-actions {
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+    }
+    .txp-wallet-admin-btn {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        padding: .85rem 1rem;
+        border-radius: 14px;
+        text-decoration: none;
+        color: #e5e7eb;
+        border: 1px solid rgba(148,163,184,.25);
+        background: rgba(15,23,42,.65);
+        transition: border-color .15s, background .15s, transform .15s;
+    }
+    .txp-wallet-admin-btn:hover {
+        color: #fff;
+        border-color: rgba(56,189,248,.45);
+        background: rgba(30,64,175,.25);
+        transform: translateY(-1px);
+    }
+    .txp-wallet-admin-btn--primary {
+        border-color: rgba(250,204,21,.35);
+        background: linear-gradient(135deg, rgba(234,179,8,.18), rgba(15,23,42,.85));
+    }
+    .txp-wallet-admin-btn--primary:hover {
+        border-color: rgba(250,204,21,.55);
+        background: linear-gradient(135deg, rgba(234,179,8,.28), rgba(15,23,42,.9));
+    }
+    .txp-wallet-admin-btn i.fa-check-circle,
+    .txp-wallet-admin-btn i.fa-list,
+    .txp-wallet-admin-btn i.fa-wallet {
+        font-size: 1.15rem;
+        color: #fbbf24;
+        width: 1.25rem;
+        text-align: center;
+    }
+    .txp-wallet-admin-btn span {
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        line-height: 1.2;
+    }
+    .txp-wallet-admin-btn span small {
+        color: rgba(148,163,184,.95);
+        font-size: .72rem;
+    }
+    .txp-wallet-pending-list {
+        border: 1px solid rgba(148,163,184,.15);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .txp-wallet-pending-item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: .65rem;
+        align-items: center;
+        padding: .65rem .85rem;
+        text-decoration: none;
+        color: #e5e7eb;
+        border-bottom: 1px solid rgba(148,163,184,.12);
+        font-size: .82rem;
+    }
+    .txp-wallet-pending-item:last-child { border-bottom: 0; }
+    .txp-wallet-pending-item:hover { background: rgba(56,189,248,.08); color: #fff; }
+    .txp-wallet-pending-id { font-weight: 700; color: #38bdf8; }
+    .txp-wallet-pending-user { color: rgba(148,163,184,.95); text-align: right; }
 
     @media (max-width: 768px) {
         .txp-admin-wrap {

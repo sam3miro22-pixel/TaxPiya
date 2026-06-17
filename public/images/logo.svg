@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Taxpiya">
+  <rect width="128" height="128" rx="24" fill="#0b132b"/>
+  <circle cx="64" cy="64" r="34" fill="#ffd166"/>
+  <text x="64" y="72" text-anchor="middle" fill="#0b132b" font-family="Arial,sans-serif" font-size="28" font-weight="700">T</text>
+</svg>

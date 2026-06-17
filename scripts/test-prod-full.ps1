@@ -74,11 +74,19 @@ Test-Step 'Admin login' $aOk "HTTP $($loginA.Code)"
     Test-Step 'KPI usuarios <= 10' ([int]$usuarios -le 10) "usuarios=$usuarios"
     Test-Step 'KPI viajes = 0' ([int]$viajes -eq 0) "viajes=$viajes"
 
+    $hasWalletApprove = $homeA.Content -match 'walletsolicitudes' -and $homeA.Content -match 'Aprobar dep'
+    $hasMovLink = $homeA.Content -match 'walletmovimientos'
+    $hasSaldoLink = $homeA.Content -match 'walletsaldos'
+    Test-Step 'Dashboard enlace aprobar recargas' $hasWalletApprove
+    Test-Step 'Dashboard enlace movimientos' $hasMovLink
+    Test-Step 'Dashboard enlace saldos' $hasSaldoLink
+
     $api = Invoke-Txp -Method GET -Url "$base/api/admin/active-drivers" -Session $adminSess
     Test-Step 'API active-drivers' ($api.Code -eq 200) "HTTP $($api.Code)"
 
     $adminPaths = @(
-        'users', 'conductores', 'empresas', 'referidos', 'viajes', 'walletsolicitudes', 'notificaciones'
+        'users', 'conductores', 'empresas', 'referidos', 'viajes', 'walletsolicitudes',
+        'walletmovimientos', 'walletsaldos', 'notificaciones'
     )
     foreach ($p in $adminPaths) {
         try {

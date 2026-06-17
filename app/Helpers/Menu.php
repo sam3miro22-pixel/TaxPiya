@@ -45,15 +45,20 @@ class Menu{
             'icon' => '<i class="fa fa-dollar"></i>'
         ],
         [
-            'path' => 'walletsaldos',
-            'label' => "Wallet",
-            'icon' => '<i class="fa fa-credit-card"></i>'
+            'path' => 'walletsolicitudes',
+            'label' => "Aprobar recargas",
+            'icon' => '<i class="fa fa-check-circle"></i>'
         ],
         [
-            'path' => 'walletsolicitudes',
-            'label' => "Recargas NEQUI",
-            'icon' => '<i class="fa fa-mobile"></i>'
-        ]
+            'path' => 'walletmovimientos',
+            'label' => "Movimientos wallet",
+            'icon' => '<i class="fa fa-exchange"></i>'
+        ],
+        [
+            'path' => 'walletsaldos',
+            'label' => "Saldos conductores",
+            'icon' => '<i class="fa fa-credit-card"></i>'
+        ],
     ];
 }
 

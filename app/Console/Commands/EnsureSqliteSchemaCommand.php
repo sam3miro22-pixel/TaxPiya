@@ -355,7 +355,7 @@ SQL);
         }
 
         $adminRoleId = DB::table('roles')->where('role_name', 'Admin')->value('role_id') ?: 1;
-        foreach (['referidos/index', 'walletsolicitudes/index', 'walletsolicitudes/view', 'walletsolicitudes/aprobar', 'walletsolicitudes/rechazar', 'api/admin'] as $path) {
+        foreach (['referidos/index', 'walletsolicitudes/index', 'walletsolicitudes/view', 'walletsolicitudes/aprobar', 'walletsolicitudes/rechazar', 'walletmovimientos/index', 'walletmovimientos/view', 'walletsaldos/index', 'walletsaldos/view', 'api/admin'] as $path) {
             $exists = DB::table('permissions')
                 ->where('permission', $path)
                 ->where('role_id', $adminRoleId)

@@ -50,6 +50,11 @@ class ProfilePhotoService
         }
 
         $relative = ltrim($path, '/');
+        $absolute = public_path($relative);
+
+        if (!is_file($absolute)) {
+            return null;
+        }
 
         return asset($relative);
     }

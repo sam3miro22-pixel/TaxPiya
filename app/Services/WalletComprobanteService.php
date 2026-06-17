@@ -73,16 +73,13 @@ class WalletComprobanteService
         }
 
         $relative = ltrim($path, '/');
+        $absolute = $this->absolutePath($path);
 
-        if (str_starts_with($relative, 'uploads/')) {
-            return asset($relative);
+        if ($absolute && is_file($absolute)) {
+            return asset('storage/' . ltrim(str_replace('storage/', '', $relative), '/'));
         }
 
-        if (str_starts_with($relative, 'storage/')) {
-            return asset($relative);
-        }
-
-        return asset('storage/' . $relative);
+        return null;
     }
 
     public function absolutePath(?string $path): ?string

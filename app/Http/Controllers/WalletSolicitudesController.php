@@ -34,8 +34,10 @@ class WalletSolicitudesController extends Controller
             )
             ->orderByDesc('s.id');
 
-        if ($request->estado) {
-            $query->where('s.estado', $request->estado);
+        if ($request->has('estado')) {
+            if ($request->estado !== '') {
+                $query->where('s.estado', $request->estado);
+            }
         } else {
             $query->where('s.estado', 'pendiente');
         }

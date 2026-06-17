@@ -22,7 +22,7 @@ return [
     | Application Logo and Favicon
     |--------------------------------------------------------------------------
     */
-    'logo' => env('APP_LOGO', 'images/logo.png'),
+    'logo' => env('APP_LOGO', 'images/logo.svg'),
     'favicon' => env('APP_FAVICON', 'favicon.png'),
 
     /*

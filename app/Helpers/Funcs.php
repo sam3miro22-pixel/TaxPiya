@@ -47,30 +47,36 @@ function print_link($path = "", $appendCurrentQueryString=false)
 function getImgSizePath($src, $size="medium")
 {
 	if(!$src){
-		return url("images/no-image-available.png");
+		return url("images/no-image-available.svg");
 	}
 
 	$isawsS3File = stripos($src, ".amazonaws.com") > 5;
-	if($size && !$isawsS3File){
-		$paths = explode("/", $src);
+	if($isawsS3File){
+		return url($src);
+	}
+
+	$relative = ltrim(str_replace('\\', '/', $src), '/');
+	$fullOrig = public_path($relative);
+	if (str_starts_with($relative, 'storage/')) {
+		$fullOrig = storage_path('app/public/' . substr($relative, strlen('storage/')));
+	}
+
+	if($size){
+		$paths = explode("/", $relative);
 		$lastpath = count($paths) - 1;
 		array_splice($paths, $lastpath, 0, $size);
 		$sizePath = implode("/", $paths);
-		$fullSize = public_path(ltrim(str_replace('\\', '/', $sizePath), '/'));
-		$fullOrig = public_path(ltrim(str_replace('\\', '/', $src), '/'));
+		$fullSize = public_path($sizePath);
 		if (is_file($fullSize)) {
 			return url($sizePath);
 		}
-		if (is_file($fullOrig)) {
-			return url($src);
-		}
-		if (str_starts_with($src, 'storage/')) {
-			return url($src);
-		}
-		return url($sizePath);
 	}
 
-	return url($src);
+	if (is_file($fullOrig)) {
+		return url($relative);
+	}
+
+	return url('images/no-image-available.svg');
 }
 
 

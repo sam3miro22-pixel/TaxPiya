@@ -14,7 +14,7 @@ e.g $arrDataFromDb = $comp_model->fetchData(); //function name
     $total_records = $records->total();
     $limit = $records->perPage();
     $record_count = count($records);
-    $pageTitle = "Wallet Saldos"; //set dynamic page title
+    $pageTitle = "Saldos conductores"; //set dynamic page title
 ?>
 @extends($layout)
 @section('title', $pageTitle)
@@ -33,7 +33,7 @@ e.g $arrDataFromDb = $comp_model->fetchData(); //function name
                 </div>
                 <div class="col  " >
                     <div class="">
-                        <div class="h5 font-weight-bold text-primary m-0">Wallet Saldos</div>
+                        <div class="h5 font-weight-bold text-primary m-0">Saldos conductores</div>
                     </div>
                 </div>
                 <div class="col-auto  " >
