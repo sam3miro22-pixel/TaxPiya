@@ -8,8 +8,15 @@
         <h1>Mi billetera</h1>
     </header>
 
-    @if(session('wallet_ok'))<div class="txp-mobile-card txp-alert-success">{{ session('wallet_ok') }}</div>@endif
-    @if(session('wallet_error'))<div class="txp-mobile-card" style="border-color:#f87171;color:#fecaca;">{{ session('wallet_error') }}</div>@endif
+    @if(session('wallet_ok'))<div class="txp-mobile-card txp-alert-success"><i class="fa-solid fa-circle-check me-1"></i> {{ session('wallet_ok') }}</div>@endif
+    @if(session('wallet_error'))<div class="txp-mobile-card" style="border-color:#f87171;color:#fecaca;"><i class="fa-solid fa-circle-exclamation me-1"></i> {{ session('wallet_error') }}</div>@endif
+    @if($errors->any())
+        <div class="txp-mobile-card" style="border-color:#f87171;color:#fecaca;">
+            @foreach($errors->all() as $err)
+                <div><i class="fa-solid fa-circle-exclamation me-1"></i> {{ $err }}</div>
+            @endforeach
+        </div>
+    @endif
 
     <div class="txp-mobile-card txp-wallet-hero">
         <div class="txp-wallet-label">Saldo disponible</div>

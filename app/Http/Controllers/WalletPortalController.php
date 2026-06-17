@@ -173,6 +173,10 @@ class WalletPortalController extends Controller
             ]
         );
 
+        if ($result['ok'] ?? false) {
+            \App\Services\SqlitePersistenceService::scheduleBackupAfterRequest();
+        }
+
         $msg = $result['ok']
             ? 'Solicitud de recarga NEQUI enviada. Un administrador revisará tu comprobante y acreditará el saldo.'
             : ($result['message'] ?? 'Error al registrar la solicitud.');

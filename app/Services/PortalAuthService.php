@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Autenticación de portales móviles.
  *
- * Pasajero/Conductor (correo): Firebase Auth → POST auth/firebase/sync → sesión Laravel.
- * Pasajero/Conductor (celular): bcrypt en MySQL (cuentas legacy / demo).
+ * Pasajero/Conductor: Firebase Auth obligatorio (Google o correo Firebase).
+ * Excepción: cuentas demo con teléfono/contraseña local para pruebas E2E.
  * Empresa/Admin: bcrypt en MySQL únicamente.
  *
  * Cada portal valida user_role_id: pasajero≠conductor≠empresa.

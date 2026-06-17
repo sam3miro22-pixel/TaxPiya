@@ -18,24 +18,28 @@
         3. Sube la imagen aquí. Un administrador revisará y acreditará tu saldo.
     </p>
 
-    <form method="post" action="{{ $action }}" enctype="multipart/form-data">
+    <form method="post" action="{{ $action }}" enctype="multipart/form-data" id="txp-nequi-deposit-form">
         @csrf
         <input type="hidden" name="metodo_pago" value="nequi">
 
         <div class="txp-profile-edit-field mb-3">
             <label>Monto enviado (COP)</label>
-            <input type="number" name="monto" class="form-control txp-input-dark" min="1000" step="1000" required placeholder="Ej: 50000" value="{{ old('monto') }}">
+            <input type="number" name="monto" class="form-control txp-input-dark @error('monto') is-invalid @enderror" min="1000" max="50000000" step="1000" required placeholder="Ej: 50000" value="{{ old('monto') }}">
+            @error('monto')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            <small class="text-muted">Mínimo $1.000 · máximo $50.000.000</small>
         </div>
 
         <div class="txp-profile-edit-field mb-3">
             <label>Referencia / número de transacción NEQUI</label>
-            <input type="text" name="referencia_pago" class="form-control txp-input-dark" maxlength="64" required placeholder="Ej: M12345678" value="{{ old('referencia_pago') }}">
+            <input type="text" name="referencia_pago" class="form-control txp-input-dark @error('referencia_pago') is-invalid @enderror" maxlength="64" required placeholder="Ej: M12345678" value="{{ old('referencia_pago') }}">
+            @error('referencia_pago')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
         </div>
 
         <div class="txp-profile-edit-field mb-3">
-            <label>Comprobante de pago (foto)</label>
-            <input type="file" name="comprobante" class="form-control txp-input-dark" accept="image/jpeg,image/png,image/gif,image/webp" required>
-            <small class="text-muted">JPG, PNG o WEBP · máx. 5 MB · selecciona desde tu galería</small>
+            <label>Comprobante de pago (foto) <span class="text-danger">*</span></label>
+            <input type="file" name="comprobante" class="form-control txp-input-dark @error('comprobante') is-invalid @enderror" accept="image/jpeg,image/png,image/gif,image/webp" required>
+            @error('comprobante')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            <small class="text-muted">JPG, PNG o WEBP · máx. 5 MB · obligatorio</small>
         </div>
 
         <button type="submit" class="{{ $btnClass }}" @if($btnStyle) style="{{ $btnStyle }}" @endif>

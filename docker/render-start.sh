@@ -58,6 +58,8 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   export TAXPIYA_SEED_NO_FIREBASE=1
   php artisan taxpiya:purge-non-demo --reset-once || true
   fix_sqlite_perms
+  php artisan taxpiya:firebase-cleanup --once --force || true
+  fix_sqlite_perms
   php artisan taxpiya:sqlite-backup --no-interaction || true
   if [ "${TAXPIYA_SEED_DEMO:-false}" = "true" ]; then
     php artisan taxpiya:seed-demo --force 2>/dev/null || true

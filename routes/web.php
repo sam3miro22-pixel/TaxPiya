@@ -321,6 +321,15 @@ Route::middleware(['auth'])->group(function () {
 				return $fail('Nombre de usuario o contraseña no correctos');
 			}
 
+			if ($app && in_array($app, ['pasajero', 'conductor'], true)
+				&& \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
+				$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail($user->email)
+					|| \App\Services\DemoAccountCatalog::isDemoPhone($user->telefono);
+				if (!$isDemo && ($isEmail || empty($user->firebase_uid))) {
+					return $fail('Inicia sesión con Google o con «Correo y contraseña» de Firebase (botón en la pantalla de login). Las cuentas locales sin Firebase ya no están permitidas.');
+				}
+			}
+
 			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
 				if ((int) ($user->estado ?? 1) !== 1) {
 					return $fail('Tu cuenta está inactiva. Por favor comunícate con el Equipo de Taxpiya.');

@@ -19,7 +19,7 @@ class WalletSolicitudesController extends Controller
         }
 
         $query = DB::table('wallet_solicitudes as s')
-            ->join('wallet_cuentas as c', 'c.id', '=', 's.cuenta_id')
+            ->leftJoin('wallet_cuentas as c', 'c.id', '=', 's.cuenta_id')
             ->leftJoin('users as u', 'u.id', '=', 's.solicitante_user_id')
             ->leftJoin('users as up', 'up.id', '=', 's.procesado_por')
             ->select(

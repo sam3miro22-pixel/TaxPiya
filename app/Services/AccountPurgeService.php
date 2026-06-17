@@ -173,6 +173,63 @@ class AccountPurgeService
     }
 
     /**
+     * Elimina pasajeros/conductores SQLite sin firebase_uid (cuentas locales huérfanas).
+     */
+    public function purgeLocalShadowAccounts(): int
+    {
+        if (!Schema::hasTable('users')) {
+            return 0;
+        }
+
+        $keepIds = $this->keepUserIds();
+        $roleIds = DB::table('roles')
+            ->whereIn('role_name', ['Pasajero', 'Conductor'])
+            ->pluck('role_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($roleIds === []) {
+            return 0;
+        }
+
+        $deleteUserIds = DB::table('users')
+            ->whereNotIn('id', $keepIds)
+            ->whereIn('user_role_id', $roleIds)
+            ->where(function ($q) {
+                $q->whereNull('firebase_uid')->orWhere('firebase_uid', '');
+            })
+            ->where(function ($q) {
+                $q->whereNull('email')->orWhere('email', 'not like', '%@internal.local');
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($deleteUserIds === []) {
+            return 0;
+        }
+
+        DB::transaction(function () use ($deleteUserIds) {
+            if (Schema::hasTable('wallet_solicitudes') && Schema::hasTable('wallet_cuentas')) {
+                $cuentaIds = DB::table('wallet_cuentas')->whereIn('user_id', $deleteUserIds)->pluck('id');
+                if ($cuentaIds->isNotEmpty()) {
+                    DB::table('wallet_solicitudes')->whereIn('cuenta_id', $cuentaIds)->delete();
+                    DB::table('wallet_movimientos')->whereIn('cuenta_id', $cuentaIds)->delete();
+                    DB::table('wallet_cuentas')->whereIn('id', $cuentaIds)->delete();
+                }
+            }
+
+            if (Schema::hasTable('sessions')) {
+                DB::table('sessions')->whereIn('user_id', $deleteUserIds)->delete();
+            }
+
+            DB::table('users')->whereIn('id', $deleteUserIds)->delete();
+        });
+
+        return count($deleteUserIds);
+    }
+
+    /**
      * Limpia viajes, calificaciones, billeteras y demás datos transaccionales.
      * Conserva usuarios demo y estructura de conductores/empresas.
      *
