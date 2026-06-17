@@ -54,13 +54,11 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
     php artisan taxpiya:purge-non-demo --force --reseed --clean-transactions --no-firebase --once 2>/dev/null || true
     fix_sqlite_perms
   fi
-  if [ "${TAXPIYA_RESET_DEMO_DATA:-false}" = "true" ]; then
-    echo "[taxpiya] Ejecutando reset one-shot de datos demo..."
-    export TAXPIYA_SEED_NO_FIREBASE=1
-    php artisan taxpiya:purge-non-demo --reset-once || true
-    fix_sqlite_perms
-    php artisan taxpiya:sqlite-backup --no-interaction || true
-  fi
+  echo "[taxpiya] Comprobando reset one-shot de datos demo..."
+  export TAXPIYA_SEED_NO_FIREBASE=1
+  php artisan taxpiya:purge-non-demo --reset-once || true
+  fix_sqlite_perms
+  php artisan taxpiya:sqlite-backup --no-interaction || true
   if [ "${TAXPIYA_SEED_DEMO:-false}" = "true" ]; then
     php artisan taxpiya:seed-demo --force 2>/dev/null || true
   fi
