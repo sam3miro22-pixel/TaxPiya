@@ -11,7 +11,11 @@ $nombreAdmin = $user?->name ?? 'Admin';
 $hoy = Carbon::now();
 $hoyTextoLargo = $hoy->locale('es')->translatedFormat('d M Y');
 
-$totalUsuarios = DB::table('users')->count();
+$totalUsuarios = DB::table('users')
+    ->where('estado', 1)
+    ->where('email', 'not like', '_%@internal.local')
+    ->where('email', 'not like', '%@test.local')
+    ->count();
 
 $totalConductores = DB::table('conductores')->count();
 
@@ -756,6 +760,8 @@ $mapCenter = [
 @endsection
 
 @section('pagejs')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const TXP_ESTADOS_DATA = {
@@ -849,29 +855,31 @@ $mapCenter = [
                 }
             });
         }
+
+        if (typeof L !== 'undefined') {
+            initAdminDriversMap();
+        }
     });
 
     let txpMap = null;
     let txpMarkers = {};
 
-    function initMap() {
-        const center = {
-            lat: parseFloat(TXP_MAP_CENTER.lat) || 1.853711,
-            lng: parseFloat(TXP_MAP_CENTER.lng) || -76.050399
-        };
+    function initAdminDriversMap() {
+        const el = document.getElementById('txp-drivers-map');
+        if (!el || typeof L === 'undefined') {
+            return;
+        }
 
-        txpMap = new google.maps.Map(document.getElementById('txp-drivers-map'), {
-            center: center,
-            zoom: 14,
-            styles: [
-                { elementType: 'geometry', stylers: [{ color: '#0b1120' }] },
-                { elementType: 'labels.text.fill', stylers: [{ color: '#e5e7eb' }] },
-                { elementType: 'labels.text.stroke', stylers: [{ color: '#020617' }] },
-                { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
-                { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#020617' }] },
-                { featureType: 'poi', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] }
-            ]
-        });
+        const center = [
+            parseFloat(TXP_MAP_CENTER.lat) || 6.2442,
+            parseFloat(TXP_MAP_CENTER.lng) || -75.5812
+        ];
+
+        txpMap = L.map(el, { zoomControl: true }).setView(center, 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            maxZoom: 19
+        }).addTo(txpMap);
 
         if (Array.isArray(TXP_DRIVERS_INIT) && TXP_DRIVERS_INIT.length) {
             updateDriversOnMap(TXP_DRIVERS_INIT);
@@ -885,7 +893,10 @@ $mapCenter = [
         if (!TXP_DRIVERS_API) {
             return;
         }
-        fetch(TXP_DRIVERS_API, { headers: { Accept: 'application/json' } })
+        fetch(TXP_DRIVERS_API, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
             .then(function (r) {
                 return r.ok ? r.json() : [];
             })
@@ -903,6 +914,11 @@ $mapCenter = [
         }
 
         const seenIds = new Set();
+        const carIcon = L.icon({
+            iconUrl: "{{ asset('images/carrotaxpiya.png') }}",
+            iconSize: [26, 60],
+            iconAnchor: [13, 60]
+        });
 
         drivers.forEach(function (d) {
             const id = d.conductor_id;
@@ -910,50 +926,36 @@ $mapCenter = [
                 return;
             }
 
-            const pos = { lat: parseFloat(d.lat), lng: parseFloat(d.lng) };
+            const lat = parseFloat(d.lat);
+            const lng = parseFloat(d.lng);
             seenIds.add(String(id));
-
-            if (!txpMarkers[id]) {
-                const marker = new google.maps.Marker({
-                    position: pos,
-                    map: txpMap,
-                    icon: { url: "{{ asset('images/carrotaxpiya.png') }}", scaledSize: new google.maps.Size(26, 60), anchor: new google.maps.Point(13, 60) }
-
-                });
-
-                const info = new google.maps.InfoWindow();
-                marker.addListener('click', function () {
-                    info.open(txpMap, marker);
-                });
-
-                txpMarkers[id] = { marker: marker, info: info };
-            } else {
-                txpMarkers[id].marker.setPosition(pos);
-            }
 
             const lastAt = d.last_at ? d.last_at : '';
             const vehiculo = [d.placa, d.marca, d.linea].filter(Boolean).join(' · ');
-
-            const content =
-                '<div style="min-width:200px;color:#0f172a;">' +
+            const popupHtml =
+                '<div style="min-width:200px;">' +
                     '<div style="font-weight:600;margin-bottom:2px;">' + (d.nombre || 'Conductor') + '</div>' +
                     '<div style="font-size:12px;margin-bottom:2px;">' + (vehiculo || 'Sin vehículo asociado') + '</div>' +
                     '<div style="font-size:11px;color:#4b5563;">Última actualización: ' + lastAt + '</div>' +
                     '<div style="font-size:11px;color:#4b5563;">Velocidad: ' + (d.velocidad_kmh || 0) + ' km/h</div>' +
                 '</div>';
 
-            txpMarkers[id].info.setContent(content);
+            if (!txpMarkers[id]) {
+                txpMarkers[id] = L.marker([lat, lng], { icon: carIcon })
+                    .addTo(txpMap)
+                    .bindPopup(popupHtml);
+            } else {
+                txpMarkers[id].setLatLng([lat, lng]);
+                txpMarkers[id].setPopupContent(popupHtml);
+            }
         });
 
         Object.keys(txpMarkers).forEach(function (id) {
             if (!seenIds.has(String(id))) {
-                txpMarkers[id].marker.setMap(null);
+                txpMap.removeLayer(txpMarkers[id]);
                 delete txpMarkers[id];
             }
         });
     }
 </script>
-
-
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config('taxpiya.google_maps_key') }}&callback=initMap" async defer></script>
 @endsection

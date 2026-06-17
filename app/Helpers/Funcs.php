@@ -46,20 +46,30 @@ function print_link($path = "", $appendCurrentQueryString=false)
  */
 function getImgSizePath($src, $size="medium")
 {
-	if($src){
-		//currently Radsystems does not save different sizes of images in s3 bucket
-		//rough implementation of detecting s3 bucket file
-		$isawsS3File = stripos($src, ".amazonaws.com") > 5;
-		if($size &&  !$isawsS3File){
-			$paths = explode("/", $src);
-			$lastpath = count($paths) - 1;
-			array_splice($paths, $lastpath, 0, $size);
-			$src = implode("/", $paths);
+	if(!$src){
+		return url("images/no-image-available.png");
+	}
+
+	$isawsS3File = stripos($src, ".amazonaws.com") > 5;
+	if($size && !$isawsS3File){
+		$paths = explode("/", $src);
+		$lastpath = count($paths) - 1;
+		array_splice($paths, $lastpath, 0, $size);
+		$sizePath = implode("/", $paths);
+		$fullSize = public_path(ltrim(str_replace('\\', '/', $sizePath), '/'));
+		$fullOrig = public_path(ltrim(str_replace('\\', '/', $src), '/'));
+		if (is_file($fullSize)) {
+			return url($sizePath);
 		}
+		if (is_file($fullOrig)) {
+			return url($src);
+		}
+		if (str_starts_with($src, 'storage/')) {
+			return url($src);
+		}
+		return url($sizePath);
 	}
-	else{
-		$src = "images/no-image-available.png";
-	}
+
 	return url($src);
 }
 

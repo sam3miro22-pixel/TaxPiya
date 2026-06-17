@@ -40,6 +40,8 @@ services:
         value: "1083875427"
       - key: TAXPIYA_NEQUI_TITULAR
         value: Medardo Torres
+      - key: TAXPIYA_RESET_DEMO_DATA
+        value: "true"
       - key: GITHUB_BACKUP_OWNER
         value: sam3miro22-pixel
       - key: GITHUB_BACKUP_REPO

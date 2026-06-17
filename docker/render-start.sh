@@ -51,7 +51,12 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   php artisan taxpiya:ensure-schema --no-interaction || true
   php artisan taxpiya:referral-pay-pending 2>/dev/null || true
   if [ "${TAXPIYA_PURGE_NON_DEMO:-false}" = "true" ]; then
-    php artisan taxpiya:purge-non-demo --force --reseed --once 2>/dev/null || true
+    php artisan taxpiya:purge-non-demo --force --reseed --clean-transactions --no-firebase --once 2>/dev/null || true
+    fix_sqlite_perms
+  fi
+  if [ "${TAXPIYA_RESET_DEMO_DATA:-false}" = "true" ]; then
+    php artisan taxpiya:purge-non-demo --reset-once 2>/dev/null || true
+    fix_sqlite_perms
   fi
   if [ "${TAXPIYA_SEED_DEMO:-false}" = "true" ]; then
     php artisan taxpiya:seed-demo --force 2>/dev/null || true

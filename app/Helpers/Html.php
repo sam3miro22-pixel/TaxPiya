@@ -413,7 +413,7 @@ class Html
 			foreach ($arrsrc as $src) {
 				$sizeSrc = getImgSizePath($src, $imagesize);
 			?>
-				<img class="<?php echo $imgclass ?>" width="<?php echo $width ?>" height="<?php echo $height ?>" src="<?php echo url($sizeSrc); ?>" />
+				<img class="<?php echo $imgclass ?>" width="<?php echo $width ?>" height="<?php echo $height ?>" src="<?php echo url($sizeSrc); ?>" onerror="this.onerror=null;this.src='<?php echo url('images/no-image-available.png'); ?>';" />
 		<?php
 			}
 		}

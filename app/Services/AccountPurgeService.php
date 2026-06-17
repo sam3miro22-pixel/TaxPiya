@@ -178,6 +178,77 @@ class AccountPurgeService
         return $deleted;
     }
 
+    /**
+     * Limpia viajes, calificaciones, billeteras y demás datos transaccionales.
+     * Conserva usuarios demo y estructura de conductores/empresas.
+     *
+     * @return array<string, int>
+     */
+    public function purgeAllTransactionalData(): array
+    {
+        $counts = [];
+
+        DB::transaction(function () use (&$counts) {
+            foreach (['calificaciones', 'asignaciones', 'llamadas'] as $table) {
+                if (Schema::hasTable($table)) {
+                    $counts[$table] = DB::table($table)->delete();
+                }
+            }
+
+            if (Schema::hasTable('viajes')) {
+                $counts['viajes'] = DB::table('viajes')->delete();
+            }
+
+            if (Schema::hasTable('sos_incidentes')) {
+                $counts['sos_incidentes'] = DB::table('sos_incidentes')->delete();
+            }
+
+            if (Schema::hasTable('referidos')) {
+                $counts['referidos'] = DB::table('referidos')->delete();
+            }
+
+            if (Schema::hasTable('wallet_solicitudes')) {
+                $counts['wallet_solicitudes'] = DB::table('wallet_solicitudes')->delete();
+            }
+
+            if (Schema::hasTable('wallet_movimientos')) {
+                $counts['wallet_movimientos'] = DB::table('wallet_movimientos')->delete();
+            }
+
+            if (Schema::hasTable('wallet_cuentas')) {
+                DB::table('wallet_cuentas')->update([
+                    'saldo_actual'       => 0,
+                    'saldo_reservado'    => 0,
+                    'last_movimiento_id' => null,
+                    'last_movimiento_at' => null,
+                    'updated_at'         => now()->toDateTimeString(),
+                ]);
+                $counts['wallet_cuentas_reset'] = DB::table('wallet_cuentas')->count();
+            }
+
+            if (Schema::hasTable('wallet_saldos')) {
+                DB::table('wallet_saldos')->update([
+                    'saldo_actual'       => 0,
+                    'saldo_reservado'    => 0,
+                    'last_movimiento_id' => null,
+                    'last_movimiento_at' => null,
+                    'updated_at'         => now()->toDateTimeString(),
+                ]);
+                $counts['wallet_saldos_reset'] = DB::table('wallet_saldos')->count();
+            }
+
+            if (Schema::hasTable('conductor_posicion_actual')) {
+                $counts['conductor_posicion_actual'] = DB::table('conductor_posicion_actual')->delete();
+            }
+
+            if (Schema::hasTable('conductores')) {
+                DB::table('conductores')->update(['disponible' => 0]);
+            }
+        });
+
+        return $counts;
+    }
+
     public function purgeFirebaseAuth(): int
     {
         if (!config('taxpiya.firebase.use_firebase_auth')) {

@@ -507,7 +507,7 @@ Route::middleware(['auth', 'rbac'])->group(function () {
             ->get();
 
         return response()->json($drivers);
-    })->name('api.admin.active-drivers');
+    })->withoutMiddleware(['rbac'])->name('api.admin.active-drivers');
 		
 	Route::get('home', 'HomeController@index')->name('home');
 
