@@ -5,7 +5,9 @@
 @section('content')
 <div class="txp-auth-card" style="max-width:520px;margin:0 auto;">
     <div class="txp-auth-brand">
-        @include('components.taxpiya-logo')
+        <div class="txp-auth-logo-wrap mb-3">
+            <x-taxpiya-logo />
+        </div>
         <h1>Registro conductor</h1>
         <p>Completa el formulario. Tu cuenta quedará en revisión hasta aprobación del administrador.</p>
     </div>

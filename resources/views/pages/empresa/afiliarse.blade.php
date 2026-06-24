@@ -8,6 +8,9 @@
 <div class="txp-auth-scene txp-auth-scene--empresa">
     <div class="txp-auth-card" style="max-width:520px;width:100%;">
         <div class="txp-auth-header">
+            <div class="txp-auth-logo-wrap">
+                <x-taxpiya-logo />
+            </div>
             <h1 class="txp-auth-title">Afiliar <span>mini empresa</span></h1>
             <p class="txp-auth-subtitle">Registra tu cooperativa o flota de taxis y administra conductores desde un solo panel.</p>
         </div>

@@ -1,24 +1,19 @@
-@extends('layouts.info')
+@extends('layouts.auth')
+@section('title', 'Enlace enviado')
+
 @section('content')
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card card-body my-5">
-                    <h4><i class="fa fa-envelope"></i> Administrador de restablecimiento de contraseña</h4>
-                    <hr />
-                    <div class="">
-                        <h5 class="text-info">
-                            Se ha enviado un mensaje a su correo electrónico. Siga amablemente el enlace para restablecer su contraseña
-                        </h5>
-                        <hr />
-                        <div class="text-center">
-                            <a href="<?php print_link('/'); ?>" class="btn btn-info">Haga clic aquí para ingresar</a>
-                        </div>
-
-                    </div>
-                </div>
-
-            </div>
+<div class="txp-auth-scene">
+    <div class="txp-auth-card">
+        <div class="txp-auth-header">
+            <x-taxpiya-logo />
+            <h1 class="txp-auth-title">Revisa tu <span>correo</span></h1>
+            <p class="txp-auth-subtitle">Si el email existe en TaxPiya, recibirás instrucciones para restablecer tu contraseña.</p>
+        </div>
+        <div class="txp-auth-actions">
+            <a href="{{ route('login') }}" class="txp-auth-btn txp-auth-btn--primary">
+                <i class="fa-solid fa-right-to-bracket"></i> Ir al login
+            </a>
         </div>
     </div>
+</div>
 @endsection

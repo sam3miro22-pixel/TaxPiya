@@ -142,6 +142,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/pasajero/perfil', [HomeController::class, 'pasajeroPerfil'])->name('pasajero.perfil');
     Route::post('/pasajero/perfil', [HomeController::class, 'pasajeroPerfilUpdate'])->name('pasajero.perfil.update');
+    Route::post('/profile/password', [\App\Http\Controllers\ProfilePasswordController::class, 'update'])->name('profile.password.update');
     Route::get('/pasajero/viajes', [HomeController::class, 'pasajeroViajes'])->name('pasajero.viajes');
     Route::get('/pasajero/wallet', [\App\Http\Controllers\WalletPortalController::class, 'pasajeroWallet'])->name('pasajero.wallet');
     Route::post('/pasajero/wallet/depositar', [\App\Http\Controllers\WalletPortalController::class, 'pasajeroDepositar'])->name('pasajero.wallet.depositar');

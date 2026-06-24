@@ -77,6 +77,13 @@
         <label for="rememberme">Recuérdame</label>
     </div>
 
+    @php
+        $forgotApp = $isConductor ? 'conductor' : ($isPasajero ? 'pasajero' : ($isEmpresa ? 'empresa' : 'admin'));
+    @endphp
+    <p class="txp-auth-forgot mb-0">
+        <a href="{{ route('password.forgotpassword') }}?app={{ $forgotApp }}">¿Olvidaste tu contraseña?</a>
+    </p>
+
     <div class="txp-auth-actions">
         <button class="txp-auth-btn txp-auth-btn--primary" type="submit">
             <i class="fa-solid fa-right-to-bracket"></i> Iniciar sesión

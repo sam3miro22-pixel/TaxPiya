@@ -137,7 +137,7 @@
             <div class="row justify-content-between align-items-center g-3">
 
                 <div class="col-auto">
-                    <a class="back-btn btn btn-secondary" href="{{ url()->previous() }}">
+                    <a class="back-btn btn btn-secondary" href="{{ url('home') }}">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 </div>

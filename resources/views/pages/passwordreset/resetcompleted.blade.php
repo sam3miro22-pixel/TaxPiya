@@ -1,22 +1,19 @@
-@extends('layouts.info')
+@extends('layouts.auth')
+@section('title', 'Contraseña actualizada')
+
 @section('content')
-<div class="container mt-4">
-	<div class="row justify-content-center">
-		<div class="col-sm-6">
-			<div class="card card-body">
-				<h4><i class="fa fa-check-circle"></i> Administrador de restablecimiento de contraseña</h4>
-				<hr />	
-				<h5 class="animated bounce text-success">
-					Tu contraseña ha sido restablecida
-				</h5>
-				<hr />
-				<div class="text-center">
-					<a href="<?php print_link("/"); ?>" class="btn btn-info">Haga clic aquí para ingresar</a>
-				</div>
-			</div>
-	
-			
-		</div>
-	</div>
+<div class="txp-auth-scene">
+    <div class="txp-auth-card">
+        <div class="txp-auth-header">
+            <x-taxpiya-logo />
+            <h1 class="txp-auth-title">¡Listo!</h1>
+            <p class="txp-auth-subtitle">Tu contraseña fue restablecida. Ya puedes iniciar sesión.</p>
+        </div>
+        <div class="txp-auth-actions">
+            <a href="{{ route('login') }}" class="txp-auth-btn txp-auth-btn--primary">
+                <i class="fa-solid fa-right-to-bracket"></i> Iniciar sesión
+            </a>
+        </div>
+    </div>
 </div>
 @endsection

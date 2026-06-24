@@ -8,6 +8,7 @@ $pendientes = $records->where('estado', 'pendiente')->count();
 @section('title', $pageTitle)
 @section('content')
 <div class="container-fluid py-3">
+    <x-admin-back />
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <h4 class="mb-1"><i class="fa fa-building me-2"></i>{{ $pageTitle }}</h4>

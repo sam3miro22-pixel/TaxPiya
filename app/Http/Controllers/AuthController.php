@@ -169,8 +169,10 @@ class AuthController extends Controller{
      * Display forgot password page
      * @return \Illuminate\View\View
      */
-	public function showForgotPassword() {
-		return view("pages.passwordreset.forgotpassword");
+	public function showForgotPassword(Request $request) {
+		return view("pages.passwordreset.forgotpassword", [
+			'app' => $request->query('app'),
+		]);
 	}
 
 	/**

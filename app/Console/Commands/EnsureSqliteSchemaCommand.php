@@ -168,6 +168,14 @@ SQL);
 
         $this->ensureColumn($pdo, 'viajes', 'codigo_llegada', 'TEXT NULL');
 
+        $this->ensureTable($pdo, 'password_reset_tokens', <<<'SQL'
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    email TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    created_at TEXT NULL
+)
+SQL);
+
         $this->ensureTable($pdo, 'vehiculo_conductores', <<<'SQL'
 CREATE TABLE IF NOT EXISTS vehiculo_conductores (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

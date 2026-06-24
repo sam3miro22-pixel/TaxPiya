@@ -3,6 +3,7 @@
 @section('title', $pageTitle)
 @section('content')
 <div class="container-fluid py-3">
+    <x-admin-back />
     <h4 class="mb-3"><i class="fa fa-gift me-2"></i>{{ $pageTitle }}</h4>
 
     <div class="row g-3 mb-3">

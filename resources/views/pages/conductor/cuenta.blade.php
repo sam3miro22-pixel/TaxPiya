@@ -29,6 +29,8 @@
         @endif
     </div>
 
+    @include('components.change-password-form')
+
     <div class="txp-mobile-actions">
         <a href="{{ route('logout') }}" class="txp-mobile-btn txp-mobile-btn--ghost"><i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión</a>
     </div>

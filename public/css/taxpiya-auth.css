@@ -190,6 +190,30 @@ html, body.txp-auth-body {
   animation: txpLogoFloat 4s ease-in-out infinite;
 }
 
+.txp-auth-logo-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 24px rgba(255, 140, 0, 0.25));
+}
+
+.txp-auth-forgot {
+  text-align: center;
+  margin: 4px 0 16px;
+  font-size: 0.88rem;
+}
+
+.txp-auth-forgot a {
+  color: #ffd166;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.txp-auth-forgot a:hover {
+  text-decoration: underline;
+}
+
 .txp-auth-scene--conductor .txp-brand-mark {
   filter: drop-shadow(0 12px 28px rgba(20, 184, 166, 0.4));
 }

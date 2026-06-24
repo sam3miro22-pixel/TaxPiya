@@ -32,11 +32,9 @@
 
   <div id="geo-accuracy" class="geo-badge" style="display:none;"></div>
 
-  <div class="bottom-cta">
-    <button id="txd-recenter" class="txd-recenter" aria-label="Centrar en mi ubicación">
-      <i class="fa-solid fa-crosshairs"></i>
-    </button>
-  </div>
+  <button id="txd-recenter" class="txd-recenter-fab" type="button" aria-label="Centrar en mi ubicación">
+    <i class="fa-solid fa-crosshairs"></i>
+  </button>
 
 
   <div id="txd-banner" class="txd-banner" aria-hidden="true">
@@ -305,7 +303,11 @@ body#main #page-content {
 
 
 .geo-badge{
-  position: absolute; left:16px; bottom:20px; z-index:3;
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  top: calc(env(safe-area-inset-top, 0px) + 68px);
+  bottom: auto;
+  z-index: var(--txp-ui-z);
   background: rgba(0,0,0,.55); color:#fff; backdrop-filter: blur(6px);
   border:1px solid rgba(255,255,255,.15);
   border-radius:10px; padding:6px 10px; font-size:12px;
@@ -389,7 +391,7 @@ body#main #page-content {
 .txp-sos-fab {
   position: fixed;
   left: calc(env(safe-area-inset-left, 0px) + 16px);
-  bottom: calc(120px + env(safe-area-inset-bottom));
+  bottom: calc(110px + env(safe-area-inset-bottom));
   z-index: 850;
   width: 52px; height: 52px;
   border-radius: 50%;
@@ -546,14 +548,18 @@ body#main #page-content {
 body.txd-chat-open #drv-actions { display: none !important; }
 body.txd-chat-open #txd-trip-cta { display: none !important; }
 
-.txd-recenter{
-  position:absolute; left:16px; bottom:88px; z-index:5;
-  width:44px; height:44px; border:0; border-radius:50%;
-  display:grid; place-items:center; cursor:pointer;
-  background:#fff; color:#111; box-shadow:0 8px 20px rgba(0,0,0,.25);
+.txd-recenter-fab{
+  position: fixed;
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  bottom: calc(110px + env(safe-area-inset-bottom));
+  z-index: 860;
+  width: 52px; height: 52px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: rgba(255,255,255,.95); color: #111;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
-.txd-recenter:hover{ filter:brightness(0.98); }
-@media (max-width:480px){ .txd-recenter{ left:12px; bottom:100px; } }
+.txd-recenter-fab:hover{ filter: brightness(1.03); }
+.txd-recenter-fab:active{ transform: scale(0.96); }
 
 #txd-chat[data-badge="1"]::after{
   content:"";

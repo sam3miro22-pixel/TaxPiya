@@ -1,45 +1,58 @@
-@extends('layouts.info')
-@section('content')
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-7">
-                <div class="card card-body mt-5">
-                    <div>
-                        <h3>Administrador de restablecimiento de contraseña</h3>
-                        <div class="text-muted">
-                            Proporcione la dirección de correo electrónico válida que utilizó para registrarse
-                        </div>
-                    </div>
-                    <hr />
-                    @if (session('status'))
-                        <div class="alert alert-success">
-                            {{ session('status') }}
-                        </div>
-                    @endif
-                    <form class="form-horizontal" role="form" method="POST" action="{{ route('password.email') }}">
-                        @csrf
-                        <div class="row">
-                            <div class="col-10">
-                                <input required type="text" class="form-control" id="email" name="email" placeholder="Email" />
-                            </div>
-                            <div class="col-2">
-                                <button class="btn btn-success" type="submit">
-                                    Enviar
-                                    <i class="fa fa-envelope"></i>
-                                </button>
-                            </div>
-                        </div>
-                        @if ($errors->has('email'))
-                            <div class="alert alert-danger animated bounce">{{ $errors->first('email') }}</div>
-                        @endif
-                    </form>
+@php
+    $app = $app ?? request('app');
+    $loginRoutes = [
+        'pasajero'  => route('pasajero.login'),
+        'conductor' => route('conductor.login'),
+        'empresa'   => route('empresa.login'),
+        'admin'     => route('login'),
+    ];
+    $loginBack = $loginRoutes[$app] ?? route('login');
+@endphp
+@extends('layouts.auth')
+@section('title', 'Recuperar contraseña')
 
-                    <div class="text-info p-3">
-                        Se enviará un enlace a su correo electrónico que contiene la información que necesita para su contraseña
-                    </div>
-                </div>
+@section('content')
+<div class="txp-auth-scene">
+    <div class="txp-auth-orb txp-auth-orb--1"></div>
+    <div class="txp-auth-orb txp-auth-orb--2"></div>
+    <div class="txp-auth-card">
+        <div class="txp-auth-header">
+            <div class="txp-auth-logo-wrap">
+                <x-taxpiya-logo />
             </div>
+            <h1 class="txp-auth-title">¿Olvidaste tu <span>contraseña</span>?</h1>
+            <p class="txp-auth-subtitle">Te enviaremos un enlace a tu correo para restablecerla.</p>
         </div>
 
+        @if (session('status'))
+            <div class="txp-auth-alert txp-auth-alert--success">{{ session('status') }}</div>
+        @endif
+        @if ($errors->has('email'))
+            <div class="txp-auth-alert txp-auth-alert--error">{{ $errors->first('email') }}</div>
+        @endif
+
+        <form class="txp-auth-form" method="POST" action="{{ route('password.email') }}">
+            @csrf
+            @if($app)
+                <input type="hidden" name="app" value="{{ $app }}">
+            @endif
+            <div class="txp-auth-field">
+                <label class="txp-auth-label" for="email">Correo electrónico</label>
+                <div class="txp-auth-input-wrap">
+                    <i class="fa-solid fa-envelope txp-auth-input-icon"></i>
+                    <input id="email" name="email" type="email" class="txp-auth-input"
+                           placeholder="correo@ejemplo.com" value="{{ old('email') }}" required autocomplete="email">
+                </div>
+            </div>
+            <div class="txp-auth-actions">
+                <button class="txp-auth-btn txp-auth-btn--primary" type="submit">
+                    <i class="fa-solid fa-paper-plane"></i> Enviar enlace
+                </button>
+                <a href="{{ $loginBack }}" class="txp-auth-btn txp-auth-btn--ghost">
+                    <i class="fa-solid fa-arrow-left"></i> Volver al login
+                </a>
+            </div>
+        </form>
     </div>
+</div>
 @endsection

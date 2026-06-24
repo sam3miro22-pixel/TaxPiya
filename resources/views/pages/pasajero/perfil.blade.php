@@ -48,6 +48,8 @@
             <div class="txp-info-row"><span>Estado</span><strong>{{ (int)($user->estado ?? 1) === 1 ? 'Activo' : 'Inactivo' }}</strong></div>
         </div>
 
+        @include('components.change-password-form')
+
         <div class="txp-mobile-actions">
             <button type="submit" class="txp-mobile-btn"><i class="fa-solid fa-floppy-disk"></i> Guardar cambios</button>
             <a href="{{ route('pasajero.wallet') }}" class="txp-mobile-btn txp-mobile-btn--ghost"><i class="fa-solid fa-wallet"></i> Mi billetera</a>

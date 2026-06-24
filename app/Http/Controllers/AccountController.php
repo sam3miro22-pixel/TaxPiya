@@ -75,11 +75,11 @@ class AccountController extends Controller{
 		$oldPasswordText = $request->oldpassword;
 		$oldPasswordHash = $user->password;
 		if(!Hash::check($oldPasswordText, $oldPasswordHash)){
-			return back()->withErrors(["Current password is incorrect"]);
+			return back()->withErrors(["oldpassword" => "La contraseña actual no es correcta"]);
 		}
 		$modeldata = ['password' => Hash::make($request->newpassword)];
 		$user->update($modeldata);
-		return $this->redirect("/account", "Password change completed");
+		return $this->redirect("/account", "Contraseña actualizada correctamente");
 	}
 
 }
