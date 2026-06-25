@@ -171,7 +171,7 @@ Test-Step 'Empresa login' (($eLogin.Code -eq 302) -and ($eLogin.Body -notmatch '
 if ($eLogin.Code -eq 302) {
     $eHome = Invoke-WebRequest -Uri "$base/empresa" -WebSession $empSess -UseBasicParsing -TimeoutSec 120 -MaximumRedirection 5
     Test-Step 'Empresa /dashboard' ($eHome.StatusCode -eq 200) "HTTP $($eHome.StatusCode)"
-    foreach ($p in @('empresa/flota', 'empresa/wallet', 'empresa/cuenta')) {
+    foreach ($p in @('empresa/flota', 'empresa/wallet', 'empresa/cuenta', 'empresa/contabilidad')) {
         try {
             $r = Invoke-WebRequest -Uri "$base/$p" -WebSession $empSess -UseBasicParsing -TimeoutSec 120 -MaximumRedirection 5
             Test-Step "Empresa /$p" ($r.StatusCode -eq 200) "HTTP $($r.StatusCode)"
@@ -192,6 +192,33 @@ try {
 } catch {
     Test-Step 'Firebase sync endpoint' $false $_.Exception.Message
 }
+
+# --- UI / Auth policy ---
+try {
+    $pasPage = Invoke-WebRequest -Uri "$base/pasajero/login" -UseBasicParsing -TimeoutSec 120
+    Test-Step 'Pasajero login page' ($pasPage.StatusCode -eq 200) "HTTP $($pasPage.StatusCode)"
+    Test-Step 'Pasajero Firebase UI (Google)' ($pasPage.Content -match 'Continuar con Google')
+    Test-Step 'Pasajero sin form Laravel' ($pasPage.Content -notmatch 'name="loginForm"')
+    Test-Step 'Pasajero sin olvidé contraseña' ($pasPage.Content -notmatch 'Olvidaste|olvidaste|forgotpassword')
+} catch { Test-Step 'Pasajero login page' $false }
+
+try {
+    $drvPage = Invoke-WebRequest -Uri "$base/conductor/login" -UseBasicParsing -TimeoutSec 120
+    Test-Step 'Conductor login page' ($drvPage.StatusCode -eq 200) "HTTP $($drvPage.StatusCode)"
+    Test-Step 'Conductor Firebase UI' ($drvPage.Content -match 'Continuar con Google')
+    Test-Step 'Conductor sin form Laravel' ($drvPage.Content -notmatch 'name="loginForm"')
+} catch { Test-Step 'Conductor login page' $false }
+
+try {
+    $forgot = Invoke-Txp -Method GET -Url "$base/auth/password/forgotpassword"
+    $forgotOk = ($forgot.Code -eq 302 -or $forgot.Code -eq 200) -and ($forgot.Body -notmatch 'Recuperar contraseña|Olvidaste')
+    Test-Step 'Recuperar contraseña deshabilitado' $forgotOk "HTTP $($forgot.Code)"
+} catch { Test-Step 'Recuperar contraseña deshabilitado' $false }
+
+try {
+    $guia = Invoke-WebRequest -Uri "$base/info/guia-roles" -UseBasicParsing -TimeoutSec 120
+    Test-Step 'Guía de roles' ($guia.StatusCode -eq 200 -and $guia.Content -match 'Guía de') "HTTP $($guia.StatusCode)"
+} catch { Test-Step 'Guía de roles' $false }
 
 Write-Host ""
 if ($failed -eq 0) { Write-Host "TODOS OK ($failed fallos)" -ForegroundColor Green; exit 0 }

@@ -61,12 +61,8 @@ class UserAccountService
 
         $other = Users::query()->where('firebase_uid', $uid)->where('id', '!=', $user->id)->first();
         if ($other) {
-            try {
-                $this->mergeUsers((int) $user->id, (int) $other->id);
-            } catch (\Throwable $e) {
-                report($e);
-                $this->reassignFirebaseUid($user, $uid);
-            }
+            // En login no fusionamos cuentas (puede fallar por esquema); solo reasignamos el UID.
+            $this->reassignFirebaseUid($user, $uid);
 
             return;
         }
