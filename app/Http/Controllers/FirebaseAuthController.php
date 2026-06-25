@@ -140,6 +140,23 @@ class FirebaseAuthController extends Controller
      */
     private function provisionFirebaseUser(Request $request, array $claims, string $uid, ?string $email, string $app)
     {
+        try {
+            return $this->doProvisionFirebaseUser($request, $claims, $uid, $email, $app);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Error al preparar la cuenta. Intenta de nuevo.',
+            ], 500);
+        }
+    }
+
+    /**
+     * @return JsonResponse|array{user:Users,is_new:bool}
+     */
+    private function doProvisionFirebaseUser(Request $request, array $claims, string $uid, ?string $email, string $app)
+    {
         $accounts = app(UserAccountService::class);
         $telefono = $accounts->normalizeTelefono($request->input('telefono'));
         $user     = $accounts->findByFirebaseIdentity($uid, $email, $telefono);
@@ -191,15 +208,35 @@ class FirebaseAuthController extends Controller
             }
 
             if ($telefono && (str_starts_with((string) $user->telefono, 'fb_') || empty($user->telefono))) {
-                $user->telefono = $telefono;
+                $conflict = Users::query()
+                    ->where('telefono', $telefono)
+                    ->where('id', '!=', $user->id)
+                    ->exists();
+                if (!$conflict) {
+                    $user->telefono = $telefono;
+                }
             }
 
             if ($email && (str_contains((string) $user->email, '@firebase.taxpiya.local') || str_contains((string) $user->email, '@conductor.taxpiya.local'))) {
-                $user->email = $email;
+                $conflict = Users::query()
+                    ->whereRaw('LOWER(email) = ?', [strtolower(trim($email))])
+                    ->where('id', '!=', $user->id)
+                    ->exists();
+                if (!$conflict) {
+                    $user->email = $email;
+                }
             }
 
-            $user->save();
-            $user->refresh();
+            try {
+                $user->save();
+                $user->refresh();
+            } catch (\Throwable $e) {
+                report($e);
+                $user = Users::query()->find($user->id);
+                if (!$user) {
+                    return response()->json(['ok' => false, 'message' => 'Error al actualizar la cuenta.'], 500);
+                }
+            }
         }
 
         $portal = app(PortalAuthService::class);

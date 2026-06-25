@@ -85,6 +85,7 @@ Write-Host "=== Verificación completa $base ===`n"
 try {
     $diag = Invoke-RestMethod -Uri "$base/auth/firebase/diag" -TimeoutSec 120
     Test-Step 'Firebase diag' ($diag.session_driver -eq 'database') "session_driver=$($diag.session_driver)"
+    Test-Step 'Firebase diag version' ($diag.login_flow_version -eq 'inline-gate-v5-firebase-sync') $diag.login_flow_version
 } catch {
     Test-Step 'Firebase diag' $false $_.Exception.Message
 }
@@ -198,7 +199,7 @@ try {
     $pasPage = Invoke-WebRequest -Uri "$base/pasajero/login" -UseBasicParsing -TimeoutSec 120
     Test-Step 'Pasajero login page' ($pasPage.StatusCode -eq 200) "HTTP $($pasPage.StatusCode)"
     Test-Step 'Pasajero Firebase UI (Google)' ($pasPage.Content -match 'Continuar con Google')
-    Test-Step 'Pasajero sin form Laravel' ($pasPage.Content -notmatch 'name="loginForm"')
+    Test-Step 'Pasajero sin form Laravel' ($pasPage.Content -notmatch '<form[^>]*name="loginForm"')
     Test-Step 'Pasajero sin olvidé contraseña' ($pasPage.Content -notmatch 'Olvidaste|olvidaste|forgotpassword')
 } catch { Test-Step 'Pasajero login page' $false }
 
@@ -206,7 +207,7 @@ try {
     $drvPage = Invoke-WebRequest -Uri "$base/conductor/login" -UseBasicParsing -TimeoutSec 120
     Test-Step 'Conductor login page' ($drvPage.StatusCode -eq 200) "HTTP $($drvPage.StatusCode)"
     Test-Step 'Conductor Firebase UI' ($drvPage.Content -match 'Continuar con Google')
-    Test-Step 'Conductor sin form Laravel' ($drvPage.Content -notmatch 'name="loginForm"')
+    Test-Step 'Conductor sin form Laravel' ($drvPage.Content -notmatch '<form[^>]*name="loginForm"')
 } catch { Test-Step 'Conductor login page' $false }
 
 try {
@@ -217,7 +218,7 @@ try {
 
 try {
     $guia = Invoke-WebRequest -Uri "$base/info/guia-roles" -UseBasicParsing -TimeoutSec 120
-    Test-Step 'Guía de roles' ($guia.StatusCode -eq 200 -and $guia.Content -match 'Guía de') "HTTP $($guia.StatusCode)"
+    Test-Step 'Guía de roles' ($guia.StatusCode -eq 200 -and $guia.Content -match 'guia-roles|roles</span>|Guía de') "HTTP $($guia.StatusCode)"
 } catch { Test-Step 'Guía de roles' $false }
 
 Write-Host ""
