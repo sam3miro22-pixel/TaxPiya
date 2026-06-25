@@ -374,12 +374,13 @@ Route::middleware(['auth'])->group(function () {
 					if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
 						return $fail('Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.');
 					}
+					$conductorUpdate = ['disponible' => 0];
+					if (\Illuminate\Support\Facades\Schema::hasColumn('conductores', 'updated_at')) {
+						$conductorUpdate['updated_at'] = now()->format('Y-m-d H:i:s');
+					}
 					\Illuminate\Support\Facades\DB::table('conductores')
 						->where('id', (int) $conductor->id)
-						->update([
-							'disponible' => 0,
-							'updated_at' => now()->format('Y-m-d H:i:s'),
-						]);
+						->update($conductorUpdate);
 				} elseif ($app === 'empresa') {
 					if (!\Illuminate\Support\Facades\Schema::hasTable('empresas')) {
 						return $fail('El portal de empresas no está disponible en este momento.');
@@ -390,7 +391,7 @@ Route::middleware(['auth'])->group(function () {
 				}
 			}
 
-			if (!\Illuminate\Support\Facades\Auth::attempt($credentials, false)) {
+			if (!\Illuminate\Support\Facades\Auth::loginUsingId((int) $user->id, false)) {
 				return $fail('Nombre de usuario o contraseña no correctos');
 			}
 

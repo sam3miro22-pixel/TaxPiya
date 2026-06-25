@@ -93,12 +93,13 @@ class PortalAuthService
                 return 'Tu cuenta de conductor no está activa. Comunícate con el Equipo de Taxpiya.';
             }
 
+            $conductorUpdate = ['disponible' => 0];
+            if (Schema::hasColumn('conductores', 'updated_at')) {
+                $conductorUpdate['updated_at'] = now()->format('Y-m-d H:i:s');
+            }
             DB::table('conductores')
                 ->where('id', (int) $conductor->id)
-                ->update([
-                    'disponible' => 0,
-                    'updated_at' => now()->format('Y-m-d H:i:s'),
-                ]);
+                ->update($conductorUpdate);
         } elseif ($app === 'empresa') {
             if (!Schema::hasTable('empresas')) {
                 return 'El portal de empresas no está disponible en este momento.';

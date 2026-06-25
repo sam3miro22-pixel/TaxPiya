@@ -147,7 +147,7 @@ class UserAccountService
                 DB::table('sessions')->where('user_id', $discardId)->update(['user_id' => $keepId]);
             }
 
-            if (Schema::hasTable('push_tokens')) {
+            if (Schema::hasTable('push_tokens') && Schema::hasColumn('push_tokens', 'user_id')) {
                 DB::table('push_tokens')->where('user_id', $discardId)->update(['user_id' => $keepId]);
             }
 

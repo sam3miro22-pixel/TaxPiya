@@ -46,6 +46,39 @@ function Do-Login($sess, $loginUrl, $username, $app = $null) {
     return Invoke-Txp -Method POST -Url "$base/auth/login" -Session $sess -Body $body -Headers @{ Referer = $loginUrl }
 }
 
+function Do-FirebaseLogin($sess, $loginUrl, $email, $app, $telefono = $null) {
+    $fbBody = @{ email = $email; password = $script:password; returnSecureToken = $true } | ConvertTo-Json
+    try {
+        $fb = Invoke-RestMethod -Method POST -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$script:apiKey" -Body $fbBody -ContentType 'application/json' -TimeoutSec 60
+    } catch {
+        return @{ Code = 0; Ok = $false; Detail = $_.Exception.Message }
+    }
+    if (-not $fb.idToken) {
+        return @{ Code = 0; Ok = $false; Detail = 'sin idToken' }
+    }
+    $sPage = Invoke-Txp -Method GET -Url $loginUrl -Session $sess
+    $st = Get-Csrf $sPage.Body
+    $payload = @{ id_token = $fb.idToken; app = $app }
+    if ($telefono) { $payload.telefono = $telefono }
+    $syncJson = $payload | ConvertTo-Json
+    try {
+        $sync = Invoke-WebRequest -Method POST -Uri "$script:base/auth/firebase/sync" -WebSession $sess `
+            -Body $syncJson -ContentType 'application/json' `
+            -Headers @{ 'X-CSRF-TOKEN' = $st; Accept = 'application/json'; Referer = $loginUrl; 'X-Requested-With' = 'XMLHttpRequest' } `
+            -UseBasicParsing -TimeoutSec 120
+        $data = $sync.Content | ConvertFrom-Json
+        return @{ Code = [int]$sync.StatusCode; Ok = ($data.ok -eq $true); Detail = $data.message; Body = $sync.Content }
+    } catch {
+        $resp = $_.Exception.Response
+        if ($resp) {
+            $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+            $body = $reader.ReadToEnd()
+            return @{ Code = [int]$resp.StatusCode; Ok = $false; Detail = $body; Body = $body }
+        }
+        return @{ Code = 0; Ok = $false; Detail = $_.Exception.Message }
+    }
+}
+
 Write-Host "=== Verificación completa $base ===`n"
 
 # Firebase diag
@@ -101,11 +134,11 @@ Test-Step 'Admin login' $aOk "HTTP $($loginA.Code)"
     }
 }
 
-# --- Pasajero ---
+# --- Pasajero (Firebase) ---
 $pasSess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$pLogin = Do-Login $pasSess "$base/pasajero/login" '3009001001' 'pasajero'
-Test-Step 'Pasajero login' (($pLogin.Code -eq 302) -and ($pLogin.Body -notmatch 'no correctos|Page Expired')) "HTTP $($pLogin.Code)"
-if ($pLogin.Code -eq 302) {
+$pLogin = Do-FirebaseLogin $pasSess "$base/pasajero/login" 'pasajero.demo1@taxpiya.com' 'pasajero' '3009001001'
+Test-Step 'Pasajero Firebase login' $pLogin.Ok "HTTP $($pLogin.Code) $($pLogin.Detail)"
+if ($pLogin.Ok) {
     $pHome = Invoke-WebRequest -Uri "$base/home" -WebSession $pasSess -UseBasicParsing -TimeoutSec 120 -MaximumRedirection 5
     Test-Step 'Pasajero /home' ($pHome.StatusCode -eq 200) "HTTP $($pHome.StatusCode)"
     foreach ($p in @('pasajero/viajes', 'pasajero/wallet', 'pasajero/perfil')) {
@@ -116,11 +149,11 @@ if ($pLogin.Code -eq 302) {
     }
 }
 
-# --- Conductor ---
+# --- Conductor (Firebase) ---
 $drvSess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$dLogin = Do-Login $drvSess "$base/conductor/login" '3109001001' 'conductor'
-Test-Step 'Conductor login' (($dLogin.Code -eq 302) -and ($dLogin.Body -notmatch 'no correctos|Page Expired')) "HTTP $($dLogin.Code)"
-if ($dLogin.Code -eq 302) {
+$dLogin = Do-FirebaseLogin $drvSess "$base/conductor/login" 'conductor.demo1@taxpiya.com' 'conductor' '3109001001'
+Test-Step 'Conductor Firebase login' $dLogin.Ok "HTTP $($dLogin.Code) $($dLogin.Detail)"
+if ($dLogin.Ok) {
     $dHome = Invoke-WebRequest -Uri "$base/home" -WebSession $drvSess -UseBasicParsing -TimeoutSec 120 -MaximumRedirection 5
     Test-Step 'Conductor /home' ($dHome.StatusCode -eq 200) "HTTP $($dHome.StatusCode)"
     foreach ($p in @('conductor/viajes', 'conductor/wallet', 'conductor/cuenta')) {
@@ -146,25 +179,18 @@ if ($eLogin.Code -eq 302) {
     }
 }
 
-# --- Firebase sync ---
+# --- Firebase sync (endpoint directo) ---
 try {
     $fbBody = @{ email='pasajero.demo1@taxpiya.com'; password=$password; returnSecureToken=$true } | ConvertTo-Json
     $fb = Invoke-RestMethod -Method POST -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$apiKey" -Body $fbBody -ContentType 'application/json' -TimeoutSec 60
-    Test-Step 'Firebase signIn' ($null -ne $fb.idToken)
+    Test-Step 'Firebase signIn API' ($null -ne $fb.idToken)
     if ($fb.idToken) {
         $syncSess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-        $sPage = Invoke-Txp -Method GET -Url "$base/pasajero/login" -Session $syncSess
-        $st = Get-Csrf $sPage.Body
-        $syncJson = @{ id_token = $fb.idToken; app = 'pasajero'; name = 'Pasajero Demo 1'; telefono = '3009001001' } | ConvertTo-Json
-        $sync = Invoke-WebRequest -Method POST -Uri "$base/auth/firebase/sync" -WebSession $syncSess `
-            -Body $syncJson -ContentType 'application/json' `
-            -Headers @{ 'X-CSRF-TOKEN' = $st; Accept = 'application/json'; Referer = "$base/pasajero/login" } `
-            -UseBasicParsing -TimeoutSec 120
-        $syncData = $sync.Content | ConvertFrom-Json
-        Test-Step 'Firebase sync' ($syncData.ok -eq $true) ($syncData.message)
+        $syncResult = Do-FirebaseLogin $syncSess "$base/pasajero/login" 'pasajero.demo1@taxpiya.com' 'pasajero' '3009001001'
+        Test-Step 'Firebase sync endpoint' $syncResult.Ok ($syncResult.Detail)
     }
 } catch {
-    Test-Step 'Firebase sync' $false $_.Exception.Message
+    Test-Step 'Firebase sync endpoint' $false $_.Exception.Message
 }
 
 Write-Host ""

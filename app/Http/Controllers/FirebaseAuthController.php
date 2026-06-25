@@ -209,17 +209,28 @@ class FirebaseAuthController extends Controller
         } catch (\Throwable) {
         }
 
+        $user = Users::query()->find($user->id);
+        if (!$user) {
+            return response()->json(['ok' => false, 'message' => 'Usuario no encontrado'], 404);
+        }
+
+        if (!Auth::loginUsingId((int) $user->id, false)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'No se pudo iniciar sesión. Recarga la página e intenta de nuevo.',
+            ], 500);
+        }
+
         try {
-            Auth::login($user, false);
             $request->session()->regenerate();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        try {
             $request->session()->save();
         } catch (\Throwable $e) {
             report($e);
-
-            return response()->json([
-                'ok'      => false,
-                'message' => 'Cuenta creada pero no se pudo iniciar sesión. Recarga la página e inicia sesión con tu correo.',
-            ], 500);
         }
 
         app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
