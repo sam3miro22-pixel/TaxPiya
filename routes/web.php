@@ -418,8 +418,100 @@ Route::middleware(['auth'])->group(function () {
 			return $fail('Error al iniciar sesión. Intenta de nuevo.');
 		}
 	})->name('auth.login');
-	Route::post('auth/firebase/sync', [FirebaseAuthController::class, 'syncSession'])->name('auth.firebase.sync');
-	Route::post('auth/firebase/diag-sync', [FirebaseAuthController::class, 'syncSession'])->name('auth.firebase.diag-sync');
+
+	$firebaseSyncHandler = function (Request $request) {
+		try {
+			$idToken = (string) $request->input('id_token', '');
+			$app     = (string) $request->input('app', 'pasajero');
+			if ($idToken === '') {
+				return response()->json(['ok' => false, 'message' => 'id_token requerido'], 422);
+			}
+			if (!in_array($app, ['pasajero', 'conductor'], true)) {
+				return response()->json(['ok' => false, 'message' => 'Portal no válido'], 422);
+			}
+
+			$apiKey = config('firebase.web.api_key');
+			$client = new \GuzzleHttp\Client(['timeout' => 15]);
+			$res = $client->post('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' . urlencode((string) $apiKey), [
+				'json' => ['idToken' => $idToken],
+			]);
+			$body = json_decode((string) $res->getBody(), true);
+			$fbUser = $body['users'][0] ?? null;
+			if (!$fbUser) {
+				return response()->json(['ok' => false, 'message' => 'Token inválido'], 401);
+			}
+
+			$email = isset($fbUser['email']) ? strtolower(trim((string) $fbUser['email'])) : '';
+			if ($email === '') {
+				return response()->json(['ok' => false, 'message' => 'Token sin correo'], 422);
+			}
+
+			$user = \App\Models\Users::query()
+				->whereRaw('LOWER(email) = ?', [$email])
+				->orderByDesc('id')
+				->first();
+
+			if (!$user) {
+				if ($app === 'conductor') {
+					return response()->json(['ok' => false, 'message' => 'Cuenta de conductor no activa.'], 403);
+				}
+				$uid = (string) ($fbUser['localId'] ?? '');
+				$user = \App\Models\Users::create([
+					'firebase_uid' => $uid,
+					'name'         => $request->input('name') ?: ($fbUser['displayName'] ?? 'Usuario Taxpiya'),
+					'email'        => $email,
+					'telefono'     => 'fb_' . preg_replace('/[^a-zA-Z0-9]/', '', $uid),
+					'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
+					'estado'       => 1,
+					'user_role_id' => 2,
+				]);
+				$user->assignRole('Pasajero');
+			}
+
+			$expectedRole = $app === 'conductor' ? 'Conductor' : 'Pasajero';
+			$expectedRoleId = (int) (\Illuminate\Support\Facades\DB::table('roles')->where('role_name', $expectedRole)->value('role_id') ?? 0);
+			if ($expectedRoleId > 0 && (int) $user->user_role_id !== $expectedRoleId) {
+				return response()->json(['ok' => false, 'message' => 'No tienes acceso a este portal.'], 403);
+			}
+			if ((int) ($user->estado ?? 1) !== 1) {
+				return response()->json(['ok' => false, 'message' => 'Cuenta inactiva.'], 403);
+			}
+			if ($app === 'conductor') {
+				$conductor = \Illuminate\Support\Facades\DB::table('conductores')->where('user_id', $user->id)->first();
+				if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
+					return response()->json(['ok' => false, 'message' => 'Conductor no activo.'], 403);
+				}
+			}
+
+			if (!\Illuminate\Support\Facades\Auth::loginUsingId((int) $user->id, false)) {
+				return response()->json(['ok' => false, 'message' => 'No se pudo iniciar sesión.'], 500);
+			}
+			$request->session()->save();
+
+			$uid = (string) ($fbUser['localId'] ?? '');
+			if ($uid !== '') {
+				try {
+					\Illuminate\Support\Facades\DB::table('users')
+						->where('firebase_uid', $uid)
+						->where('id', '!=', $user->id)
+						->update(['firebase_uid' => null]);
+					\Illuminate\Support\Facades\DB::table('users')
+						->where('id', $user->id)
+						->update(['firebase_uid' => $uid]);
+				} catch (\Throwable $e) {
+					report($e);
+				}
+			}
+
+			return response()->json(['ok' => true, 'user_id' => $user->id, 'redirect' => '/home']);
+		} catch (\Throwable $e) {
+			report($e);
+			return response()->json(['ok' => false, 'message' => 'Sync: ' . $e->getMessage()], 500);
+		}
+	};
+
+	Route::post('auth/firebase/sync', $firebaseSyncHandler)->name('auth.firebase.sync');
+	Route::post('auth/firebase/diag-sync', $firebaseSyncHandler)->name('auth.firebase.diag-sync');
 	Route::get('auth/firebase/diag', function () {
 		$checks = [
 			'users_firebase_uid'      => \Illuminate\Support\Facades\Schema::hasColumn('users', 'firebase_uid'),
@@ -480,7 +572,7 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['login_redirect_probe'] = $e->getMessage();
 		}
-		$checks['login_flow_version'] = 'firebase-sync-v11-email-first';
+		$checks['login_flow_version'] = 'firebase-sync-v12-closure';
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);
