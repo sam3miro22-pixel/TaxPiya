@@ -22,7 +22,7 @@
             </ul>
 
             <h2 class="h5 mt-4" style="color:#ffd166">1. Pasajero</h2>
-            <p><strong>Login:</strong> /pasajero/login · <strong>Demo:</strong> 3009001001 / Taxpiya2026! (solo pruebas internas)</p>
+            <p><strong>Login:</strong> /pasajero/login · Google o correo Firebase (demo: pasajero.demo1@taxpiya.com)</p>
             <ol>
                 <li>Inicia sesión con Google o correo Firebase.</li>
                 <li>En el mapa: origen, destino (texto, pin o micrófono).</li>
@@ -33,7 +33,7 @@
             </ol>
 
             <h2 class="h5 mt-4" style="color:#ffd166">2. Conductor</h2>
-            <p><strong>Login:</strong> /conductor/login · Cuenta demo: 3109001001</p>
+            <p><strong>Login:</strong> /conductor/login · Firebase (cuenta demo: conductor.demo1@taxpiya.com, tras aprobación admin)</p>
             <ol>
                 <li>Firebase login → activar <strong>DISPONIBLE</strong>.</li>
                 <li>Recibe solicitudes → Aceptar o Rechazar (solo antes de aceptar).</li>

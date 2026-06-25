@@ -89,6 +89,7 @@
     </div>
 </form>
 @else
+    <input type="hidden" name="_token" value="{{ csrf_token() }}">
     @include('components.firebase-auth-ui', ['app' => $app ?? null, 'primary' => true])
 
     @if($isPasajero)

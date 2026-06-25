@@ -210,23 +210,19 @@ class FirebaseAuthController extends Controller
         }
 
         try {
-            Auth::login($user, true);
+            Auth::login($user, false);
             $request->session()->regenerate();
             $request->session()->save();
-            app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
-        } catch (\Throwable) {
-            try {
-                Auth::login($user, false);
-                $request->session()->regenerate();
-                $request->session()->save();
-                app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
-            } catch (\Throwable) {
-                return response()->json([
-                    'ok'      => false,
-                    'message' => 'Cuenta creada pero no se pudo iniciar sesión. Recarga la página e inicia sesión con tu correo.',
-                ], 500);
-            }
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Cuenta creada pero no se pudo iniciar sesión. Recarga la página e inicia sesión con tu correo.',
+            ], 500);
         }
+
+        app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
 
         return ['user' => $user, 'is_new' => $isNew];
     }

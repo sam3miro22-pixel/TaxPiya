@@ -34,6 +34,7 @@ function Invoke-Txp {
 
 function Get-Csrf($html) {
     if ($html -match 'name="_token"\s+value="([^"]+)"') { return $Matches[1] }
+    if ($html -match 'csrf-token"\s+content="([^"]+)"') { return $Matches[1] }
     return ''
 }
 

@@ -13,15 +13,19 @@ class SessionGuardService
      */
     public function invalidateOtherSessions(Request $request, int $userId): void
     {
-        if (!Schema::hasTable('sessions')) {
-            return;
+        try {
+            if (!Schema::hasTable('sessions') || !Schema::hasColumn('sessions', 'user_id')) {
+                return;
+            }
+
+            $currentId = $request->session()->getId();
+
+            DB::table('sessions')
+                ->where('user_id', $userId)
+                ->when($currentId, fn ($q) => $q->where('id', '!=', $currentId))
+                ->delete();
+        } catch (\Throwable $e) {
+            report($e);
         }
-
-        $currentId = $request->session()->getId();
-
-        DB::table('sessions')
-            ->where('user_id', $userId)
-            ->when($currentId, fn ($q) => $q->where('id', '!=', $currentId))
-            ->delete();
     }
 }
