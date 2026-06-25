@@ -420,7 +420,99 @@ Route::middleware(['auth'])->group(function () {
 	})->name('auth.login');
 	Route::post('auth/firebase/sync', function (Request $request) {
 		try {
-			return app(FirebaseAuthController::class)->diagSyncProbe($request);
+			$request->validate([
+				'id_token' => 'required|string',
+				'app'      => 'nullable|in:pasajero,conductor',
+				'name'     => 'nullable|string|max:255',
+				'telefono' => 'nullable|string|max:125',
+			]);
+
+			if (!config('taxpiya.firebase.use_firebase_auth')) {
+				return response()->json(['ok' => false, 'message' => 'Firebase Auth desactivado'], 503);
+			}
+
+			$app = (string) $request->input('app', 'pasajero');
+			$idToken = (string) $request->input('id_token');
+
+			$apiKey = config('firebase.web.api_key');
+			$client = new \GuzzleHttp\Client(['timeout' => 15]);
+			$res = $client->post('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' . urlencode((string) $apiKey), [
+				'json' => ['idToken' => $idToken],
+			]);
+			$body = json_decode((string) $res->getBody(), true);
+			$fbUser = $body['users'][0] ?? null;
+			if (!$fbUser) {
+				return response()->json(['ok' => false, 'message' => 'Token de Firebase inválido'], 401);
+			}
+
+			$uid   = (string) ($fbUser['localId'] ?? '');
+			$email = $fbUser['email'] ?? null;
+			$accounts = app(\App\Services\UserAccountService::class);
+			$telefono = $accounts->normalizeTelefono($request->input('telefono'));
+			$user = $accounts->findByFirebaseIdentity($uid, $email, $telefono);
+			$isNew = false;
+
+			if (!$user) {
+				if ($app === 'conductor') {
+					return response()->json([
+						'ok'      => false,
+						'message' => 'No tienes cuenta de conductor activa. Solicita registro en /conductor/aplicar y espera la aprobación del administrador.',
+					], 403);
+				}
+
+				$isNew = true;
+				$name = $request->input('name') ?: ($fbUser['displayName'] ?? 'Usuario Taxpiya');
+				$tel  = $telefono ?: ('fb_' . preg_replace('/[^a-zA-Z0-9]/', '', $uid));
+				$user = \App\Models\Users::create([
+					'firebase_uid' => $uid,
+					'name'         => $name,
+					'email'        => $email ?: ($uid . '@firebase.taxpiya.local'),
+					'telefono'     => $tel,
+					'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
+					'estado'       => 1,
+					'user_role_id' => 2,
+				]);
+				$user->assignRole('Pasajero');
+			} else {
+				try {
+					$accounts->linkFirebaseUid($user, $uid);
+				} catch (\Throwable $e) {
+					report($e);
+				}
+			}
+
+			$portal = app(\App\Services\PortalAuthService::class);
+			if (!$portal->userMatchesPortal($user, $app)) {
+				return response()->json([
+					'ok'      => false,
+					'message' => $portal->roleMismatchMessage($app) ?? 'No tienes acceso a este portal.',
+				], 403);
+			}
+			$gateError = $portal->validateLoginGate($user, $app);
+			if ($gateError) {
+				return response()->json(['ok' => false, 'message' => $gateError], 403);
+			}
+
+			if (!\Illuminate\Support\Facades\Auth::loginUsingId((int) $user->id, false)) {
+				return response()->json(['ok' => false, 'message' => 'No se pudo iniciar sesión.'], 500);
+			}
+
+			$request->session()->save();
+
+			try {
+				app(\App\Services\SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
+				app(\App\Services\ReferralService::class)->ensureUserCode($user);
+				app(\App\Services\WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
+			} catch (\Throwable $e) {
+				report($e);
+			}
+
+			return response()->json([
+				'ok'       => true,
+				'user_id'  => $user->id,
+				'is_new'   => $isNew,
+				'redirect' => '/home',
+			]);
 		} catch (\Throwable $e) {
 			report($e);
 
@@ -537,7 +629,7 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['login_redirect_probe'] = $e->getMessage();
 		}
-		$checks['login_flow_version'] = 'inline-gate-v8-login-first';
+		$checks['login_flow_version'] = 'inline-gate-v9-inline-sync';
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);
