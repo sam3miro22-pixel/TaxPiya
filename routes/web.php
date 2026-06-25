@@ -324,7 +324,15 @@ Route::middleware(['auth'])->group(function () {
 				return $fail('Nombre de usuario o contraseña no correctos');
 			}
 
-			// Bloqueo solo login por correo sin Firebase (cuentas huérfanas locales).
+			if ($app && in_array($app, ['pasajero', 'conductor'], true)
+				&& \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
+				$telDigits = preg_replace('/\D+/', '', $username);
+				if (!\App\Services\DemoAccountCatalog::isDemoPhone($telDigits)) {
+					return $fail('Usa Google o correo y contraseña de Firebase para entrar.');
+				}
+			}
+
+			// Bloqueo login por correo sin Firebase (cuentas huérfanas locales).
 			if ($app && in_array($app, ['pasajero', 'conductor'], true) && $isEmail) {
 				$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail((string) ($user->email ?? ''));
 				if (!$isDemo && \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
@@ -389,6 +397,7 @@ Route::middleware(['auth'])->group(function () {
 			try {
 				$request->session()->regenerate();
 				$request->session()->save();
+				app(\App\Services\SessionGuardService::class)->invalidateOtherSessions($request, (int) auth()->id());
 			} catch (\Throwable $e) {
 				report($e);
 			}
@@ -485,7 +494,9 @@ Route::middleware(['auth'])->group(function () {
 	Route::redirect('index/register', '/pasajero/registro', 301);
 	Route::post('index/register', 'AuthController@register_store')->name('auth.register_store');
 		
-	Route::get('auth/password/forgotpassword', 'AuthController@showForgotPassword')->name('password.forgotpassword');
+	Route::get('auth/password/forgotpassword', function () {
+		return redirect()->route('login')->with('auth_error', 'Recuperación por correo no disponible. Cambia tu contraseña desde Mi perfil si ya tienes sesión.');
+	})->name('password.forgotpassword');
 	Route::post('auth/password/sendemail', 'AuthController@sendPasswordResetLink')->name('password.email');
 	Route::get('auth/password/reset', 'AuthController@showResetPassword')->name('password.reset.token');
 	Route::post('auth/password/resetpassword', 'AuthController@resetPassword')->name('password.resetpassword');
@@ -928,6 +939,9 @@ Route::get('info/features',  function(){
 		return view("pages.info.features");
 	}
 );
+Route::get('info/guia-roles', function () {
+    return view('pages.info.guia-roles');
+})->name('info.guia-roles');
 Route::get('info/privacypolicy',  function(){
 		return view("pages.info.privacypolicy");
 	}

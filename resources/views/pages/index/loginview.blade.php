@@ -4,13 +4,20 @@
     $isPasajero  = ($app === 'pasajero');
     $isEmpresa   = ($app === 'empresa');
     $isAdmin     = ($app === 'admin' || (!$isConductor && !$isPasajero && !$isEmpresa));
+    $fbOnly = ($isPasajero || $isConductor)
+        && config('taxpiya.firebase.use_firebase_auth')
+        && config('firebase.web.api_key');
 
     if ($isConductor) {
         $roleLabel = 'Conductor';
-        $subtitle  = 'Accede con tu celular o correo para recibir viajes.';
+        $subtitle  = $fbOnly
+            ? 'Entra con Google o tu correo registrado en Firebase.'
+            : 'Accede con tu celular o correo para recibir viajes.';
     } elseif ($isPasajero) {
         $roleLabel = 'Pasajero';
-        $subtitle  = 'Ingresa para solicitar tu taxi fácilmente.';
+        $subtitle  = $fbOnly
+            ? 'Entra con Google o tu correo registrado en Firebase.'
+            : 'Ingresa para solicitar tu taxi fácilmente.';
     } elseif ($isEmpresa) {
         $roleLabel = 'Empresa / Flota';
         $subtitle  = 'Administra tus taxis, conductores y viajes.';
@@ -34,6 +41,7 @@
     <div class="txp-auth-alert txp-auth-alert--error">{{ session('auth_error') }}</div>
 @endif
 
+@if(!$fbOnly)
 <form name="loginForm" action="{{ route('auth.login') }}" class="txp-auth-form page-form" method="post" novalidate>
     @csrf
 
@@ -42,23 +50,14 @@
     @endif
 
     <div class="txp-auth-field">
-        <label class="txp-auth-label" for="txp-username">
-            @if(($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
-                Celular
-            @else
-                Celular o correo
-            @endif
-        </label>
+        <label class="txp-auth-label" for="txp-username">Celular o correo</label>
         <div class="txp-auth-input-wrap">
             <i class="fa-solid fa-user txp-auth-input-icon"></i>
             <input id="txp-username" name="username" type="text" class="txp-auth-input"
-                   placeholder="{{ ($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') ? '300 123 4567' : '300 123 4567 o correo@email.com' }}"
+                   placeholder="300 123 4567 o correo@email.com"
                    value="{{ old('username', session('old_username')) }}"
                    required autocomplete="username">
         </div>
-        @if(($isPasajero || $isConductor) && config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key'))
-            <p class="small text-muted mt-1 mb-0">Solo número de celular. Si usas correo, elige Google o «Correo y contraseña» abajo.</p>
-        @endif
     </div>
 
     <div class="txp-auth-field">
@@ -77,13 +76,6 @@
         <label for="rememberme">Recuérdame</label>
     </div>
 
-    @php
-        $forgotApp = $isConductor ? 'conductor' : ($isPasajero ? 'pasajero' : ($isEmpresa ? 'empresa' : 'admin'));
-    @endphp
-    <p class="txp-auth-forgot mb-0">
-        <a href="{{ route('password.forgotpassword') }}?app={{ $forgotApp }}">¿Olvidaste tu contraseña?</a>
-    </p>
-
     <div class="txp-auth-actions">
         <button class="txp-auth-btn txp-auth-btn--primary" type="submit">
             <i class="fa-solid fa-right-to-bracket"></i> Iniciar sesión
@@ -96,8 +88,20 @@
         @endif
     </div>
 </form>
+@else
+    @include('components.firebase-auth-ui', ['app' => $app ?? null, 'primary' => true])
 
-@include('components.firebase-auth-ui', ['app' => $app ?? null])
+    @if($isPasajero)
+        <p class="txp-auth-foot mt-3">
+            ¿No tienes cuenta?
+            <a href="{{ route('pasajero.register') }}" class="txp-auth-link">Regístrate con correo o Google</a>
+        </p>
+    @endif
+@endif
+
+@if(!$fbOnly)
+    @include('components.firebase-auth-ui', ['app' => $app ?? null])
+@endif
 
 @if($isConductor)
     <p class="txp-auth-foot">

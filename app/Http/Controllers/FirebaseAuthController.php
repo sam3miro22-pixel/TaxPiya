@@ -9,6 +9,7 @@ use App\Services\ReferralService;
 use App\Services\UserAccountService;
 use App\Services\SqlitePersistenceService;
 use App\Services\WalletLedgerService;
+use App\Services\SessionGuardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -178,6 +179,29 @@ class FirebaseAuthController extends Controller
             $user->refresh();
         }
 
+        $portal = app(PortalAuthService::class);
+        if (!$portal->userMatchesPortal($user, $app)) {
+            Auth::logout();
+            return response()->json([
+                'ok'      => false,
+                'message' => $portal->roleMismatchMessage($app) ?? 'No tienes acceso a este portal.',
+            ], 403);
+        }
+
+        $gateError = $portal->validateLoginGate($user, $app);
+        if ($gateError) {
+            Auth::logout();
+            return response()->json(['ok' => false, 'message' => $gateError], 403);
+        }
+
+        if ($app === 'conductor') {
+            $roleId = DB::table('roles')->where('role_name', 'Conductor')->value('role_id');
+            if ($roleId && (int) $user->user_role_id !== (int) $roleId) {
+                Auth::logout();
+                return response()->json(['ok' => false, 'message' => 'Acceso exclusivo para Conductores.'], 403);
+            }
+        }
+
         try {
             app(ReferralService::class)->ensureUserCode($user);
             app(WalletLedgerService::class)->ensureCuenta('pasajero', (int) $user->id);
@@ -189,11 +213,13 @@ class FirebaseAuthController extends Controller
             Auth::login($user, true);
             $request->session()->regenerate();
             $request->session()->save();
+            app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
         } catch (\Throwable) {
             try {
                 Auth::login($user, false);
                 $request->session()->regenerate();
                 $request->session()->save();
+                app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
             } catch (\Throwable) {
                 return response()->json([
                     'ok'      => false,

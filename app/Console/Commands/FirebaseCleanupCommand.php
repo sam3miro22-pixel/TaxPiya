@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\AccountPurgeService;
+use App\Services\UserAccountService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -43,6 +44,13 @@ class FirebaseCleanupCommand extends Command
 
         $localDeleted = $purge->purgeLocalShadowAccounts();
         $this->info("SQLite: {$localDeleted} cuentas locales sin Firebase eliminadas.");
+
+        try {
+            $repair = app(UserAccountService::class)->repairDuplicateAccounts();
+            $this->info("Duplicados fusionados: {$repair['merged']} en {$repair['groups']} grupos.");
+        } catch (\Throwable $e) {
+            $this->warn('Repair duplicados: ' . $e->getMessage());
+        }
 
         if ($this->option('once') && Schema::hasTable('users') && !DB::table('users')->where('email', $marker)->exists()) {
             DB::table('users')->insert([

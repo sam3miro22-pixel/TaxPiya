@@ -10,10 +10,9 @@ use Illuminate\Support\Facades\Schema;
  * Autenticación de portales móviles.
  *
  * Pasajero/Conductor: Firebase Auth obligatorio (Google o correo Firebase).
- * Excepción: cuentas demo con teléfono/contraseña local para pruebas E2E.
- * Empresa/Admin: bcrypt en MySQL únicamente.
- *
- * Cada portal valida user_role_id: pasajero≠conductor≠empresa.
+ * Excepción: cuentas demo con teléfono/contraseña local solo para pruebas E2E automatizadas.
+ * Empresa/Admin: bcrypt en SQLite/MySQL.
+ * Una sesión Laravel activa por usuario (SessionGuardService).
  */
 class PortalAuthService
 {

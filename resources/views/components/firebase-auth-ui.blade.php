@@ -2,10 +2,13 @@
     $fbApp = $app ?? null;
     $fbEnabled = config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key');
     $fbSupported = in_array($fbApp, ['pasajero', 'conductor'], true);
+    $fbPrimary = ($primary ?? false) || ($fbSupported && $fbEnabled);
 @endphp
 @if($fbEnabled && $fbSupported)
 <div class="txp-firebase-auth" data-app="{{ $fbApp }}">
+    @if(!$fbPrimary)
     <div class="txp-auth-divider">o con correo / Google</div>
+    @endif
     <div class="d-grid gap-2">
         <button type="button" class="txp-auth-btn txp-auth-btn--google" id="txp-firebase-google">
             <i class="fa-brands fa-google"></i> Continuar con Google
