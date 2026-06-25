@@ -14,12 +14,22 @@
         <div class="txp-guia-body" style="color:#e2e8f0;font-size:15px;line-height:1.55;">
             <p><strong>URL producción:</strong> <a href="https://taxpiya.onrender.com" style="color:#ffd166">taxpiya.onrender.com</a></p>
 
-            <h2 class="h5 mt-4" style="color:#ffd166">Autenticación</h2>
+            <h2 class="h5 mt-4" style="color:#ffd166">Autenticación (resumen)</h2>
             <ul>
                 <li><strong>Pasajero y Conductor:</strong> solo Firebase (Google o correo/contraseña Firebase). Una sesión activa por cuenta.</li>
                 <li><strong>Empresa y Admin:</strong> celular o correo + contraseña del servidor.</li>
-                <li><strong>Cambiar contraseña:</strong> desde Mi perfil / Mi cuenta (no hay recuperación por correo por ahora).</li>
+                <li><strong>Cambiar contraseña:</strong> desde Mi perfil / Mi cuenta. No hay «olvidé mi contraseña» por correo.</li>
             </ul>
+
+            <h2 class="h5 mt-4" style="color:#ffd166">Flujo de login Firebase (paso a paso)</h2>
+            <ol>
+                <li>Abres <code>/pasajero/login</code> o <code>/conductor/login</code>.</li>
+                <li>Pulsas <strong>Continuar con Google</strong> o <strong>Correo y contraseña</strong> (credenciales de Firebase, no del servidor).</li>
+                <li>Firebase valida tu identidad y devuelve un token seguro al navegador.</li>
+                <li>El navegador envía ese token a <code>/auth/firebase/sync</code> en TaxPiya.</li>
+                <li>El servidor verifica el token, busca o crea tu usuario local, comprueba el rol y abre una sola sesión Laravel.</li>
+                <li>Te redirige a <code>/home</code> (mapa del pasajero o panel del conductor).</li>
+            </ol>
 
             <h2 class="h5 mt-4" style="color:#ffd166">1. Pasajero</h2>
             <p><strong>Login:</strong> /pasajero/login · Google o correo Firebase (demo: pasajero.demo1@taxpiya.com)</p>

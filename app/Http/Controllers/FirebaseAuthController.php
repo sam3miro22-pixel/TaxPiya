@@ -31,6 +31,20 @@ class FirebaseAuthController extends Controller
      */
     public function diagSyncProbe(Request $request): JsonResponse
     {
+        try {
+            return $this->performFirebaseSync($request);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Error al sincronizar la sesión. Intenta de nuevo.',
+            ], 500);
+        }
+    }
+
+    private function performFirebaseSync(Request $request): JsonResponse
+    {
         $request->validate([
             'id_token'      => 'required|string',
             'app'           => 'nullable|in:pasajero,conductor',
@@ -156,9 +170,18 @@ class FirebaseAuthController extends Controller
         } else {
             try {
                 $accounts->linkFirebaseUid($user, $uid);
-            } catch (\Throwable) {
-                $user->firebase_uid = $uid;
-                $user->save();
+            } catch (\Throwable $e) {
+                report($e);
+                try {
+                    DB::table('users')
+                        ->where('firebase_uid', $uid)
+                        ->where('id', '!=', $user->id)
+                        ->update(['firebase_uid' => null]);
+                    $user->firebase_uid = $uid;
+                    $user->save();
+                } catch (\Throwable $e2) {
+                    report($e2);
+                }
             }
 
             if ($request->filled('name')) {

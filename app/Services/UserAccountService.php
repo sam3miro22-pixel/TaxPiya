@@ -61,10 +61,29 @@ class UserAccountService
 
         $other = Users::query()->where('firebase_uid', $uid)->where('id', '!=', $user->id)->first();
         if ($other) {
-            $this->mergeUsers((int) $user->id, (int) $other->id);
+            try {
+                $this->mergeUsers((int) $user->id, (int) $other->id);
+            } catch (\Throwable $e) {
+                report($e);
+                $this->reassignFirebaseUid($user, $uid);
+            }
 
             return;
         }
+
+        $user->firebase_uid = $uid;
+        $user->save();
+    }
+
+    /**
+     * Asigna firebase_uid al usuario conservado, liberando el valor en otras filas.
+     */
+    private function reassignFirebaseUid(Users $user, string $uid): void
+    {
+        DB::table('users')
+            ->where('firebase_uid', $uid)
+            ->where('id', '!=', $user->id)
+            ->update(['firebase_uid' => null]);
 
         $user->firebase_uid = $uid;
         $user->save();
