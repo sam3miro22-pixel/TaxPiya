@@ -537,7 +537,7 @@ Route::middleware(['auth'])->group(function () {
 		} catch (\Throwable $e) {
 			$checks['login_redirect_probe'] = $e->getMessage();
 		}
-		$checks['login_flow_version'] = 'inline-gate-v7-sync-wrapper';
+		$checks['login_flow_version'] = 'inline-gate-v8-login-first';
 		return response()->json($checks);
 	})->name('auth.firebase.diag');
 	Route::any('auth/logout', 'AuthController@logout')->name('logout')->middleware(['auth']);

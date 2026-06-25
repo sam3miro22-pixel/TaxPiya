@@ -85,7 +85,7 @@ Write-Host "=== Verificación completa $base ===`n"
 try {
     $diag = Invoke-RestMethod -Uri "$base/auth/firebase/diag" -TimeoutSec 120
     Test-Step 'Firebase diag' ($diag.session_driver -eq 'database') "session_driver=$($diag.session_driver)"
-    Test-Step 'Firebase diag version' ($diag.login_flow_version -eq 'inline-gate-v7-sync-wrapper') $diag.login_flow_version
+    Test-Step 'Firebase diag version' ($diag.login_flow_version -eq 'inline-gate-v8-login-first') $diag.login_flow_version
 } catch {
     Test-Step 'Firebase diag' $false $_.Exception.Message
 }
