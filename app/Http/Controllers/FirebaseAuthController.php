@@ -256,7 +256,11 @@ class FirebaseAuthController extends Controller
             report($e);
         }
 
-        app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
+        try {
+            app(SessionGuardService::class)->invalidateOtherSessions($request, (int) $user->id);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return ['user' => $user, 'is_new' => $isNew];
     }

@@ -121,19 +121,27 @@ class UserAccountService
                     ->first();
 
                 if ($discardCuenta && $keepCuenta) {
-                    DB::table('wallet_movimientos')
-                        ->where('cuenta_id', $discardCuenta->id)
-                        ->update(['cuenta_id' => $keepCuenta->id, 'user_id' => $keepId]);
-                    DB::table('wallet_cuentas')->where('id', $keepCuenta->id)->update([
-                        'saldo_actual' => (float) $keepCuenta->saldo_actual + (float) $discardCuenta->saldo_actual,
-                        'updated_at'   => now()->toDateTimeString(),
-                    ]);
+                    if (Schema::hasTable('wallet_movimientos') && Schema::hasColumn('wallet_movimientos', 'cuenta_id')) {
+                        $movUpdate = ['cuenta_id' => $keepCuenta->id];
+                        if (Schema::hasColumn('wallet_movimientos', 'user_id')) {
+                            $movUpdate['user_id'] = $keepId;
+                        }
+                        DB::table('wallet_movimientos')
+                            ->where('cuenta_id', $discardCuenta->id)
+                            ->update($movUpdate);
+                    }
+                    $cuentaUpdate = ['saldo_actual' => (float) $keepCuenta->saldo_actual + (float) $discardCuenta->saldo_actual];
+                    if (Schema::hasColumn('wallet_cuentas', 'updated_at')) {
+                        $cuentaUpdate['updated_at'] = now()->toDateTimeString();
+                    }
+                    DB::table('wallet_cuentas')->where('id', $keepCuenta->id)->update($cuentaUpdate);
                     DB::table('wallet_cuentas')->where('id', $discardCuenta->id)->delete();
                 } elseif ($discardCuenta && !$keepCuenta) {
-                    DB::table('wallet_cuentas')->where('id', $discardCuenta->id)->update([
-                        'user_id'    => $keepId,
-                        'updated_at' => now()->toDateTimeString(),
-                    ]);
+                    $cuentaUpdate = ['user_id' => $keepId];
+                    if (Schema::hasColumn('wallet_cuentas', 'updated_at')) {
+                        $cuentaUpdate['updated_at'] = now()->toDateTimeString();
+                    }
+                    DB::table('wallet_cuentas')->where('id', $discardCuenta->id)->update($cuentaUpdate);
                 }
             }
 
