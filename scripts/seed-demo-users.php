@@ -10,7 +10,7 @@ $password = 'Taxpiya2026!';
 
 $users = [
     [
-        'name'     => 'Pasajero Demo 1',
+        'name'     => 'Pasajero Demo',
         'email'    => 'pasajero.demo1@taxpiya.com',
         'telefono' => '3009001001',
         'role_id'  => 2,
@@ -19,31 +19,13 @@ $users = [
         'lng'      => null,
     ],
     [
-        'name'     => 'Pasajero Demo 2',
-        'email'    => 'pasajero.demo2@taxpiya.com',
-        'telefono' => '3009001002',
-        'role_id'  => 2,
-        'conductor'=> false,
-        'lat'      => null,
-        'lng'      => null,
-    ],
-    [
-        'name'     => 'Conductor Demo 1',
+        'name'     => 'Conductor Demo',
         'email'    => 'conductor.demo1@taxpiya.com',
         'telefono' => '3109001001',
         'role_id'  => 3,
         'conductor'=> true,
         'lat'      => 6.2476,
         'lng'      => -75.5658,
-    ],
-    [
-        'name'     => 'Conductor Demo 2',
-        'email'    => 'conductor.demo2@taxpiya.com',
-        'telefono' => '3109001002',
-        'role_id'  => 3,
-        'conductor'=> true,
-        'lat'      => 6.2510,
-        'lng'      => -75.5600,
     ],
 ];
 

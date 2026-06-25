@@ -313,7 +313,18 @@ class AccountPurgeService
             return 0;
         }
 
-        $keepEmails = array_map('strtolower', DemoAccountCatalog::keepEmails());
+        $keepEmails = array_map('strtolower', DemoAccountCatalog::keepFirebaseEmails());
+        $keepUids = DB::table('users')
+            ->where(function ($q) use ($keepEmails) {
+                foreach ($keepEmails as $email) {
+                    $q->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+            })
+            ->whereNotNull('firebase_uid')
+            ->where('firebase_uid', '!=', '')
+            ->pluck('firebase_uid')
+            ->map(fn ($uid) => (string) $uid)
+            ->all();
         $deleted = 0;
 
         try {
@@ -326,7 +337,11 @@ class AccountPurgeService
                 $result = $auth->listUsers(1000, $pageToken);
                 foreach ($result as $user) {
                     $email = strtolower((string) ($user->email ?? ''));
-                    if ($email === '' || in_array($email, $keepEmails, true)) {
+                    $uid = (string) $user->uid;
+                    if (in_array($uid, $keepUids, true)) {
+                        continue;
+                    }
+                    if ($email !== '' && in_array($email, $keepEmails, true)) {
                         continue;
                     }
                     try {

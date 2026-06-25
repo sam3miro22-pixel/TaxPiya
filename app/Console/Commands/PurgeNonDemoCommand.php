@@ -14,6 +14,7 @@ class PurgeNonDemoCommand extends Command
                             {--reseed : Ejecutar seed demo después}
                             {--clean-transactions : Borrar viajes, calificaciones y billeteras de todos}
                             {--reset-once : Limpieza total una sola vez (marca en BD)}
+                            {--canonical-once : Purga one-shot a 1 cuenta por rol + Firebase}
                             {--once : Omitir si ya se ejecutó (marca en SQLite)}';
 
     protected $description = 'Elimina todas las cuentas excepto las demo (SQLite + Firebase)';
@@ -31,6 +32,19 @@ class PurgeNonDemoCommand extends Command
             $this->input->setOption('clean-transactions', true);
             $this->input->setOption('reseed', false);
             $this->input->setOption('no-firebase', true);
+        }
+
+        $canonicalMarker = '_taxpiya_canonical_demo_v1@internal.local';
+        if ($this->option('canonical-once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
+            if (\Illuminate\Support\Facades\DB::table('users')->where('email', $canonicalMarker)->exists()) {
+                $this->line('Purga canónica ya ejecutada (--canonical-once).');
+
+                return self::SUCCESS;
+            }
+            $this->input->setOption('force', true);
+            $this->input->setOption('no-firebase', false);
+            $this->input->setOption('reseed', false);
+            $this->input->setOption('clean-transactions', false);
         }
 
         if ($this->option('once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
@@ -106,6 +120,19 @@ class PurgeNonDemoCommand extends Command
                     'name'         => 'Reset Marker',
                     'email'        => $marker,
                     'telefono'     => '0000000001',
+                    'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
+                    'estado'       => 0,
+                    'user_role_id' => 1,
+                ]);
+            }
+        }
+
+        if ($this->option('canonical-once') && \Illuminate\Support\Facades\Schema::hasTable('users')) {
+            if (!\Illuminate\Support\Facades\DB::table('users')->where('email', $canonicalMarker)->exists()) {
+                \Illuminate\Support\Facades\DB::table('users')->insert([
+                    'name'         => 'Canonical Demo Marker',
+                    'email'        => $canonicalMarker,
+                    'telefono'     => '0000000003',
                     'password'     => bcrypt(\Illuminate\Support\Str::random(32)),
                     'estado'       => 0,
                     'user_role_id' => 1,

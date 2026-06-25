@@ -18,7 +18,7 @@ class FirebaseCleanupCommand extends Command
 
     public function handle(AccountPurgeService $purge): int
     {
-        $marker = '_taxpiya_firebase_cleanup_v1@internal.local';
+        $marker = '_taxpiya_firebase_cleanup_v2@internal.local';
 
         if ($this->option('once') && Schema::hasTable('users')) {
             if (DB::table('users')->where('email', $marker)->exists()) {
