@@ -19,6 +19,9 @@ class SessionGuardService
             }
 
             $currentId = $request->session()->getId();
+        if ($currentId === '' || $currentId === null) {
+            return;
+        }
 
             DB::table('sessions')
                 ->where('user_id', $userId)

@@ -96,12 +96,16 @@ class FirebaseAuthController extends Controller
 
         $referralResult = null;
         if ($app === 'pasajero' && $referrals->normalizeCode($refCode)) {
-            $referralResult = $referrals->applyPasajeroReferral(
-                $refCode,
-                (int) $user->id,
-                $isNew,
-                $request->boolean('is_register')
-            );
+            try {
+                $referralResult = $referrals->applyPasajeroReferral(
+                    $refCode,
+                    (int) $user->id,
+                    $isNew,
+                    $request->boolean('is_register')
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         try {
@@ -122,12 +126,20 @@ class FirebaseAuthController extends Controller
                 'bonus_ok'   => $referralResult['bonus']['ok'] ?? null,
             ];
             if (!empty($referralResult['bonus']['ok'])) {
-                SqlitePersistenceService::scheduleBackupAfterRequest();
+                try {
+                    SqlitePersistenceService::scheduleBackupAfterRequest();
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
         }
 
         if ($isNew) {
-            SqlitePersistenceService::scheduleBackupAfterRequest();
+            try {
+                SqlitePersistenceService::scheduleBackupAfterRequest();
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         return response()->json($payload);
@@ -282,12 +294,6 @@ class FirebaseAuthController extends Controller
         }
 
         try {
-            $request->session()->regenerate();
-        } catch (\Throwable $e) {
-            report($e);
-        }
-
-        try {
             $request->session()->save();
         } catch (\Throwable $e) {
             report($e);
@@ -307,6 +313,12 @@ class FirebaseAuthController extends Controller
      */
     private function verifyIdToken(string $idToken): array
     {
+        try {
+            return $this->verifyIdTokenViaGoogle($idToken);
+        } catch (\Throwable $googleError) {
+            report($googleError);
+        }
+
         $credentials = config('firebase.credentials');
         if (!is_readable($credentials)) {
             throw new \RuntimeException(
@@ -319,16 +331,12 @@ class FirebaseAuthController extends Controller
                 ->withServiceAccount($credentials)
                 ->createAuth();
 
-            try {
-                $verified = $auth->verifyIdToken($idToken);
+            $verified = $auth->verifyIdToken($idToken);
 
-                return $verified->claims()->all();
-            } catch (\Throwable) {
-                return $this->verifyIdTokenViaGoogle($idToken);
-            }
+            return $verified->claims()->all();
         }
 
-        return $this->verifyIdTokenViaGoogle($idToken);
+        throw new \RuntimeException('No se pudo verificar el token de Firebase');
     }
 
     /**
