@@ -85,7 +85,7 @@ Write-Host "=== Verificación completa $base ===`n"
 try {
     $diag = Invoke-RestMethod -Uri "$base/auth/firebase/diag" -TimeoutSec 120
     Test-Step 'Firebase diag' ($diag.session_driver -eq 'database') "session_driver=$($diag.session_driver)"
-    Test-Step 'Firebase diag version' ($diag.login_flow_version -eq 'inline-gate-v6-google-token') $diag.login_flow_version
+    Test-Step 'Firebase diag version' ($diag.login_flow_version -eq 'inline-gate-v7-sync-wrapper') $diag.login_flow_version
 } catch {
     Test-Step 'Firebase diag' $false $_.Exception.Message
 }
@@ -189,6 +189,19 @@ try {
         $syncSess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
         $syncResult = Do-FirebaseLogin $syncSess "$base/pasajero/login" 'pasajero.demo1@taxpiya.com' 'pasajero' '3009001001'
         Test-Step 'Firebase sync endpoint' $syncResult.Ok ($syncResult.Detail)
+        # minimal sync probe
+        $fb2 = Invoke-RestMethod -Method POST -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$apiKey" -Body $fbBody -ContentType 'application/json' -TimeoutSec 60
+        if ($fb2.idToken) {
+            $minSess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+            $minJson = @{ id_token = $fb2.idToken } | ConvertTo-Json
+            try {
+                $min = Invoke-WebRequest -Method POST -Uri "$base/auth/firebase/sync-minimal" -WebSession $minSess -Body $minJson -ContentType 'application/json' -UseBasicParsing -TimeoutSec 120
+                $minData = $min.Content | ConvertFrom-Json
+                Test-Step 'Firebase sync-minimal' ($minData.ok -eq $true) ($minData.message)
+            } catch {
+                Test-Step 'Firebase sync-minimal' $false $_.Exception.Message
+            }
+        }
     }
 } catch {
     Test-Step 'Firebase sync endpoint' $false $_.Exception.Message
