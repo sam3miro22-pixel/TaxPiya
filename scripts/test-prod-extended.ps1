@@ -31,6 +31,13 @@ function Do-PhoneLogin($sess, $loginUrl, $phone, $app) {
 
 Write-Host "=== TaxPiya pruebas extendidas $base ===`n"
 
+try {
+    $diag = Invoke-RestMethod -Uri "$base/assistant/diag" -TimeoutSec 60
+    Test-Step 'Assistant diag deploy' ($diag.version -eq 'assistant-v3') "version=$($diag.version) groq=$($diag.groq)"
+} catch {
+    Test-Step 'Assistant diag deploy' $false $_.Exception.Message
+}
+
 # Login pages show phone form
 foreach ($pair in @(
     @{ Url = "$base/pasajero/login"; Name = 'Pasajero login form' },
