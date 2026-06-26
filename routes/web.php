@@ -184,7 +184,12 @@ Route::middleware(['auth'])->group(function () {
         try {
             $groq = app(\App\Services\GroqAssistantService::class);
             $reply = $groq->chat($user, $message, [], $groq->buildUserContext($user));
+        } catch (\Throwable $e) {
+            report($e);
+            $reply = 'Hola, soy el asistente TaxPiya. Puedo ayudarte con viajes, tarifas, billetera y soporte.';
+        }
 
+        try {
             if (\Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes')) {
                 $now = now()->toDateTimeString();
                 $uid = (int) $user->id;
@@ -193,16 +198,11 @@ Route::middleware(['auth'])->group(function () {
                     ['user_id' => $uid, 'rol' => 'assistant', 'mensaje' => $reply, 'created_at' => $now],
                 ]);
             }
-
-            return response()->json(['ok' => true, 'reply' => $reply]);
         } catch (\Throwable $e) {
             report($e);
-
-            return response()->json([
-                'ok'    => true,
-                'reply' => 'Hola, soy el asistente TaxPiya. Puedo ayudarte con viajes, tarifas y soporte.',
-            ]);
         }
+
+        return response()->json(['ok' => true, 'reply' => $reply]);
     })->name('assistant.send');
 
     Route::get('/api/nearby-drivers', function (Request $req) {
