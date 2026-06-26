@@ -1,8 +1,5 @@
 @auth
-@php
-    $assistantRole = auth()->user()->hasRole('Conductor') ? 'conductor' : (auth()->user()->hasRole('Empresa') ? 'empresa' : (auth()->user()->hasRole('Admin') ? 'admin' : 'pasajero'));
-@endphp
-<div id="txp-assistant-root" class="txp-assistant" data-role="{{ $assistantRole }}">
+<div id="txp-assistant-root" class="txp-assistant">
     <button type="button" id="txp-assistant-fab" class="txp-assistant-fab" aria-label="Asistente TaxPiya">
         <i class="fa-solid fa-robot"></i>
     </button>
@@ -15,7 +12,8 @@
             <div class="txp-assistant-bubble txp-assistant-bubble--bot">Hola, soy tu asistente. Puedo ayudarte con viajes, tarifas, billetera y soporte.</div>
         </div>
         <form id="txp-assistant-form" class="txp-assistant-form">
-            <input type="text" id="txp-assistant-input" class="txp-assistant-input" placeholder="Escribe tu pregunta..." maxlength="2000" autocomplete="off">
+            @csrf
+            <input type="text" id="txp-assistant-input" name="message" class="txp-assistant-input" placeholder="Escribe tu pregunta..." maxlength="2000" autocomplete="off">
             <button type="submit" class="txp-assistant-send"><i class="fa-solid fa-paper-plane"></i></button>
         </form>
     </div>
@@ -27,7 +25,7 @@
 .txp-assistant-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1);color:#fff}
 .txp-assistant-close{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1}
 .txp-assistant-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
-.txp-assistant-bubble{max-width:88%;padding:10px 12px;border-radius:14px;font-size:14px;line-height:1.45;color:#fff}
+.txp-assistant-bubble{max-width:88%;padding:10px 12px;border-radius:14px;font-size:14px;line-height:1.45;color:#fff;white-space:pre-wrap}
 .txp-assistant-bubble--bot{align-self:flex-start;background:rgba(255,255,255,.08)}
 .txp-assistant-bubble--user{align-self:flex-end;background:#4c6ef5}
 .txp-assistant-form{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(255,255,255,.1)}
@@ -46,6 +44,8 @@
   const msgs = document.getElementById('txp-assistant-msgs');
   const form = document.getElementById('txp-assistant-form');
   const input = document.getElementById('txp-assistant-input');
+  const sendUrl = @json(route('assistant.send'));
+  const msgsUrl = @json(route('assistant.messages'));
   let loaded = false;
 
   function bubble(text, who){
@@ -59,14 +59,15 @@
   async function loadHistory(){
     if (loaded) return;
     try {
-      const r = await fetch('{{ route('assistant.messages') }}', {headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const r = await fetch(msgsUrl, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!r.ok) return;
       const data = await r.json();
       if (data.ok && Array.isArray(data.messages) && data.messages.length) {
         msgs.innerHTML = '';
         data.messages.forEach(m => bubble(m.mensaje, m.rol === 'user' ? 'user' : 'bot'));
       }
       loaded = true;
-    } catch(e) {}
+    } catch (e) {}
   }
 
   fab?.addEventListener('click', () => {
@@ -87,20 +88,22 @@
     msgs.appendChild(typing);
     msgs.scrollTop = msgs.scrollHeight;
     try {
-      const r = await fetch('{{ route('assistant.send') }}', {
+      const body = new FormData(form);
+      body.set('message', text);
+      const r = await fetch(sendUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({ message: text })
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body
       });
       const data = await r.json();
       typing.remove();
-      bubble(data.reply || data.message || 'No pude responder. Intenta de nuevo.', 'bot');
-    } catch(err) {
+      if (!r.ok || data.ok !== true) {
+        bubble(data.message || 'No pude responder. Intenta de nuevo.', 'bot');
+        return;
+      }
+      bubble(data.reply || 'En que puedo ayudarte?', 'bot');
+    } catch (err) {
       typing.remove();
       bubble('Error de conexion. Intenta de nuevo.', 'bot');
     }

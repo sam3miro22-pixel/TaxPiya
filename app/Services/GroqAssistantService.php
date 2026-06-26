@@ -13,7 +13,12 @@ class GroqAssistantService
 {
     public function isConfigured(): bool
     {
-        return (string) config('taxpiya.assistant.groq_api_key') !== '';
+        $key = (string) config('services.groq.api_key', '');
+        if ($key === '') {
+            $key = (string) config('taxpiya.assistant.groq_api_key', '');
+        }
+
+        return $key !== '';
     }
 
     /**
@@ -43,11 +48,19 @@ class GroqAssistantService
         $messages[] = ['role' => 'user', 'content' => $message];
 
         try {
+            $apiKey = (string) config('services.groq.api_key', '');
+            if ($apiKey === '') {
+                $apiKey = (string) config('taxpiya.assistant.groq_api_key', '');
+            }
+            if ($apiKey === '') {
+                return $this->fallbackReply($message);
+            }
+
             $response = Http::timeout(20)
-                ->withToken((string) config('taxpiya.assistant.groq_api_key'))
+                ->withToken($apiKey)
                 ->acceptJson()
-                ->post(rtrim((string) config('taxpiya.assistant.groq_base_url'), '/') . '/chat/completions', [
-                    'model'       => config('taxpiya.assistant.groq_model'),
+                ->post(rtrim((string) config('taxpiya.assistant.groq_base_url', 'https://api.groq.com/openai/v1'), '/') . '/chat/completions', [
+                    'model'       => config('taxpiya.assistant.groq_model', 'llama-3.3-70b-versatile'),
                     'messages'    => $messages,
                     'temperature' => 0.4,
                     'max_tokens'  => 500,

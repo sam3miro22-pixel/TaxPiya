@@ -42,8 +42,10 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ] && [ "${TAXPIYA_GITHUB_BACKUP:-true
   fix_sqlite_perms
 fi
 
-php artisan config:cache
+php artisan config:clear 2>/dev/null || true
 php artisan route:clear 2>/dev/null || true
+php artisan view:clear 2>/dev/null || true
+php artisan config:cache
 php artisan view:cache
 
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then

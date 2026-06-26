@@ -127,9 +127,9 @@ Route::get('conductor/aplicar/ok', [HomeController::class, 'conductorAplicarOk']
 Route::get('/assistant/diag', function () {
     return response()->json([
         'ok'      => true,
-        'version' => 'assistant-v3',
+        'version' => 'assistant-v4',
         'table'   => \Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes'),
-        'groq'    => (string) config('taxpiya.assistant.groq_api_key') !== '',
+        'groq'    => app(\App\Services\GroqAssistantService::class)->isConfigured(),
     ]);
 })->name('assistant.diag');
 
@@ -161,58 +161,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/conductor/wallet/depositar', [\App\Http\Controllers\WalletPortalController::class, 'conductorDepositar'])->name('conductor.wallet.depositar');
     Route::post('/conductor/wallet/retirar', [\App\Http\Controllers\WalletPortalController::class, 'conductorRetirar'])->name('conductor.wallet.retirar');
 
-    Route::get('/assistant/messages', function () {
-        try {
-            $userId = (int) auth()->id();
-            if (!\Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes')) {
-                return response()->json(['ok' => true, 'messages' => []]);
-            }
-            $rows = \Illuminate\Support\Facades\DB::table('assistant_mensajes')
-                ->where('user_id', $userId)
-                ->orderBy('id')
-                ->limit(60)
-                ->get(['id', 'rol', 'mensaje', 'created_at']);
-            return response()->json(['ok' => true, 'messages' => $rows]);
-        } catch (\Throwable $e) {
-            report($e);
-            return response()->json(['ok' => true, 'messages' => []]);
-        }
-    })->name('assistant.messages');
-
-    Route::post('/assistant/send', function (Request $request) {
-        $user = auth()->user();
-        if (!$user) {
-            return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
-        }
-
-        $message = trim((string) ($request->json('message') ?? $request->input('message', '')));
-        if ($message === '') {
-            return response()->json(['ok' => false, 'message' => 'Mensaje requerido'], 422);
-        }
-
-        try {
-            $groq = app(\App\Services\GroqAssistantService::class);
-            $reply = $groq->chat($user, $message, [], $groq->buildUserContext($user));
-        } catch (\Throwable $e) {
-            report($e);
-            $reply = 'Hola, soy el asistente TaxPiya. Puedo ayudarte con viajes, tarifas, billetera y soporte.';
-        }
-
-        try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes')) {
-                $now = now()->toDateTimeString();
-                $uid = (int) $user->id;
-                \Illuminate\Support\Facades\DB::table('assistant_mensajes')->insert([
-                    ['user_id' => $uid, 'rol' => 'user', 'mensaje' => $message, 'created_at' => $now],
-                    ['user_id' => $uid, 'rol' => 'assistant', 'mensaje' => $reply, 'created_at' => $now],
-                ]);
-            }
-        } catch (\Throwable $e) {
-            report($e);
-        }
-
-        return response()->json(['ok' => true, 'reply' => $reply]);
-    })->name('assistant.send');
+    Route::get('/assistant/messages', [\App\Http\Controllers\AssistantController::class, 'messages'])->name('assistant.messages');
+    Route::post('/assistant/send', [\App\Http\Controllers\AssistantController::class, 'send'])->name('assistant.send');
 
     Route::get('/api/nearby-drivers', function (Request $req) {
         $lat = (float) $req->query('lat');

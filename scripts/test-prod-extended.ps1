@@ -33,7 +33,7 @@ Write-Host "=== TaxPiya pruebas extendidas $base ===`n"
 
 try {
     $diag = Invoke-RestMethod -Uri "$base/assistant/diag" -TimeoutSec 60
-    Test-Step 'Assistant diag deploy' ($diag.version -eq 'assistant-v3') "version=$($diag.version) groq=$($diag.groq)"
+    Test-Step 'Assistant diag deploy' ($diag.version -eq 'assistant-v4') "version=$($diag.version) groq=$($diag.groq)"
 } catch {
     Test-Step 'Assistant diag deploy' $false $_.Exception.Message
 }
@@ -73,10 +73,10 @@ foreach ($r in $roles) {
             Test-Step "Assistant widget $label" ($destPage.Content -match 'txp-assistant-fab') 'fab present'
             if ($destPage.Content -match 'csrf-token') {
                 $csrf = Get-Csrf $destPage.Content
-                $assistBody = '{"message":"Hola, necesito ayuda con un viaje"}'
+                $assistBody = "_token=$([uri]::EscapeDataString($csrf))&message=$([uri]::EscapeDataString('Hola, necesito ayuda con un viaje'))"
                 try {
                     $ar = Invoke-WebRequest -Method POST -Uri "$base/assistant/send" -WebSession $sess `
-                        -ContentType 'application/json' -Body $assistBody `
+                        -ContentType 'application/x-www-form-urlencoded' -Body $assistBody `
                         -Headers @{ Accept = 'application/json'; 'X-Requested-With' = 'XMLHttpRequest' } -TimeoutSec 120 -UseBasicParsing
                     $parsed = $ar.Content | ConvertFrom-Json
                     $preview = if ($parsed.reply.Length -gt 60) { $parsed.reply.Substring(0, 60) + '...' } else { $parsed.reply }

@@ -9,85 +9,60 @@ use Illuminate\Support\Facades\Schema;
 
 class AssistantController extends Controller
 {
-    public function messages(Request $request)
+    public function messages()
     {
-        try {
-            $userId = (int) auth()->id();
-            if (!Schema::hasTable('assistant_mensajes')) {
-                return response()->json(['ok' => true, 'messages' => []]);
-            }
+        $userId = (int) auth()->id();
+        if ($userId <= 0) {
+            return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
+        }
 
-            $rows = DB::table('assistant_mensajes')
-                ->where('user_id', $userId)
-                ->orderBy('id')
-                ->limit(60)
-                ->get(['id', 'rol', 'mensaje', 'created_at']);
-
-            return response()->json([
-                'ok'       => true,
-                'messages' => $rows,
-            ]);
-        } catch (\Throwable $e) {
-            report($e);
+        if (!Schema::hasTable('assistant_mensajes')) {
             return response()->json(['ok' => true, 'messages' => []]);
         }
+
+        $rows = DB::table('assistant_mensajes')
+            ->where('user_id', $userId)
+            ->orderBy('id')
+            ->limit(60)
+            ->get(['id', 'rol', 'mensaje', 'created_at']);
+
+        return response()->json(['ok' => true, 'messages' => $rows]);
     }
 
-    public function send(Request $request, GroqAssistantService $groq)
+    public function send(Request $request)
     {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
+        }
+
+        $message = trim((string) $request->input('message', ''));
+        if ($message === '') {
+            return response()->json(['ok' => false, 'message' => 'Mensaje requerido'], 422);
+        }
+
+        $reply = 'Hola, soy el asistente TaxPiya. Puedo ayudarte con viajes, tarifas, billetera y soporte.';
+
         try {
-            $data = $request->validate([
-                'message' => 'required|string|max:2000',
-            ]);
-
-            $user = auth()->user();
-            if (!$user) {
-                return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
-            }
-
-            $userId = (int) $user->id;
-            $message = trim($data['message']);
-            $now = now()->toDateTimeString();
-            $context = $groq->buildUserContext($user);
-
-            if (!Schema::hasTable('assistant_mensajes')) {
-                $reply = $groq->chat($user, $message, [], $context);
-                return response()->json(['ok' => true, 'reply' => $reply]);
-            }
-
-            DB::table('assistant_mensajes')->insert([
-                'user_id'    => $userId,
-                'rol'        => 'user',
-                'mensaje'    => $message,
-                'created_at' => $now,
-            ]);
-
-            $history = DB::table('assistant_mensajes')
-                ->where('user_id', $userId)
-                ->orderByDesc('id')
-                ->limit(14)
-                ->get(['rol', 'mensaje'])
-                ->reverse()
-                ->map(fn ($r) => ['role' => $r->rol, 'content' => $r->mensaje])
-                ->values()
-                ->all();
-
-            $reply = $groq->chat($user, $message, $history, $context);
-
-            DB::table('assistant_mensajes')->insert([
-                'user_id'    => $userId,
-                'rol'        => 'assistant',
-                'mensaje'    => $reply,
-                'created_at' => $now,
-            ]);
-
-            return response()->json(['ok' => true, 'reply' => $reply]);
+            $groq = app(GroqAssistantService::class);
+            $reply = $groq->chat($user, $message, [], $groq->buildUserContext($user));
         } catch (\Throwable $e) {
             report($e);
-            return response()->json([
-                'ok'    => true,
-                'reply' => 'Hola, soy el asistente TaxPiya. Puedo ayudarte con viajes, tarifas y soporte. ¿Qué necesitas?',
-            ]);
         }
+
+        try {
+            if (Schema::hasTable('assistant_mensajes')) {
+                $now = now()->toDateTimeString();
+                $uid = (int) $user->id;
+                DB::table('assistant_mensajes')->insert([
+                    ['user_id' => $uid, 'rol' => 'user', 'mensaje' => $message, 'created_at' => $now],
+                    ['user_id' => $uid, 'rol' => 'assistant', 'mensaje' => $reply, 'created_at' => $now],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return response()->json(['ok' => true, 'reply' => $reply]);
     }
 }

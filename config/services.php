@@ -31,10 +31,14 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 	
-	'fcm' => [
+    'fcm' => [
         'project_id'  => env('FIREBASE_PROJECT_ID', 'tax-piya'),
         'credentials' => env('FIREBASE_CREDENTIALS') ?: storage_path('app/firebase/service-account.json'),
         'scope'       => env('FCM_SCOPE', 'prod'),
+    ],
+
+    'groq' => [
+        'api_key' => env('GROQ_API_KEY', ''),
     ],
 
 ];
