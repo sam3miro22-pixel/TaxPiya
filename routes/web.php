@@ -127,9 +127,11 @@ Route::get('conductor/aplicar/ok', [HomeController::class, 'conductorAplicarOk']
 Route::get('/assistant/diag', function () {
     return response()->json([
         'ok'      => true,
-        'version' => 'assistant-v4',
+        'version' => 'assistant-v5',
         'table'   => \Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes'),
-        'groq'    => app(\App\Services\GroqAssistantService::class)->isConfigured(),
+        'groq'    => (string) config('services.groq.api_key', '') !== ''
+            || (string) config('taxpiya.assistant.groq_api_key', '') !== '',
+        'curl'    => function_exists('curl_init'),
     ]);
 })->name('assistant.diag');
 

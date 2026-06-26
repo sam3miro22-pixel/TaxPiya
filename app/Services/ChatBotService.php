@@ -25,9 +25,9 @@ class ChatBotService
 
     public function onTripAssigned(int $viajeId, ?string $codigoLlegada = null): void
     {
-        $msg = 'Tu conductor fue asignado. Puedes escribir aquí si necesitas algo.';
+        $msg = 'Tu conductor fue asignado. Puedes escribir aqui si necesitas algo.';
         if ($codigoLlegada) {
-            $msg .= " Cuando llegue, comparte el código {$codigoLlegada} si te lo pide.";
+            $msg .= " Cuando llegue, comparte el codigo {$codigoLlegada} si te lo pide.";
         }
         $this->postSystemMessage($viajeId, $msg);
     }
@@ -35,9 +35,9 @@ class ChatBotService
     public function onTripStateChange(int $viajeId, string $estado): void
     {
         $messages = [
-            'en_camino' => 'El conductor va en camino hacia tu ubicación.',
+            'en_camino' => 'El conductor va en camino hacia tu ubicacion.',
             'llego'     => 'El conductor ha llegado. Confirma cuando subas al taxi.',
-            'iniciado'  => 'Viaje iniciado. ¡Buen recorrido!',
+            'iniciado'  => 'Viaje iniciado. Buen recorrido!',
             'terminado' => 'Viaje finalizado. Gracias por usar Taxpiya.',
         ];
 
@@ -57,11 +57,7 @@ class ChatBotService
             return null;
         }
 
-        $reply = app(GroqAssistantService::class)->tripReply($viajeId, $userRole, $message);
-        if ($reply === null || $reply === '') {
-            $reply = $this->regexReply($viajeId, $text);
-        }
-
+        $reply = $this->regexReply($viajeId, $text);
         if ($reply === null) {
             return null;
         }
@@ -72,7 +68,7 @@ class ChatBotService
     private function regexReply(int $viajeId, string $text): ?string
     {
         if (preg_match('/\b(ayuda|help|soporte)\b/u', $text)) {
-            return 'Soy el asistente Taxpiya. Puedes preguntar por tarifa, tiempo, código o cancelación.';
+            return 'Soy el asistente Taxpiya. Puedes preguntar por tarifa, tiempo, codigo o cancelacion.';
         }
         if (preg_match('/\b(tarifa|precio|cuanto|cuesta|valor)\b/u', $text)) {
             $viaje = DB::table('viajes')->where('id', $viajeId)->first();
@@ -81,20 +77,20 @@ class ChatBotService
                 $moneda = $viaje->moneda ?? 'COP';
                 return "La tarifa estimada de este viaje es \${$monto} {$moneda}.";
             }
-            return 'La tarifa se confirmará según la ruta acordada.';
+            return 'La tarifa se confirmara segun la ruta acordada.';
         }
-        if (preg_match('/\b(codigo|código|llegada)\b/u', $text)) {
+        if (preg_match('/\b(codigo|llegada)\b/u', $text)) {
             $viaje = DB::table('viajes')->where('id', $viajeId)->first();
             if ($viaje && !empty($viaje->codigo_llegada)) {
-                return "Tu código de llegada es {$viaje->codigo_llegada}. Compártelo con el conductor cuando llegue.";
+                return "Tu codigo de llegada es {$viaje->codigo_llegada}.";
             }
-            return 'El código de llegada aparecerá cuando se asigne un conductor.';
+            return 'El codigo de llegada aparecera cuando se asigne un conductor.';
         }
         if (preg_match('/\b(cancelar|cancel)\b/u', $text)) {
-            return 'Para cancelar usa el botón «Cancelar servicio» en la pantalla del viaje.';
+            return 'Para cancelar usa el boton Cancelar servicio en la pantalla del viaje.';
         }
         if (preg_match('/\b(hola|buenas|buenos)\b/u', $text)) {
-            return '¡Hola! Estoy aquí para ayudarte durante el viaje.';
+            return 'Hola! Estoy aqui para ayudarte durante el viaje.';
         }
 
         return null;
