@@ -124,6 +124,15 @@ Route::post('conductor/aplicar', [HomeController::class, 'conductorAplicarStore'
 Route::get('conductor/aplicar/ok', [HomeController::class, 'conductorAplicarOk'])
     ->name('conductor.aplicar.ok');
 
+Route::get('/assistant/diag', function () {
+    return response()->json([
+        'ok'      => true,
+        'version' => 'assistant-v3',
+        'table'   => \Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes'),
+        'groq'    => (string) config('taxpiya.assistant.groq_api_key') !== '',
+    ]);
+})->name('assistant.diag');
+
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/empresa', [EmpresaPortalController::class, 'dashboard'])->name('empresa.dashboard');
