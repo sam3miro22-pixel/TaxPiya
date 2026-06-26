@@ -26,8 +26,9 @@
         
         <div class="d-flex align-items-center justify-content-center position-relative">
             <button type="button"
+                    id="txp-top-menu-btn"
                     class="navbar-toggler dropdown-toggle position-absolute start-0 top-50 translate-middle-y ms-2"
-                    data-bs-toggle="collapse" data-bs-target=".navbar-responsive-collapse" aria-label="Abrir menú">
+                    aria-label="Abrir menú">
                 <i class="fa-solid fa-bars"></i>
             </button>
 
@@ -110,7 +111,12 @@
       <span class="tip">Tus Direcciones</span>
     </button>
 
-    <a href="{{ route('logout') }}" id="qmLogout" class="qm-item" style="--i:4" aria-label="Cerrar sesión">
+    <button type="button" id="qmWallet" class="qm-item" style="--i:4" aria-label="Mi billetera">
+      <i class="fa-solid fa-wallet"></i>
+      <span class="tip">Mi billetera</span>
+    </button>
+
+    <a href="{{ route('logout') }}" id="qmLogout" class="qm-item" style="--i:5" aria-label="Cerrar sesión">
       <i class="fa-solid fa-right-from-bracket"></i>
       <span class="tip">Cerrar sesión</span>
     </a>
@@ -329,7 +335,16 @@ body#main #page-content {
     background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
     pointer-events: none;
 }
-.top-controls .search-wrap { pointer-events: auto; }
+.top-controls .search-wrap,
+.top-controls #txp-top-menu-btn,
+.top-controls .brand-wrap { pointer-events: auto; }
+#txp-top-menu-btn{
+  width: 46px; height: 46px; border-radius: 50%; border: 0;
+  display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(180deg, var(--txp-brand), var(--txp-brand-2));
+  color: #1a1a1a; font-size: 17px;
+  box-shadow: 0 10px 24px rgba(255,159,28,.35);
+}
 .brand-wrap{ display:flex; justify-content:center; }
 .brand-logo{
     width:64px; height:64px; object-fit:contain;
@@ -449,8 +464,16 @@ body#main #page-content {
 .quick-menu{
   position: absolute;
   right: 16px;
-  bottom: 22px;
-  z-index: calc(var(--txp-ui-z) + 1);
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  z-index: 9990;
+}
+
+/* Asistente encima del mapa, sin tapar el menú hamburguesa */
+body:has(#txp-map-root) #txp-assistant-root .txp-assistant-fab{
+  bottom: calc(88px + env(safe-area-inset-bottom));
+}
+body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
+  bottom: calc(152px + env(safe-area-inset-bottom));
 }
 
 
@@ -525,7 +548,7 @@ body#main #page-content {
 
 
 @media (max-width: 480px){
-  .quick-menu{ right: 12px; bottom: 18px; }
+  .quick-menu{ right: 12px; bottom: calc(18px + env(safe-area-inset-bottom)); }
   :root{ --qm-gap: 58px; }
   .qm-item .tip{ font-size: 11px; }
 }
@@ -1436,6 +1459,7 @@ toggleCTA && toggleCTA(true);
     const urls = {
       perfil: @json(route('pasajero.perfil')),
       viajes: @json(route('pasajero.viajes')),
+      wallet: @json(route('pasajero.wallet')),
     };
 
     function closeMenu(){
@@ -1443,11 +1467,21 @@ toggleCTA && toggleCTA(true);
       btn?.setAttribute('aria-expanded','false');
     }
 
+    function toggleQuickMenu(forceOpen){
+      const open = typeof forceOpen === 'boolean' ? forceOpen : !qm.classList.contains('open');
+      qm.classList.toggle('open', open);
+      btn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
     btn?.addEventListener('click', (e)=>{
       e.stopPropagation();
-      const open = !qm.classList.contains('open');
-      qm.classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggleQuickMenu();
+    });
+
+    document.getElementById('txp-top-menu-btn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleQuickMenu(true);
     });
 
     document.getElementById('qmPerfil')?.addEventListener('click', (e) => {
@@ -1457,6 +1491,10 @@ toggleCTA && toggleCTA(true);
     document.getElementById('qmViajes')?.addEventListener('click', (e) => {
       e.preventDefault();
       window.location.href = urls.viajes;
+    });
+    document.getElementById('qmWallet')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = urls.wallet;
     });
     document.getElementById('qmDirecciones')?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -2576,7 +2614,13 @@ function getUserLocation(opts = { forceWatch:false }){
 
   navigator.geolocation.getCurrentPosition(
     (pos) => handlePosition(pos, { from:"single", setOrigin:true }),
-    (err) => console.warn('No se pudo obtener ubicación (single)', err),
+    (err) => {
+      console.warn('No se pudo obtener ubicación (single)', err);
+      const msg = err?.code === 1
+        ? 'Activa el permiso de ubicación en tu navegador'
+        : 'No pudimos obtener tu ubicación. Intenta de nuevo.';
+      if (typeof showBanner === 'function') showBanner(msg, 'fa-location-crosshairs');
+    },
     options
   );
   if (opts.forceWatch) startWatch();
