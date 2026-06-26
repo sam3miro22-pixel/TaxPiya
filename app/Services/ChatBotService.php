@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Schema;
 
 class ChatBotService
 {
+    public function __construct(
+        private readonly GroqAssistantService $groq
+    ) {}
+
     public function postSystemMessage(int $viajeId, string $message): ?int
     {
         if (!Schema::hasTable('chat_mensajes')) {
@@ -16,7 +20,7 @@ class ChatBotService
         return (int) DB::table('chat_mensajes')->insertGetId([
             'viaje_id'      => $viajeId,
             'remitente_id'  => 0,
-            'remitente_rol' => 'system',
+            'remitente_rol' => 'sistema',
             'tipo'          => 'system',
             'mensaje'       => $message,
             'created_at'    => now(),
@@ -48,7 +52,7 @@ class ChatBotService
 
     public function maybeReply(int $viajeId, string $userRole, string $message): ?int
     {
-        if ($userRole === 'system') {
+        if (in_array($userRole, ['system', 'sistema'], true)) {
             return null;
         }
 
@@ -57,34 +61,9 @@ class ChatBotService
             return null;
         }
 
-        $reply = null;
-
-        if (preg_match('/\b(ayuda|help|soporte)\b/u', $text)) {
-            $reply = 'Soy el asistente Taxpiya. Puedes preguntar por tarifa, tiempo, código o cancelación.';
-        } elseif (preg_match('/\b(tarifa|precio|cuanto|cuesta|valor)\b/u', $text)) {
-            $viaje = DB::table('viajes')->where('id', $viajeId)->first();
-            if ($viaje && $viaje->tarifa_aplicada !== null) {
-                $monto = number_format((float) $viaje->tarifa_aplicada, 0, ',', '.');
-                $moneda = $viaje->moneda ?? 'COP';
-                $reply = "La tarifa estimada de este viaje es \${$monto} {$moneda}.";
-            } else {
-                $reply = 'La tarifa se confirmará según la ruta acordada.';
-            }
-        } elseif (preg_match('/\b(tiempo|eta|cuanto tarda|demora)\b/u', $text)) {
-            $reply = 'El tiempo de llegada depende del tráfico. Verás la ETA en el mapa cuando el conductor esté en camino.';
-        } elseif (preg_match('/\b(codigo|código|llegada)\b/u', $text)) {
-            $viaje = DB::table('viajes')->where('id', $viajeId)->first();
-            if ($viaje && !empty($viaje->codigo_llegada)) {
-                $reply = "Tu código de llegada es {$viaje->codigo_llegada}. Compártelo con el conductor cuando llegue.";
-            } else {
-                $reply = 'El código de llegada aparecerá cuando se asigne un conductor.';
-            }
-        } elseif (preg_match('/\b(cancelar|cancel)\b/u', $text)) {
-            $reply = 'Para cancelar usa el botón «Cancelar servicio» en la pantalla del viaje.';
-        } elseif (preg_match('/\b(hola|buenas|buenos)\b/u', $text)) {
-            $reply = '¡Hola! Estoy aquí para ayudarte durante el viaje.';
-        } elseif (preg_match('/\b(donde|ubicacion|ubicación|mapa)\b/u', $text)) {
-            $reply = 'Puedes ver la ubicación del conductor en el mapa. La burbuja amarilla se actualiza en tiempo real.';
+        $reply = $this->groq->tripReply($viajeId, $userRole, $message);
+        if ($reply === null || $reply === '') {
+            $reply = $this->regexReply($viajeId, $text);
         }
 
         if ($reply === null) {
@@ -92,5 +71,36 @@ class ChatBotService
         }
 
         return $this->postSystemMessage($viajeId, $reply);
+    }
+
+    private function regexReply(int $viajeId, string $text): ?string
+    {
+        if (preg_match('/\b(ayuda|help|soporte)\b/u', $text)) {
+            return 'Soy el asistente Taxpiya. Puedes preguntar por tarifa, tiempo, código o cancelación.';
+        }
+        if (preg_match('/\b(tarifa|precio|cuanto|cuesta|valor)\b/u', $text)) {
+            $viaje = DB::table('viajes')->where('id', $viajeId)->first();
+            if ($viaje && $viaje->tarifa_aplicada !== null) {
+                $monto = number_format((float) $viaje->tarifa_aplicada, 0, ',', '.');
+                $moneda = $viaje->moneda ?? 'COP';
+                return "La tarifa estimada de este viaje es \${$monto} {$moneda}.";
+            }
+            return 'La tarifa se confirmará según la ruta acordada.';
+        }
+        if (preg_match('/\b(codigo|código|llegada)\b/u', $text)) {
+            $viaje = DB::table('viajes')->where('id', $viajeId)->first();
+            if ($viaje && !empty($viaje->codigo_llegada)) {
+                return "Tu código de llegada es {$viaje->codigo_llegada}. Compártelo con el conductor cuando llegue.";
+            }
+            return 'El código de llegada aparecerá cuando se asigne un conductor.';
+        }
+        if (preg_match('/\b(cancelar|cancel)\b/u', $text)) {
+            return 'Para cancelar usa el botón «Cancelar servicio» en la pantalla del viaje.';
+        }
+        if (preg_match('/\b(hola|buenas|buenos)\b/u', $text)) {
+            return '¡Hola! Estoy aquí para ayudarte durante el viaje.';
+        }
+
+        return null;
     }
 }

@@ -242,6 +242,9 @@
 		<script type="text/javascript" src="{{ asset('js/page-scripts.js') }}"></script>
 		<script type="text/javascript" src="{{ asset('js/form-page-scripts.js') }}"></script>
 		@yield('pagejs')
+		@auth
+			@include('components.assistant-chat')
+		@endauth
 		<script>
 	$('#sidebarCollapse').on('click', function () {
 		$('#sidebar, #main-content').toggleClass('active');

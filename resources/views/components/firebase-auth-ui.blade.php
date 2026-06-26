@@ -1,7 +1,7 @@
 @php
     $fbApp = $app ?? null;
     $fbEnabled = config('taxpiya.firebase.use_firebase_auth') && config('firebase.web.api_key');
-    $fbSupported = in_array($fbApp, ['pasajero', 'conductor'], true);
+    $fbSupported = in_array($fbApp, ['pasajero', 'conductor', 'empresa'], true);
     $fbPrimary = ($primary ?? false) || ($fbSupported && $fbEnabled);
 @endphp
 @if($fbEnabled && $fbSupported)
@@ -70,7 +70,9 @@
     }
 
     function goHome(data) {
-      window.location.href = data?.redirect || '/home';
+      const redirect = data?.redirect
+        || (app === 'empresa' ? '/empresa' : '/home');
+      window.location.href = redirect;
     }
 
     if (window.__txpFbRedirectError) showErr(window.__txpFbRedirectError);
@@ -116,7 +118,7 @@
 
     loginForm?.addEventListener('submit', async (e) => {
       const username = document.getElementById('txp-username')?.value?.trim() || '';
-      if (!username.includes('@')) return;
+      if (!username.includes('@') || app === 'empresa' || app === 'admin') return;
 
       e.preventDefault();
       hideErr();

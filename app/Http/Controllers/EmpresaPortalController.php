@@ -289,6 +289,17 @@ class EmpresaPortalController extends Controller
 
         $email = $data['email'] ?? (preg_replace('/\D+/', '', $data['telefono']) . '@flota.taxpiya.local');
 
+        $firebaseUid = null;
+        $firebase = app(FirebaseIdentityService::class);
+        if ($firebase->isConfigured() && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            try {
+                $identity = $firebase->signUp($email, $data['password']);
+                $firebaseUid = $identity['localId'] ?? null;
+            } catch (\Throwable $e) {
+                return back()->withErrors('No se pudo crear el usuario en Firebase: ' . $e->getMessage())->withInput();
+            }
+        }
+
         DB::beginTransaction();
         try {
             $userId = DB::table('users')->insertGetId([
@@ -296,6 +307,7 @@ class EmpresaPortalController extends Controller
                 'email'        => $email,
                 'telefono'     => $data['telefono'],
                 'password'     => bcrypt($data['password']),
+                'firebase_uid' => $firebaseUid,
                 'estado'       => 1,
                 'user_role_id' => $roleConductor,
                 'created_at'   => $now,
@@ -416,6 +428,17 @@ class EmpresaPortalController extends Controller
         $roleEmpresa = DB::table('roles')->where('role_name', 'Empresa')->value('role_id') ?: 4;
         $now = now()->toDateTimeString();
 
+        $firebaseUid = null;
+        $firebase = app(FirebaseIdentityService::class);
+        if ($firebase->isConfigured()) {
+            try {
+                $identity = $firebase->signUp($data['email'], $data['password']);
+                $firebaseUid = $identity['localId'] ?? null;
+            } catch (\Throwable $e) {
+                return back()->withErrors('No se pudo registrar en Firebase: ' . $e->getMessage())->withInput();
+            }
+        }
+
         DB::beginTransaction();
         try {
             $userId = DB::table('users')->insertGetId([
@@ -423,6 +446,7 @@ class EmpresaPortalController extends Controller
                 'email'        => $data['email'],
                 'telefono'     => $data['telefono'],
                 'password'     => bcrypt($data['password']),
+                'firebase_uid' => $firebaseUid,
                 'estado'       => 0,
                 'user_role_id' => $roleEmpresa,
             ]);
@@ -449,6 +473,15 @@ class EmpresaPortalController extends Controller
             $referrals->ensureUserCode((int) $userId);
             $referrals->ensureEmpresaCode((int) $empresaId);
             $referrals->registerReferral($data['codigo_referido'] ?? null, (int) $userId, 'empresa');
+
+            $userModel = Users::find($userId);
+            if ($userModel && $firebaseUid) {
+                try {
+                    app(FirestoreUserService::class)->upsertFromUser($userModel, 'empresa');
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
 
             DB::commit();
         } catch (\Throwable $e) {

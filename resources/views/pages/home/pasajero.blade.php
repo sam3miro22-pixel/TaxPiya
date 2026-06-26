@@ -2186,7 +2186,7 @@ function renderChat(items){
     if (id && renderedIds.has(id)) continue;  
 
     const mine = (m.rol === 'pasajero');
-    const isSystem = (m.tipo === 'system' || m.rol === 'system');
+    const isSystem = (m.tipo === 'system' || m.rol === 'system' || m.rol === 'sistema');
     const text = (m.mensaje ?? '');
     const hash = msgHash(m.rol, text);
 

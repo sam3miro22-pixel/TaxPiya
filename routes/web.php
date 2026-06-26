@@ -152,6 +152,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/conductor/wallet/depositar', [\App\Http\Controllers\WalletPortalController::class, 'conductorDepositar'])->name('conductor.wallet.depositar');
     Route::post('/conductor/wallet/retirar', [\App\Http\Controllers\WalletPortalController::class, 'conductorRetirar'])->name('conductor.wallet.retirar');
 
+    Route::get('/assistant/messages', [\App\Http\Controllers\AssistantController::class, 'messages'])->name('assistant.messages');
+    Route::post('/assistant/send', [\App\Http\Controllers\AssistantController::class, 'send'])->name('assistant.send');
+
     Route::get('/api/nearby-drivers', function (Request $req) {
         $lat = (float) $req->query('lat');
         $lng = (float) $req->query('lng');
@@ -308,36 +311,24 @@ Route::middleware(['auth'])->group(function () {
 		};
 
 		try {
-			$credentials = $isEmail
-				? ['email' => $username, 'password' => $password]
-				: ['telefono' => $username, 'password' => $password];
-
-			$userQuery = \App\Models\Users::query();
+			$user = null;
 			if ($isEmail) {
-				$userQuery->where('email', $username);
+				$user = \App\Models\Users::query()->where('email', $username)->first();
 			} else {
-				$userQuery->where('telefono', $username);
+				$telDigits = \App\Support\PhoneNormalizer::digits($username);
+				$user = \App\Models\Users::query()
+					->where(function ($q) use ($username, $telDigits) {
+						$q->where('telefono', $username);
+						if ($telDigits !== '') {
+							$q->orWhere('telefono', $telDigits)
+								->orWhere('telefono', 'like', '%' . $telDigits);
+						}
+					})
+					->first();
 			}
-			$user = $userQuery->first();
 
 			if (!$user || !\Illuminate\Support\Facades\Hash::check($password, (string) $user->password)) {
 				return $fail('Nombre de usuario o contraseña no correctos');
-			}
-
-			if ($app && in_array($app, ['pasajero', 'conductor'], true)
-				&& \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
-				$telDigits = preg_replace('/\D+/', '', $username);
-				if (!\App\Services\DemoAccountCatalog::isDemoPhone($telDigits)) {
-					return $fail('Usa Google o correo y contraseña de Firebase para entrar.');
-				}
-			}
-
-			// Bloqueo login por correo sin Firebase (cuentas huérfanas locales).
-			if ($app && in_array($app, ['pasajero', 'conductor'], true) && $isEmail) {
-				$isDemo = \App\Services\DemoAccountCatalog::isDemoEmail((string) ($user->email ?? ''));
-				if (!$isDemo && \App\Services\PortalAuthService::firebasePasajeroConductorEnabled()) {
-					return $fail('Usa Google o «Correo y contraseña» de Firebase. Las cuentas de correo solo en el servidor ya no están permitidas.');
-				}
 			}
 
 			if ($app && in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
@@ -426,7 +417,7 @@ Route::middleware(['auth'])->group(function () {
 			if ($idToken === '') {
 				return response()->json(['ok' => false, 'message' => 'id_token requerido'], 422);
 			}
-			if (!in_array($app, ['pasajero', 'conductor'], true)) {
+			if (!in_array($app, ['pasajero', 'conductor', 'empresa'], true)) {
 				return response()->json(['ok' => false, 'message' => 'Portal no válido'], 422);
 			}
 
@@ -455,6 +446,9 @@ Route::middleware(['auth'])->group(function () {
 				if ($app === 'conductor') {
 					return response()->json(['ok' => false, 'message' => 'Cuenta de conductor no activa.'], 403);
 				}
+				if ($app === 'empresa') {
+					return response()->json(['ok' => false, 'message' => 'Registra tu empresa primero en TaxPiya.'], 403);
+				}
 				$uid = (string) ($fbUser['localId'] ?? '');
 				$user = \App\Models\Users::create([
 					'firebase_uid' => $uid,
@@ -468,7 +462,11 @@ Route::middleware(['auth'])->group(function () {
 				$user->assignRole('Pasajero');
 			}
 
-			$expectedRole = $app === 'conductor' ? 'Conductor' : 'Pasajero';
+			$expectedRole = match ($app) {
+				'conductor' => 'Conductor',
+				'empresa'   => 'Empresa',
+				default     => 'Pasajero',
+			};
 			$expectedRoleId = (int) (\Illuminate\Support\Facades\DB::table('roles')->where('role_name', $expectedRole)->value('role_id') ?? 0);
 			if ($expectedRoleId > 0 && (int) $user->user_role_id !== $expectedRoleId) {
 				return response()->json(['ok' => false, 'message' => 'No tienes acceso a este portal.'], 403);
@@ -480,6 +478,12 @@ Route::middleware(['auth'])->group(function () {
 				$conductor = \Illuminate\Support\Facades\DB::table('conductores')->where('user_id', $user->id)->first();
 				if (!$conductor || (int) ($conductor->estado_operitivo ?? 0) !== 1) {
 					return response()->json(['ok' => false, 'message' => 'Conductor no activo.'], 403);
+				}
+			}
+			if ($app === 'empresa') {
+				if (!\Illuminate\Support\Facades\Schema::hasTable('empresas')
+					|| !\Illuminate\Support\Facades\DB::table('empresas')->where('user_id', $user->id)->exists()) {
+					return response()->json(['ok' => false, 'message' => 'Tu cuenta no tiene empresa vinculada.'], 403);
 				}
 			}
 
@@ -503,7 +507,9 @@ Route::middleware(['auth'])->group(function () {
 				}
 			}
 
-			return response()->json(['ok' => true, 'user_id' => $user->id, 'redirect' => '/home']);
+			$redirect = $app === 'empresa' ? '/empresa' : '/home';
+
+			return response()->json(['ok' => true, 'user_id' => $user->id, 'redirect' => $redirect]);
 		} catch (\Throwable $e) {
 			report($e);
 			return response()->json(['ok' => false, 'message' => 'Sync: ' . $e->getMessage()], 500);

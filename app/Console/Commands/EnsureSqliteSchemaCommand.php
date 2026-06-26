@@ -246,6 +246,17 @@ SQL);
 
         $this->ensureDefaultRoles();
 
+        $this->ensureTable($pdo, 'assistant_mensajes', <<<'SQL'
+CREATE TABLE IF NOT EXISTS assistant_mensajes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    rol TEXT NOT NULL DEFAULT 'user',
+    mensaje TEXT NOT NULL,
+    created_at TEXT NULL
+)
+SQL);
+        $pdo->exec('CREATE INDEX IF NOT EXISTS assistant_mensajes_user_id_index ON assistant_mensajes(user_id)');
+
         $this->ensureEmpresasPermissions();
         $this->ensureReferidosPermissions();
         app(\App\Services\ReferralService::class)->backfillCodes();
