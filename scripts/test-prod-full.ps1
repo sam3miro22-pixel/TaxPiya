@@ -199,7 +199,7 @@ try {
     $pasPage = Invoke-WebRequest -Uri "$base/pasajero/login" -UseBasicParsing -TimeoutSec 120
     Test-Step 'Pasajero login page' ($pasPage.StatusCode -eq 200) "HTTP $($pasPage.StatusCode)"
     Test-Step 'Pasajero Firebase UI (Google)' ($pasPage.Content -match 'Continuar con Google')
-    Test-Step 'Pasajero sin form Laravel' ($pasPage.Content -notmatch '<form[^>]*name="loginForm"')
+    Test-Step 'Pasajero form celular' ($pasPage.Content -match '<form[^>]*name="loginForm"')
     Test-Step 'Pasajero sin olvidé contraseña' ($pasPage.Content -notmatch 'Olvidaste|olvidaste|forgotpassword')
 } catch { Test-Step 'Pasajero login page' $false }
 
@@ -207,7 +207,7 @@ try {
     $drvPage = Invoke-WebRequest -Uri "$base/conductor/login" -UseBasicParsing -TimeoutSec 120
     Test-Step 'Conductor login page' ($drvPage.StatusCode -eq 200) "HTTP $($drvPage.StatusCode)"
     Test-Step 'Conductor Firebase UI' ($drvPage.Content -match 'Continuar con Google')
-    Test-Step 'Conductor sin form Laravel' ($drvPage.Content -notmatch '<form[^>]*name="loginForm"')
+    Test-Step 'Conductor form celular' ($drvPage.Content -match '<form[^>]*name="loginForm"')
 } catch { Test-Step 'Conductor login page' $false }
 
 try {

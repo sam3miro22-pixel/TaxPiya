@@ -7,10 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 class ChatBotService
 {
-    public function __construct(
-        private readonly GroqAssistantService $groq
-    ) {}
-
     public function postSystemMessage(int $viajeId, string $message): ?int
     {
         if (!Schema::hasTable('chat_mensajes')) {
@@ -61,7 +57,7 @@ class ChatBotService
             return null;
         }
 
-        $reply = $this->groq->tripReply($viajeId, $userRole, $message);
+        $reply = app(GroqAssistantService::class)->tripReply($viajeId, $userRole, $message);
         if ($reply === null || $reply === '') {
             $reply = $this->regexReply($viajeId, $text);
         }
