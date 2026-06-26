@@ -25,13 +25,6 @@
     <div class="top-controls">
         
         <div class="d-flex align-items-center justify-content-center position-relative">
-            <button type="button"
-                    id="txp-top-menu-btn"
-                    class="navbar-toggler dropdown-toggle position-absolute start-0 top-50 translate-middle-y ms-2"
-                    aria-label="Abrir menú">
-                <i class="fa-solid fa-bars"></i>
-            </button>
-
             <div class="brand-wrap">
                 <img src="{{ asset('images/logo.png') }}" alt="Taxpiya"
                      class="brand-logo" width="82" height="82" style="width:82px;height:82px;">
@@ -89,39 +82,6 @@
 
    
     <div id="geo-accuracy" class="geo-badge" style="display:none;"></div>
-
-<div class="quick-menu" id="quickMenu">
-  <button class="qm-toggle" id="qmToggle" aria-expanded="false" aria-label="Abrir menú">
-    <i class="fa-solid fa-bars"></i>
-  </button>
-
-  <nav class="qm-items">
-    <button type="button" id="qmPerfil" class="qm-item" style="--i:1" aria-label="Tu Perfil">
-      <i class="fa-solid fa-user"></i>
-      <span class="tip">Tu Perfil</span>
-    </button>
-
-    <button type="button" id="qmViajes" class="qm-item" style="--i:2" aria-label="Tus Viajes">
-      <i class="fa-solid fa-route"></i>
-      <span class="tip">Tus Viajes</span>
-    </button>
-
-    <button type="button" id="qmDirecciones" class="qm-item" style="--i:3" aria-label="Tus Direcciones">
-      <i class="fa-solid fa-location-dot"></i>
-      <span class="tip">Tus Direcciones</span>
-    </button>
-
-    <button type="button" id="qmWallet" class="qm-item" style="--i:4" aria-label="Mi billetera">
-      <i class="fa-solid fa-wallet"></i>
-      <span class="tip">Mi billetera</span>
-    </button>
-
-    <a href="{{ route('logout') }}" id="qmLogout" class="qm-item" style="--i:5" aria-label="Cerrar sesión">
-      <i class="fa-solid fa-right-from-bracket"></i>
-      <span class="tip">Cerrar sesión</span>
-    </a>
-  </nav>
-</div>
 
 </div>{{-- /txp-ui-layer --}}
 
@@ -273,6 +233,39 @@
 
 </div>
 
+<div class="quick-menu" id="quickMenu">
+  <button class="qm-toggle" id="qmToggle" aria-expanded="false" aria-label="Abrir menú">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+
+  <nav class="qm-items">
+    <button type="button" id="qmPerfil" class="qm-item" style="--i:1" aria-label="Tu Perfil">
+      <i class="fa-solid fa-user"></i>
+      <span class="tip">Tu Perfil</span>
+    </button>
+
+    <button type="button" id="qmViajes" class="qm-item" style="--i:2" aria-label="Tus Viajes">
+      <i class="fa-solid fa-route"></i>
+      <span class="tip">Tus Viajes</span>
+    </button>
+
+    <button type="button" id="qmDirecciones" class="qm-item" style="--i:3" aria-label="Tus Direcciones">
+      <i class="fa-solid fa-location-dot"></i>
+      <span class="tip">Tus Direcciones</span>
+    </button>
+
+    <button type="button" id="qmWallet" class="qm-item" style="--i:4" aria-label="Mi billetera">
+      <i class="fa-solid fa-wallet"></i>
+      <span class="tip">Mi billetera</span>
+    </button>
+
+    <a href="{{ route('logout') }}" id="qmLogout" class="qm-item" style="--i:5" aria-label="Cerrar sesión">
+      <i class="fa-solid fa-right-from-bracket"></i>
+      <span class="tip">Cerrar sesión</span>
+    </a>
+  </nav>
+</div>
+
 @endsection
 
 @section('pagecss')
@@ -335,16 +328,7 @@ body#main #page-content {
     background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
     pointer-events: none;
 }
-.top-controls .search-wrap,
-.top-controls #txp-top-menu-btn,
-.top-controls .brand-wrap { pointer-events: auto; }
-#txp-top-menu-btn{
-  width: 46px; height: 46px; border-radius: 50%; border: 0;
-  display: grid; place-items: center; cursor: pointer;
-  background: linear-gradient(180deg, var(--txp-brand), var(--txp-brand-2));
-  color: #1a1a1a; font-size: 17px;
-  box-shadow: 0 10px 24px rgba(255,159,28,.35);
-}
+.top-controls .search-wrap { pointer-events: auto; }
 .brand-wrap{ display:flex; justify-content:center; }
 .brand-logo{
     width:64px; height:64px; object-fit:contain;
@@ -462,18 +446,10 @@ body#main #page-content {
 .geo-badge{ z-index: var(--txp-ui-z); }
 
 .quick-menu{
-  position: absolute;
-  right: 16px;
-  bottom: calc(22px + env(safe-area-inset-bottom));
-  z-index: 9990;
-}
-
-/* Asistente encima del mapa, sin tapar el menú hamburguesa */
-body:has(#txp-map-root) #txp-assistant-root .txp-assistant-fab{
-  bottom: calc(88px + env(safe-area-inset-bottom));
-}
-body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
-  bottom: calc(152px + env(safe-area-inset-bottom));
+  position: fixed;
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  z-index: 10001;
 }
 
 
@@ -484,6 +460,7 @@ body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
   color: #1a1a1a; font-size: 18px;
   box-shadow: 0 12px 30px rgba(255,159,28,.35), inset 0 2px 0 rgba(255,255,255,.35);
   transition: transform .15s ease, filter .15s ease;
+  outline: 3px solid rgba(255,255,255,.35);
 }
 .qm-toggle:hover{ filter: brightness(1.03); transform: translateY(-1px); }
 
@@ -496,7 +473,7 @@ body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
 
 
 .qm-item{
-  position: absolute; right: 0; bottom: 0;
+  position: absolute; left: 0; top: 0;
   width: 50px; height: 50px; border-radius: 50%;
   display: grid; place-items: center;
   background: linear-gradient(180deg, var(--txp-brand), var(--txp-brand-2));
@@ -513,18 +490,19 @@ body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
 .quick-menu.open .qm-items{ pointer-events: auto; }
 .quick-menu.open .qm-item{
   opacity: 1; pointer-events: auto;
-  transform: translateY(calc(-1 * var(--i,1) * var(--qm-gap))) scale(1);
+  transform: translateY(calc(var(--i,1) * var(--qm-gap))) scale(1);
 }
 
 
 .qm-item .tip{
   position: absolute;
-  right: calc(100% + 10px);
+  left: calc(100% + 10px);
+  right: auto;
   top: 50%; transform: translateY(-50%) scale(.96);
   background: rgba(0,0,0,.9);
   color: #fff;
   padding: 6px 8px;
-  font-size: 12px;          /* letra pequeña */
+  font-size: 12px;
   line-height: 1;
   border-radius: 8px;
   white-space: nowrap;
@@ -534,10 +512,10 @@ body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
   box-shadow: 0 8px 18px rgba(0,0,0,.35);
 }
 .qm-item .tip::after{
-  content: ""; position: absolute; left: 100%; top: 50%;
+  content: ""; position: absolute; right: 100%; left: auto; top: 50%;
   transform: translateY(-50%);
   border: 6px solid transparent;
-  border-left-color: rgba(0,0,0,.9);
+  border-right-color: rgba(0,0,0,.9);
 }
 
 
@@ -548,7 +526,10 @@ body:has(#txp-map-root) #txp-assistant-root .txp-assistant-panel{
 
 
 @media (max-width: 480px){
-  .quick-menu{ right: 12px; bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .quick-menu{
+    left: calc(env(safe-area-inset-left, 0px) + 12px);
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+  }
   :root{ --qm-gap: 58px; }
   .qm-item .tip{ font-size: 11px; }
 }
@@ -1476,12 +1457,6 @@ toggleCTA && toggleCTA(true);
     btn?.addEventListener('click', (e)=>{
       e.stopPropagation();
       toggleQuickMenu();
-    });
-
-    document.getElementById('txp-top-menu-btn')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleQuickMenu(true);
     });
 
     document.getElementById('qmPerfil')?.addEventListener('click', (e) => {
