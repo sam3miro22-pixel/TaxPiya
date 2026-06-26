@@ -68,11 +68,12 @@ foreach ($r in $roles) {
                 $csrf = Get-Csrf $destPage.Content
                 $assistBody = '{"message":"Hola, necesito ayuda con un viaje"}'
                 try {
-                    $ar = Invoke-RestMethod -Method POST -Uri "$base/assistant/send" -WebSession $sess `
+                    $ar = Invoke-WebRequest -Method POST -Uri "$base/assistant/send" -WebSession $sess `
                         -ContentType 'application/json' -Body $assistBody `
-                        -Headers @{ 'X-CSRF-TOKEN' = $csrf; Accept = 'application/json'; 'X-Requested-With' = 'XMLHttpRequest' } -TimeoutSec 120
-                    $preview = if ($ar.reply.Length -gt 60) { $ar.reply.Substring(0, 60) + '...' } else { $ar.reply }
-                    Test-Step "Assistant reply $label" ($ar.ok -eq $true -and $ar.reply.Length -gt 5) $preview
+                        -Headers @{ Accept = 'application/json'; 'X-Requested-With' = 'XMLHttpRequest' } -TimeoutSec 120 -UseBasicParsing
+                    $parsed = $ar.Content | ConvertFrom-Json
+                    $preview = if ($parsed.reply.Length -gt 60) { $parsed.reply.Substring(0, 60) + '...' } else { $parsed.reply }
+                    Test-Step "Assistant reply $label" ($parsed.ok -eq $true -and $parsed.reply.Length -gt 5) $preview
                 } catch {
                     Test-Step "Assistant reply $label" $false $_.Exception.Message
                 }
