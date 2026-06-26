@@ -16,17 +16,15 @@ function Get-Csrf($html) {
 }
 
 function Do-PhoneLogin($sess, $loginUrl, $phone, $app) {
-    $page = Invoke-WebRequest -Uri $loginUrl -WebSession $sess -UseBasicParsing -TimeoutSec 120 -ErrorAction SilentlyContinue
+    $page = Invoke-WebRequest -Uri $loginUrl -WebSession $sess -UseBasicParsing -TimeoutSec 120
     $token = Get-Csrf $page.Content
-    $body = "_token=$([uri]::EscapeDataString($token))&username=$([uri]::EscapeDataString($phone))&password=$([uri]::EscapeDataString($script:password))&rememberme=true&app=$([uri]::EscapeDataString($app))"
+    $body = "_token=$([uri]::EscapeDataString($token))&username=$([uri]::EscapeDataString($phone))&password=$([uri]::EscapeDataString($script:password))&rememberme=true"
+    if ($app) { $body += "&app=$([uri]::EscapeDataString($app))" }
     try {
-        $r = Invoke-WebRequest -Method POST -Uri "$script:base/auth/login" -WebSession $sess -Body $body -UseBasicParsing -MaximumRedirection 0 -TimeoutSec 120 -ErrorAction Stop
-        return @{ Ok = ($r.StatusCode -eq 302); Code = $r.StatusCode; Location = $r.Headers['Location'] }
+        $r = Invoke-WebRequest -Method POST -Uri "$script:base/auth/login" -WebSession $sess -Body $body -UseBasicParsing -MaximumRedirection 5 -TimeoutSec 120
+        $ok = ($r.StatusCode -eq 200) -and ($r.Content -notmatch 'no correctos|auth_error|Nombre de usuario')
+        return @{ Ok = $ok; Code = $r.StatusCode }
     } catch {
-        $resp = $_.Exception.Response
-        if ($resp -and [int]$resp.StatusCode -eq 302) {
-            return @{ Ok = $true; Code = 302; Location = $resp.Headers['Location'] }
-        }
         return @{ Ok = $false; Code = 0; Detail = $_.Exception.Message }
     }
 }
@@ -50,35 +48,37 @@ foreach ($pair in @(
 
 # Phone login all demo roles
 $roles = @(
-    @{ App = 'pasajero'; Phone = '3009001001'; Login = "$base/pasajero/login"; Home = "$base/home" },
-    @{ App = 'conductor'; Phone = '3109001001'; Login = "$base/conductor/login"; Home = "$base/home" },
-    @{ App = 'empresa'; Phone = '3209002001'; Login = "$base/empresa/login"; Home = "$base/empresa" },
-    @{ App = $null; Phone = '3001001001'; Login = "$base/index/login"; Home = "$base/home" }
+    @{ App = 'pasajero'; Phone = '3009001001'; Login = "$base/pasajero/login"; Dest = "$base/home" },
+    @{ App = 'conductor'; Phone = '3109001001'; Login = "$base/conductor/login"; Dest = "$base/home" },
+    @{ App = 'empresa'; Phone = '3209002001'; Login = "$base/empresa/login"; Dest = "$base/empresa" },
+    @{ App = $null; Phone = '3001001001'; Login = "$base/index/login"; Dest = "$base/home" }
 )
 
 foreach ($r in $roles) {
+    $label = if ($r.App) { $r.App } else { 'admin' }
     $sess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $res = Do-PhoneLogin $sess $r.Login $r.Phone $r.App
-    Test-Step "Phone login $($r.App ?? 'admin')" $res.Ok "HTTP $($res.Code)"
+    Test-Step "Phone login $label" $res.Ok "HTTP $($res.Code)"
     if ($res.Ok) {
         try {
-            $home = Invoke-WebRequest -Uri $r.Home -WebSession $sess -UseBasicParsing -TimeoutSec 120
-            Test-Step "Home $($r.App ?? 'admin')" ($home.StatusCode -eq 200) "HTTP $($home.StatusCode)"
-            Test-Step "Assistant widget $($r.App ?? 'admin')" ($home.Content -match 'txp-assistant-fab') 'fab present'
-            if ($home.Content -match 'csrf-token') {
-                $csrf = Get-Csrf $home.Content
+            $destPage = Invoke-WebRequest -Uri $r.Dest -WebSession $sess -UseBasicParsing -TimeoutSec 120
+            Test-Step "Home $label" ($destPage.StatusCode -eq 200) "HTTP $($destPage.StatusCode)"
+            Test-Step "Assistant widget $label" ($destPage.Content -match 'txp-assistant-fab') 'fab present'
+            if ($destPage.Content -match 'csrf-token') {
+                $csrf = Get-Csrf $destPage.Content
                 $assistBody = '{"message":"Hola, necesito ayuda con un viaje"}'
                 try {
                     $ar = Invoke-RestMethod -Method POST -Uri "$base/assistant/send" -WebSession $sess `
                         -ContentType 'application/json' -Body $assistBody `
                         -Headers @{ 'X-CSRF-TOKEN' = $csrf; Accept = 'application/json'; 'X-Requested-With' = 'XMLHttpRequest' } -TimeoutSec 120
-                    Test-Step "Assistant reply $($r.App ?? 'admin')" ($ar.ok -eq $true -and $ar.reply.Length -gt 5) ($ar.reply.Substring(0, [Math]::Min(60, $ar.reply.Length)) + '...')
+                    $preview = if ($ar.reply.Length -gt 60) { $ar.reply.Substring(0, 60) + '...' } else { $ar.reply }
+                    Test-Step "Assistant reply $label" ($ar.ok -eq $true -and $ar.reply.Length -gt 5) $preview
                 } catch {
-                    Test-Step "Assistant reply $($r.App ?? 'admin')" $false $_.Exception.Message
+                    Test-Step "Assistant reply $label" $false $_.Exception.Message
                 }
             }
         } catch {
-            Test-Step "Home $($r.App ?? 'admin')" $false $_.Exception.Message
+            Test-Step "Home $label" $false $_.Exception.Message
         }
     }
 }
