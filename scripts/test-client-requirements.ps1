@@ -45,11 +45,11 @@ try {
 
 # Pasajero: home, menu, wallet, viaje activo
 $pSess = Login-Role 'pasajero' '3009001001'
-$home = Invoke-WebRequest -Uri "$base/home" -WebSession $pSess -UseBasicParsing -TimeoutSec 120
-Test-Ok 'Pasajero home' ($home.StatusCode -eq 200)
-Test-Ok 'Menu pasajero (hamburguesa)' ($home.Content -match 'id="qmToggle"')
-Test-Ok 'Bootstrap viaje activo JS' ($home.Content -match '__txpActiveTrip')
-Test-Ok 'Modal codigo llegada' ($home.Content -match 'txp-code-modal')
+$homePage = Invoke-WebRequest -Uri "$base/home" -WebSession $pSess -UseBasicParsing -TimeoutSec 120
+Test-Ok 'Pasajero home' ($homePage.StatusCode -eq 200)
+Test-Ok 'Menu pasajero (hamburguesa)' ($homePage.Content -match 'id="qmToggle"')
+Test-Ok 'Bootstrap viaje activo JS' ($homePage.Content -match '__txpActiveTrip')
+Test-Ok 'Modal codigo llegada' ($homePage.Content -match 'txp-code-modal')
 
 try {
     $activo = Invoke-WebRequest -Uri "$base/viaje/activo" -WebSession $pSess -UseBasicParsing -TimeoutSec 60
