@@ -29,7 +29,7 @@ class Conductores extends Model
      * @var array
      */
 	protected $fillable = [
-		'user_id','estado_operitivo','disponible','last_online_at','rating_promedio','total_viajes','licencia_numero','licencia_categoria','licencia_expira','soat_numero','soat_expira','seguro_numero','verificacion_estado','verificacion_nivel','verificacion_notas','contacto_emergencia_nombre','contacto_emergencia_telefono','location_permission'
+		'user_id','estado_operitivo','disponible','comision_plataforma_percent','last_online_at','rating_promedio','total_viajes','licencia_numero','licencia_categoria','licencia_expira','soat_numero','soat_expira','seguro_numero','verificacion_estado','verificacion_nivel','verificacion_notas','contacto_emergencia_nombre','contacto_emergencia_telefono','location_permission'
 	];
 	public $timestamps = false;
 	

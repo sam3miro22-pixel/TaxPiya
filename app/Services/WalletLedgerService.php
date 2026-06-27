@@ -391,7 +391,35 @@ class WalletLedgerService
         return ['ok' => true];
     }
 
-    public function creditoIngresoViaje(int $conductorId, int $viajeId, float $tarifa, string $moneda = 'COP'): ?int
+    public function getSaldoPasajero(int $userId): float
+    {
+        $cuenta = $this->ensureCuenta('pasajero', $userId);
+
+        return $cuenta ? (float) $cuenta->saldo_actual : 0.0;
+    }
+
+    public function debitoPagoViaje(int $pasajeroUserId, int $viajeId, float $monto, string $moneda = 'COP'): ?int
+    {
+        $cuenta = $this->ensureCuenta('pasajero', $pasajeroUserId);
+        if (!$cuenta) {
+            throw new RuntimeException('Billetera de pasajero no disponible');
+        }
+
+        return $this->registrarMovimientoCuenta((int) $cuenta->id, [
+            'sentido'        => 'debito',
+            'motivo'         => 'pago_viaje',
+            'tipo_operacion' => 'pago_viaje',
+            'monto'          => $monto,
+            'moneda'         => $moneda,
+            'viaje_id'       => $viajeId,
+            'user_id'        => $pasajeroUserId,
+            'conductor_id'   => 0,
+            'descripcion'    => "Pago viaje #{$viajeId}",
+            'idempotencia'   => "pago_viaje_{$viajeId}",
+        ]);
+    }
+
+    public function creditoIngresoViaje(int $conductorId, int $viajeId, float $tarifa, string $moneda = 'COP', ?string $descripcion = null): ?int
     {
         $cuenta = $this->ensureCuenta('conductor', $conductorId);
         if (!$cuenta) {
@@ -406,7 +434,7 @@ class WalletLedgerService
             'moneda'         => $moneda,
             'viaje_id'       => $viajeId,
             'conductor_id'   => $conductorId,
-            'descripcion'    => "Ingreso viaje #{$viajeId}",
+            'descripcion'    => $descripcion ?? "Ingreso viaje #{$viajeId}",
             'idempotencia'   => "ingreso_viaje_{$viajeId}",
         ]);
     }

@@ -277,6 +277,16 @@ textarea.form-control {
                 </div>
 
                 <div class="tax-form-group">
+                    <label class="tax-form-label" for="ctrl-comision_plataforma_percent">Comisión plataforma (%)</label>
+                    <input id="ctrl-comision_plataforma_percent" data-field="comision_plataforma_percent"
+                           value="<?php echo $data['comision_plataforma_percent'] ?? ''; ?>" type="number" step="0.1" min="0" max="100"
+                           name="comision_plataforma_percent" class="form-control" placeholder="Ej. 2 o 3 (vacío = global)">
+                    <div class="tax-form-help">
+                        Porcentaje que retiene TaxPiya por viaje para este conductor. Ej: 2 = 2%, 3 = 3%. Dejar vacío para usar el valor global.
+                    </div>
+                </div>
+
+                <div class="tax-form-group">
                     <label class="tax-form-label" for="ctrl-total_viajes">Total de viajes <span class="text-danger">*</span></label>
                     <input id="ctrl-total_viajes" data-field="total_viajes" value="<?php echo $data['total_viajes']; ?>" type="number" step="any" name="total_viajes" class="form-control" readonly>
                     <div class="tax-form-help">

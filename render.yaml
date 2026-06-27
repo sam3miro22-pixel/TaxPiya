@@ -58,5 +58,7 @@ services:
         sync: false
       - key: FIREBASE_CREDENTIALS_JSON
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
       - key: JWT_SECRET
         sync: false

@@ -158,8 +158,13 @@ $mapCenter = [
                     Visión general de la operación Taxpiya: usuarios, conductores, viajes, SOS y wallet.
                 </div>
             </div>
-            <div class="txp-admin-date-pill">
-                {{ $hoyTextoLargo }}
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="txp-admin-date-pill">
+                    {{ $hoyTextoLargo }}
+                </div>
+                <a href="{{ route('logout') }}" class="btn btn-outline-light btn-sm">
+                    <i class="fa-solid fa-right-from-bracket me-1"></i> Cerrar sesión
+                </a>
             </div>
         </div>
 

@@ -15,9 +15,13 @@ use App\Exports\ViajesListExport;
 use App\Exports\ViajesViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
+use App\Support\ActiveTripResolver;
 use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
 use App\Support\TripMatching;
+use App\Services\TariffCalculator;
+use App\Services\TripPaymentService;
+use App\Services\WalletLedgerService;
 use App\Services\Firebase\FirestoreTripSyncService;
 use App\Services\ChatBotService;
 use App\Services\TripGeoService;
@@ -46,25 +50,9 @@ class ViajesController extends Controller
 
     $categoria = $req->input('categoria', 'taxi');
     $ciudad    = $req->input('ciudad') ?: config('taxpiya.default_city');
-    $hoy       = now()->toDateString();
     $radioKm   = (float) config('taxpiya.search_radius_km', 8);
 
-    $base = DB::table('tarifas')
-        ->where('categoria', $categoria)
-        ->where('activa', 1)
-        ->where('vigente_desde', '<=', $hoy)
-        ->where(function($w) use ($hoy){
-            $w->whereNull('vigente_hasta')->orWhere('vigente_hasta', '>=', $hoy);
-        })
-        ->orderBy('prioridad')
-        ->orderByDesc('version');
-
-    $tarifa = null;
-    if ($ciudad) {
-        $tarifa = (clone $base)->where('scope','ciudad')->where('ciudad',$ciudad)->first();
-    }
-    if (!$tarifa) { $tarifa = (clone $base)->where('scope','global')->first(); }
-    if (!$tarifa) { $tarifa = (clone $base)->first(); }
+    $tarifa = TariffCalculator::findActiveTariff($categoria, $ciudad);
 
     if (!$tarifa) {
         return response()->json(['ok'=>false,'message'=>'No hay tarifa activa'], 404);
@@ -74,6 +62,26 @@ class ViajesController extends Controller
     $oLng = (float)$req->input('o_lng');
     $dLat = $req->filled('d_lat') ? (float)$req->input('d_lat') : null;
     $dLng = $req->filled('d_lng') ? (float)$req->input('d_lng') : null;
+
+    $porKm = (float) ($tarifa->tarifa_por_km ?? 0);
+    if ($porKm > 0 && ($dLat === null || $dLng === null)) {
+        return response()->json(['ok' => false, 'message' => 'Indica un destino para calcular la tarifa por distancia'], 422);
+    }
+
+    $fare = TariffCalculator::calculate($tarifa, $oLat, $oLng, $dLat, $dLng);
+    $tarifaMonto = $fare['monto'];
+
+    $ledger = app(WalletLedgerService::class);
+    $ledger->ensureCuenta('pasajero', (int) $pasajeroId);
+    $saldoPasajero = $ledger->getSaldoPasajero((int) $pasajeroId);
+    if ($saldoPasajero < $tarifaMonto) {
+        return response()->json([
+            'ok'        => false,
+            'message'   => 'Saldo insuficiente en billetera. Recarga para solicitar el viaje.',
+            'saldo'     => $saldoPasajero,
+            'requerido' => $tarifaMonto,
+        ], 402);
+    }
 
     TripMatching::expireStaleSearchingTrips();
     TripMatching::cancelPassengerOpenSearches((int) $pasajeroId);
@@ -97,12 +105,16 @@ class ViajesController extends Controller
         'created_at'        => now()->format('Y-m-d H:i:s'),
         'tarifa_id'         => (int)$tarifa->id,
         'moneda'            => $tarifa->moneda,
-        'tarifa_aplicada'   => (float)$tarifa->monto_fijo,
+        'tarifa_aplicada'   => $tarifaMonto,
         'valor_pagado'      => null,
         'pago_registrado'   => 0,
         'metodo_asignacion' => 'auto',
         'radio_busqueda_m'  => (int) round($radioKm * 1000),
     ]);
+
+    if (Schema::hasColumn('viajes', 'distancia_km_estimada')) {
+        $insert['distancia_km_estimada'] = $fare['km'];
+    }
 
     if (Schema::hasColumn('viajes', 'updated_at')) {
         $insert['updated_at'] = now()->format('Y-m-d H:i:s');
@@ -206,6 +218,27 @@ try {
         report($e);
         return response()->json(['ok' => false, 'message' => 'No se pudo crear la solicitud. Intenta de nuevo.'], 500);
     }
+}
+
+
+public function activo(Request $req)
+{
+    $user = auth()->user();
+    if (!$user) {
+        return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
+    }
+
+    $viaje = null;
+    if ($user->hasRole('pasajero')) {
+        $viaje = ActiveTripResolver::forPassenger((int) $user->id);
+    } elseif ($user->hasRole('conductor')) {
+        $viaje = ActiveTripResolver::forConductor((int) $user->id);
+    }
+
+    return response()->json([
+        'ok'   => true,
+        'trip' => ActiveTripResolver::bootstrapPayload($viaje),
+    ]);
 }
 
 

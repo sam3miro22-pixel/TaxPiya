@@ -319,6 +319,39 @@
                                 <div class="form-group">
                                     <div class="row">
                                         <div class="col-sm-4">
+                                            <label class="control-label" for="tarifa_base">Tarifa base</label>
+                                        </div>
+                                        <div class="col-sm-8">
+                                            <input id="ctrl-tarifa_base" name="tarifa_base" type="number" step="0.1" class="form-control" value="<?php echo $data['tarifa_base'] ?? $data['monto_fijo']; ?>" placeholder="Cargo fijo inicial (ej. banderazo)">
+                                            <div class="text-help">Se suma al cálculo por kilómetro. Si no hay $/km, se usa monto fijo.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            <label class="control-label" for="tarifa_por_km">Precio por km</label>
+                                        </div>
+                                        <div class="col-sm-8">
+                                            <input id="ctrl-tarifa_por_km" name="tarifa_por_km" type="number" step="0.1" class="form-control" value="<?php echo $data['tarifa_por_km'] ?? ''; ?>" placeholder="Ej. 2500 por km">
+                                            <div class="text-help">Tarifa = base + (km × precio/km). Mínimo opcional abajo.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            <label class="control-label" for="tarifa_minima">Tarifa mínima</label>
+                                        </div>
+                                        <div class="col-sm-8">
+                                            <input id="ctrl-tarifa_minima" name="tarifa_minima" type="number" step="0.1" class="form-control" value="<?php echo $data['tarifa_minima'] ?? ''; ?>" placeholder="Opcional">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="row">
+                                        <div class="col-sm-4">
                                             <label class="control-label" for="recargo_nocturno">Recargo nocturno</label>
                                         </div>
                                         <div class="col-sm-8">

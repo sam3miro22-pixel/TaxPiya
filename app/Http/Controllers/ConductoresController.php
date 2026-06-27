@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Validator;
 use Exception;
 use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
-use App\Services\WalletService;
+use App\Services\TripPaymentService;
 use App\Services\VehiculoConductorService;
 use App\Services\TripGeoService;
 use App\Services\ChatBotService;
@@ -674,26 +674,11 @@ public function terminarViaje(Request $req)
         $tarifa = (float) ($viajeActualizado->tarifa_aplicada ?? $viajeActualizado->tarifa_final ?? $viajeActualizado->tarifa_estimada ?? 0);
 
         if ($tarifa > 0) {
-            $moneda = $viajeActualizado->moneda ?? 'COP';
             try {
-                app(\App\Services\WalletLedgerService::class)->creditoIngresoViaje(
-                    (int) $conductor->id,
-                    $viajeId,
-                    $tarifa,
-                    $moneda
-                );
+                app(TripPaymentService::class)->settleCompletedTrip($viajeActualizado, (int) $conductor->id);
             } catch (\Throwable $e) {
-                \Log::warning('Wallet ingreso_viaje falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
-            }
-            try {
-                app(WalletService::class)->debitoTerminoViaje(
-                    (int) $conductor->id,
-                    $viajeId,
-                    $tarifa,
-                    $moneda
-                );
-            } catch (\Throwable $e) {
-                \Log::warning('Wallet debito_termino falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
+                \Log::warning('Liquidación viaje falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
+                throw $e;
             }
         }
 

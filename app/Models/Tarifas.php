@@ -29,7 +29,7 @@ class Tarifas extends Model
      * @var array
      */
 	protected $fillable = [
-		'nombre','descripcion','scope','ciudad','categoria','horario','origen_ref','destino_ref','moneda','monto_fijo','recargo_nocturno','recargo_festivo','recargo_aeropuerto','incluye_peajes','minutos_espera_incluidos','valor_minuto_espera','vigente_desde','vigente_hasta','activa','prioridad','version'
+		'nombre','descripcion','scope','ciudad','categoria','horario','origen_ref','destino_ref','moneda','monto_fijo','tarifa_base','tarifa_por_km','tarifa_minima','recargo_nocturno','recargo_festivo','recargo_aeropuerto','incluye_peajes','minutos_espera_incluidos','valor_minuto_espera','vigente_desde','vigente_hasta','activa','prioridad','version'
 	];
 	public $timestamps = false;
 	

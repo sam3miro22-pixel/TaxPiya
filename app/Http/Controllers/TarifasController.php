@@ -19,41 +19,32 @@ class TarifasController extends Controller
 	public function fija(Request $request)
     {
         $categoria = $request->query('categoria', 'taxi');
-        $ciudad    = $request->query('ciudad'); 
-        $hoy       = now()->toDateString();
+        $ciudad    = $request->query('ciudad');
+        $tarifa = \App\Services\TariffCalculator::findActiveTariff($categoria, $ciudad);
 
-        $base = DB::table('tarifas')
-            ->where('categoria', $categoria)
-            ->where('activa', 1)
-            ->where('vigente_desde', '<=', $hoy)
-            ->where(function($w) use ($hoy){
-                $w->whereNull('vigente_hasta')->orWhere('vigente_hasta', '>=', $hoy);
-            })
-            ->orderBy('prioridad')
-            ->orderByDesc('version');
-
-        $tarifa = null;
-        if ($ciudad) {
-            $tarifa = (clone $base)->where('scope', 'ciudad')->where('ciudad', $ciudad)->first();
-        }
-        if (!$tarifa) {
-            $tarifa = (clone $base)->where('scope', 'global')->first();
-        }
-        if (!$tarifa) {
-            $tarifa = (clone $base)->first();
-        }
         if (!$tarifa) {
             return response()->json(['ok' => false, 'message' => 'No hay tarifa activa'], 404);
         }
 
+        $oLat = $request->filled('o_lat') ? (float) $request->query('o_lat') : null;
+        $oLng = $request->filled('o_lng') ? (float) $request->query('o_lng') : null;
+        $dLat = $request->filled('d_lat') ? (float) $request->query('d_lat') : null;
+        $dLng = $request->filled('d_lng') ? (float) $request->query('d_lng') : null;
+
+        $fare = \App\Services\TariffCalculator::calculate($tarifa, $oLat, $oLng, $dLat, $dLng);
+
         return response()->json([
             'ok'        => true,
-            'tarifa_id' => (int)$tarifa->id,
+            'tarifa_id' => (int) $tarifa->id,
             'nombre'    => $tarifa->nombre,
             'ciudad'    => $tarifa->ciudad,
             'categoria' => $tarifa->categoria,
             'moneda'    => $tarifa->moneda,
-            'monto'     => (float)$tarifa->monto_fijo,
+            'monto'     => $fare['monto'],
+            'km'        => $fare['km'],
+            'desglose'  => $fare['desglose'],
+            'monto_fijo'=> (float) $tarifa->monto_fijo,
+            'tarifa_por_km' => (float) ($tarifa->tarifa_por_km ?? 0),
         ]);
     }
 

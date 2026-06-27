@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use App\Support\ActiveTripResolver;
 use App\Services\WalletService;
 use App\Services\ReferralService;
 /**
@@ -27,10 +28,16 @@ class HomeController extends Controller{
 			return view("pages.home.admin");
 		}
 		elseif($user->hasRole('pasajero')){
-			return view("pages.home.pasajero");
+			$active = ActiveTripResolver::forPassenger((int) $user->id);
+			return view("pages.home.pasajero", [
+				'activeTripBootstrap' => ActiveTripResolver::bootstrapPayload($active),
+			]);
 		}
 		elseif($user->hasRole('conductor')){
-			return view("pages.home.conductor");
+			$active = ActiveTripResolver::forConductor((int) $user->id);
+			return view("pages.home.conductor", [
+				'activeTripBootstrap' => ActiveTripResolver::bootstrapPayload($active),
+			]);
 		}
 		elseif($user->hasRole('empresa')){
 			return redirect()->route('empresa.dashboard');

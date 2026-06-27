@@ -408,6 +408,14 @@ body#main #page-content {
 .txp-sos-fab:active { transform: scale(0.96); }
 .txp-sos-fab--confirm { background: linear-gradient(135deg, #f97316, #c2410c); }
 
+.txp-drv-code-input {
+  font-size: 1.45rem !important;
+  font-weight: 800;
+  letter-spacing: .18em;
+  padding: 14px 12px !important;
+  border-radius: 14px !important;
+  border: 2px solid rgba(255, 209, 102, .45) !important;
+}
 
 .txp-sheet{position:fixed; inset:0; display:none; z-index:var(--txp-sheet-z);}
 .txp-sheet[aria-hidden="false"]{display:block;}
@@ -636,6 +644,8 @@ function getCsrf(){
 
 <script>
 
+window.__txpActiveTrip = @json($activeTripBootstrap ?? null);
+
 const CONDUCTOR_DISPONIBLE_URL = "{{ route('conductor.disponible') }}";
 const CONDUCTOR_POSICION_URL   = "{{ route('conductor.posicion') }}";
 const CONDUCTOR_SOLICITUD_URL  = "{{ route('conductor.solicitud') }}";
@@ -646,7 +656,7 @@ const VIAJE_LLEGO_URL          = "{{ route('viaje.llego') }}";
 const VIAJE_TERMINAR_URL       = "{{ route('viaje.terminar') }}";
 
 
-window.currentViajeId = window.currentViajeId ?? null;
+window.currentViajeId = window.__txpActiveTrip?.id ?? window.currentViajeId ?? null;
 let isOnline = (document.getElementById('driver-online-toggle')?.dataset.online === '1');
 window.isOnline = isOnline;
 setOnlineBtn(isOnline);
@@ -1147,7 +1157,8 @@ document.getElementById('drv-btn-aceptar')?.addEventListener('click', async ()=>
           <i class="fa-solid fa-flag-checkered me-1"></i> Terminar viaje
         </button>
       </div>
-      <input id="drv-codigo-llegada" type="text" maxlength="6" class="form-control form-control-sm text-center"
+      <input id="drv-codigo-llegada" type="text" maxlength="6"
+        class="form-control text-center txp-drv-code-input"
         placeholder="Código del pasajero (si GPS falla)" autocomplete="off" inputmode="numeric">
     </div>
   `;

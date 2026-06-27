@@ -99,6 +99,12 @@ SQL);
         $this->ensureColumn($pdo, 'conductores', 'empresa_id', 'INTEGER NULL');
         $this->ensureColumn($pdo, 'conductores', 'disponible', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn($pdo, 'conductores', 'estado_operitivo', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn($pdo, 'conductores', 'comision_plataforma_percent', 'REAL NULL');
+        $this->ensureColumn($pdo, 'tarifas', 'tarifa_base', 'REAL NULL');
+        $this->ensureColumn($pdo, 'tarifas', 'tarifa_por_km', 'REAL NULL');
+        $this->ensureColumn($pdo, 'tarifas', 'tarifa_minima', 'REAL NULL');
+        $this->ensureColumn($pdo, 'viajes', 'comision_plataforma', 'REAL NULL');
+        $this->ensureColumn($pdo, 'viajes', 'distancia_km_estimada', 'REAL NULL');
         $this->ensureColumn($pdo, 'users', 'firebase_uid', 'TEXT NULL');
         $this->ensureColumn($pdo, 'users', 'codigo_referido', 'TEXT NULL');
         $this->ensureColumn($pdo, 'empresas', 'codigo_referido', 'TEXT NULL');
@@ -350,6 +356,28 @@ SQL);
         $pasajeros = DB::table('users')->where('user_role_id', 2)->pluck('id');
         foreach ($pasajeros as $uid) {
             $ledger->ensureCuenta('pasajero', (int) $uid);
+        }
+
+        $demoPasajeroId = (int) (DB::table('users')->where('telefono', '3009001001')->value('id') ?? 0);
+        if ($demoPasajeroId > 0) {
+            $cuenta = $ledger->ensureCuenta('pasajero', $demoPasajeroId);
+            if ($cuenta && (float) $cuenta->saldo_actual < 30000) {
+                try {
+                    $ledger->registrarMovimientoCuenta((int) $cuenta->id, [
+                        'sentido'        => 'credito',
+                        'motivo'         => 'recarga',
+                        'tipo_operacion' => 'recarga_demo',
+                        'monto'          => 50000,
+                        'moneda'         => 'COP',
+                        'user_id'        => $demoPasajeroId,
+                        'conductor_id'   => 0,
+                        'descripcion'    => 'Saldo demo pasajero',
+                        'idempotencia'   => 'demo_wallet_pasajero_3009001001',
+                    ]);
+                } catch (\Throwable $e) {
+                    // ignore duplicate idempotency
+                }
+            }
         }
 
         $this->repairIndependentConductors($pdo);

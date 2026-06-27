@@ -72,16 +72,39 @@ class AssistantController extends Controller
         $apiKey = $this->groqApiKey();
         if ($apiKey !== '') {
             $roleName = $this->roleName($user);
-            $groq = $this->askGroq($apiKey, [
-                ['role' => 'system', 'content' => $this->systemPrompt($roleName, $user)],
-                ['role' => 'user', 'content' => $message],
-            ]);
+            $messages = [['role' => 'system', 'content' => $this->systemPrompt($roleName, $user)]];
+            foreach ($this->recentHistory((int) $user->id) as $row) {
+                $messages[] = [
+                    'role'    => $row['rol'] === 'user' ? 'user' : 'assistant',
+                    'content' => $row['mensaje'],
+                ];
+            }
+            $messages[] = ['role' => 'user', 'content' => $message];
+            $groq = $this->askGroq($apiKey, $messages);
             if ($groq !== null && $groq !== '') {
                 return $groq;
             }
         }
 
         return $this->fallbackReply($message);
+    }
+
+    /** @return list<array{rol:string,mensaje:string}> */
+    private function recentHistory(int $userId): array
+    {
+        if (!Schema::hasTable('assistant_mensajes')) {
+            return [];
+        }
+
+        return DB::table('assistant_mensajes')
+            ->where('user_id', $userId)
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get(['rol', 'mensaje'])
+            ->reverse()
+            ->values()
+            ->map(fn ($r) => ['rol' => (string) $r->rol, 'mensaje' => (string) $r->mensaje])
+            ->all();
     }
 
     private function groqApiKey(): string
@@ -112,7 +135,11 @@ class AssistantController extends Controller
     {
         $extra = 'Rol: ' . $roleName;
         try {
-            if (Schema::hasTable('viajes') && $roleName === 'Pasajero') {
+            if (Schema::hasTable('wallet_cuentas') && strtolower($roleName) === 'pasajero') {
+                $saldo = app(\App\Services\WalletLedgerService::class)->getSaldoPasajero((int) $user->id);
+                $extra .= '. Saldo billetera pasajero: $' . number_format($saldo, 0, ',', '.') . ' COP';
+            }
+            if (Schema::hasTable('viajes') && strtolower($roleName) === 'pasajero') {
                 $active = DB::table('viajes')
                     ->where('pasajero_id', $user->id)
                     ->whereNotIn('estado', ['terminado', 'cancelado', 'cancelado_sistema'])
@@ -126,9 +153,11 @@ class AssistantController extends Controller
             // ignore
         }
 
-        return 'Eres TaxPiya Assistant, asistente de taxis en Colombia. Responde en espanol, claro y breve. '
-            . 'Ayuda con viajes (mapa + Solicitar taxi), tarifas, billetera, codigo de llegada y soporte. '
-            . 'No inventes precios. Contexto: ' . $extra;
+        return 'Eres TaxPiya Assistant, asistente oficial de la app de taxis TaxPiya en Colombia. '
+            . 'Responde en español, concreto y útil (máximo 4 oraciones). '
+            . 'Ayuda con: pedir viaje en el mapa, tarifas por distancia, billetera/recargas Nequi, código de llegada, estado del viaje y soporte. '
+            . 'Si preguntan precio sin viaje activo, indica que la tarifa se calcula por km en el mapa antes de confirmar. '
+            . 'No inventes montos ni prometas conductores si no hay viaje. Contexto usuario: ' . $extra;
     }
 
     /** @param list<array{role:string,content:string}> $messages */
@@ -142,10 +171,10 @@ class AssistantController extends Controller
             . '/chat/completions';
 
         $payload = json_encode([
-            'model'       => config('taxpiya.assistant.groq_model', 'llama-3.3-70b-versatile'),
+            'model'       => config('taxpiya.assistant.groq_model', 'llama-3.1-8b-instant'),
             'messages'    => $messages,
-            'temperature' => 0.4,
-            'max_tokens'  => 500,
+            'temperature' => 0.35,
+            'max_tokens'  => 400,
         ]);
 
         $ch = curl_init($url);

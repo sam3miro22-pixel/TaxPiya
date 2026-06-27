@@ -219,6 +219,7 @@ Route::middleware(['auth'])->group(function () {
     })->name('api.nearby-drivers');
 
     Route::post('/viaje/solicitar', [ViajesController::class, 'solicitar'])->name('viaje.solicitar');
+    Route::get('/viaje/activo', [ViajesController::class, 'activo'])->name('viaje.activo');
     Route::get('/viaje/estado/{id}', [ViajesController::class, 'estado'])->name('viaje.estado');
     Route::get('/viaje/{id}/estado', [ViajesController::class, 'estado']);
     Route::post('/viaje/cancelar', [ViajesController::class, 'cancelar'])->name('viaje.cancelar');

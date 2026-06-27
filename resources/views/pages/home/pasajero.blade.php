@@ -212,6 +212,20 @@
   <span id="txp-banner-txt">Estado</span>
 </div>
 
+<div id="txp-code-modal" class="txp-code-modal" aria-hidden="true">
+  <div class="txp-code-modal__backdrop" data-close-code-modal></div>
+  <div class="txp-code-modal__card" role="dialog" aria-modal="true" aria-labelledby="txp-code-title">
+    <div class="txp-code-modal__head">
+      <i class="fa-solid fa-shield-halved"></i>
+      <span id="txp-code-title">Código de llegada</span>
+      <button type="button" class="txp-code-modal__close" data-close-code-modal aria-label="Cerrar">&times;</button>
+    </div>
+    <p class="txp-code-modal__hint">Comparte este código con el conductor cuando llegue a recogerte.</p>
+    <div id="txp-codigo-llegada-display" class="txp-code-modal__digits">----</div>
+    <button type="button" class="btn btn-brand w-100 mt-3" data-close-code-modal>Entendido</button>
+  </div>
+</div>
+
 
 <div id="txp-sheet-final" class="txp-sheet" aria-hidden="true">
   <div class="txp-sheet__backdrop" data-close></div>
@@ -838,6 +852,15 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
   .txp-btn-cancel{ color:#fff !important; background:rgba(255,255,255,.06) !important; }
 }
 
+.txp-code-modal{position:fixed;inset:0;z-index:calc(var(--txp-sheet-z) + 5);display:none;align-items:center;justify-content:center;padding:16px}
+.txp-code-modal[aria-hidden="false"]{display:flex}
+.txp-code-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px)}
+.txp-code-modal__card{position:relative;width:min(380px,92vw);background:#1c2541;border:1px solid rgba(255,209,102,.35);border-radius:20px;padding:22px 20px;box-shadow:0 24px 60px rgba(0,0,0,.55);color:#fff;text-align:center}
+.txp-code-modal__head{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:1.05rem;margin-bottom:8px}
+.txp-code-modal__close{position:absolute;right:12px;top:10px;background:none;border:none;color:#fff;font-size:1.6rem;line-height:1;cursor:pointer}
+.txp-code-modal__hint{font-size:.9rem;color:#cbd5e1;margin:0 0 14px}
+.txp-code-modal__digits{font-size:2.6rem;font-weight:900;letter-spacing:.35em;padding:18px 12px;border-radius:16px;background:rgba(255,209,102,.12);border:2px dashed rgba(255,209,102,.55);color:#ffd166;font-family:ui-monospace,Consolas,monospace}
+
 </style>
 @endsection
 
@@ -885,12 +908,19 @@ document.getElementById('solicitar-btn').addEventListener('click', async () => {
 
 
   const params = new URLSearchParams({ categoria: 'taxi', ciudad: 'Medellín' });
+  const lat = (v) => typeof v?.lat === 'function' ? v.lat() : v?.lat;
+  const lng = (v) => typeof v?.lng === 'function' ? v.lng() : v?.lng;
+  if (originLatLng) { params.set('o_lat', lat(originLatLng)); params.set('o_lng', lng(originLatLng)); }
+  if (destLatLng) { params.set('d_lat', lat(destLatLng)); params.set('d_lng', lng(destLatLng)); }
   try{
     const r = await fetch(`${API_TARIFA_URL}?${params.toString()}`, { cache: 'no-store' });
     const j = await r.json();
     if (!j.ok) throw new Error(j.message || 'Sin tarifa');
     $tarifa.textContent = fmtCOP(j.monto);
-    $confirmar.dataset.tarifa = j.monto; 
+    $confirmar.dataset.tarifa = j.monto;
+    if (j.km > 0 && j.desglose) {
+      $dist.textContent = `${j.km.toFixed(1)} km`;
+    }
   }catch(e){
     console.warn('Tarifa no disponible', e);
     $tarifa.textContent = '—';
@@ -1199,10 +1229,20 @@ async function onDriverAccepted(detail){
 function showArrivalCode(code){
   const wrap = document.getElementById('txp-asignado-codigo-wrap');
   const el = document.getElementById('txp-codigo-llegada');
-  if (!wrap || !el || !code) return;
-  el.textContent = code;
-  wrap.style.display = 'block';
+  const modal = document.getElementById('txp-code-modal');
+  const big = document.getElementById('txp-codigo-llegada-display');
+  if (!code) return;
+  if (el) el.textContent = code;
+  if (big) big.textContent = code;
+  if (wrap) wrap.style.display = 'block';
+  if (modal) modal.setAttribute('aria-hidden', 'false');
 }
+
+document.querySelectorAll('[data-close-code-modal]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.getElementById('txp-code-modal')?.setAttribute('aria-hidden', 'true');
+  });
+});
 
 
 
@@ -1211,6 +1251,7 @@ function showArrivalCode(code){
 <script>
 
 const PASAJERO_ID          = {{ auth()->id() ?? 'null' }};
+window.__txpActiveTrip     = @json($activeTripBootstrap ?? null);
 const VIAJE_SOLICITAR_URL  = "{{ route('viaje.solicitar') }}";
 const VIAJE_ESTADO_URL     = "{{ url('/viaje/estado') }}";              
 const VIAJE_CANCELAR_URL   = "{{ route('viaje.cancelar') }}";  
@@ -1255,7 +1296,14 @@ async function solicitarViajeThenSearch(){
     });
 
     const j = await r.json();
-    if (!r.ok || !j.ok){ alert(j.message || 'No se pudo iniciar la solicitud.'); return; }
+    if (!r.ok || !j.ok){
+      if (r.status === 402) {
+        alert((j.message || 'Saldo insuficiente.') + '\n\nRecarga en: Billetera (menú ☰).');
+      } else {
+        alert(j.message || 'No se pudo iniciar la solicitud.');
+      }
+      return;
+    }
 
     window.currentViajeId = j.viaje_id; 
     ocultarSheet();
@@ -1274,6 +1322,28 @@ async function solicitarViajeThenSearch(){
   const clone = oldBtn.cloneNode(true);
   oldBtn.parentNode.replaceChild(clone, oldBtn);
   document.getElementById('txp-btn-confirmar').addEventListener('click', solicitarViajeThenSearch);
+
+  function bootstrapActiveTrip(){
+    const t = window.__txpActiveTrip;
+    if (!t || !t.id) return;
+    window.currentViajeId = t.id;
+    if (['asignado','en_camino','llego','iniciado'].includes(t.estado)) {
+      if (t.codigo_llegada) showArrivalCode(t.codigo_llegada);
+      showAsignado?.();
+      startETALoop?.();
+      startTripStateLoop?.();
+      startAssignmentWatcher?.();
+    } else if (t.estado === 'buscando') {
+      startDriverSearch?.();
+      startTripStateLoop?.();
+      startAssignmentWatcher?.();
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrapActiveTrip);
+  } else {
+    bootstrapActiveTrip();
+  }
 })();
 </script>
 
