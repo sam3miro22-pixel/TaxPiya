@@ -17,7 +17,7 @@ function Get-Csrf($html) {
 function Login-Role($app, $phone) {
     $sess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $loginUrl = switch ($app) {
-        'admin' { "$base/admin/login" }
+        'admin' { "$base/index/login" }
         'empresa' { "$base/empresa/login" }
         'conductor' { "$base/conductor/login" }
         default { "$base/pasajero/login" }
@@ -88,7 +88,7 @@ $emp = Invoke-WebRequest -Uri "$base/empresa" -WebSession $eSess -UseBasicParsin
 Test-Ok 'Empresa dashboard' ($emp.StatusCode -eq 200)
 
 # Assistant con sesion
-$csrf = Get-Csrf $home.Content
+$csrf = Get-Csrf $homePage.Content
 $ab = "_token=$([uri]::EscapeDataString($csrf))&message=$([uri]::EscapeDataString('Como recargo mi billetera?'))"
 $ar = Invoke-WebRequest -Method POST -Uri "$base/assistant/send" -WebSession $pSess -Body $ab -UseBasicParsing -TimeoutSec 120
 $ap = $ar.Content | ConvertFrom-Json
