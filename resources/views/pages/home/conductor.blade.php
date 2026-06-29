@@ -635,6 +635,7 @@ body.txd-chat-open #txd-trip-cta { display: none !important; }
 @endsection
 
 @section('pagejs')
+<script src="{{ asset('js/taxpiya-background.js') }}?v=1"></script>
 <script>
 
 function getCsrf(){
@@ -866,9 +867,11 @@ if (isOnline) {
     navigator.geolocation.getCurrentPosition((pos) => handlePosition(pos), () => {}, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
   }
   startOfferPoll();
+  window.TxpBackground?.syncConductor?.();
 } else {
   if (window.Capacitor?.isNativePlatform?.()) { stopBgWatcher(); } else { stopWatch(); }
   stopOfferPoll();
+  window.TxpBackground?.syncConductor?.();
 }
   }catch(e){
     showBanner(e.message || 'No se pudo cambiar tu estado', 'fa-triangle-exclamation');
@@ -1901,6 +1904,8 @@ window.__lastDriverPos = { lat, lng };
         }catch(e){}
       }
     });
+    window.__txpConductorBgActive = true;
+    window.TxpBackground?.syncConductor?.();
   } catch(e) {
     console.warn('[BG] start error', e);
   }
@@ -1912,6 +1917,7 @@ async function stopBgWatcher(){
     try { await BG.removeWatcher({ id: bgWatcherId }); } catch(e){}
   }
   bgWatcherId = null;
+  window.__txpConductorBgActive = false;
 }
 </script>
 
@@ -1919,40 +1925,25 @@ async function stopBgWatcher(){
 
 const isNative = !!(window.Capacitor?.isNativePlatform?.() === true);
 
-function markDriverOfflineOnLeave(){
-  try {
-    if (!window.isOnline || !CONDUCTOR_DISPONIBLE_URL) return;
-    fetch(CONDUCTOR_DISPONIBLE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'X-CSRF-TOKEN': getCsrf() },
-      body: JSON.stringify({ disponible: false }),
-      keepalive: true
-    }).catch(()=>{});
-    window.isOnline = false;
-  } catch(e){}
+/* No marcar offline al minimizar (pagehide en Android). Solo al cerrar pestaña en web. */
+if (!isNative) {
+  function markDriverOfflineOnLeave(){
+    try {
+      if (!window.isOnline || !CONDUCTOR_DISPONIBLE_URL) return;
+      fetch(CONDUCTOR_DISPONIBLE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'X-CSRF-TOKEN': getCsrf() },
+        body: JSON.stringify({ disponible: false }),
+        keepalive: true
+      }).catch(()=>{});
+      window.isOnline = false;
+    } catch(e){}
+  }
+  window.addEventListener('beforeunload', markDriverOfflineOnLeave);
 }
 
-window.addEventListener('pagehide', markDriverOfflineOnLeave);
-window.addEventListener('beforeunload', markDriverOfflineOnLeave);
-
-if (isNative) {
- 
-  window.addEventListener('pagehide', ()=> {
-    try {
-      if (window.isOnline && typeof setOnline === 'function') {
-        setOnline(false);
-      }
-    } catch(e){}
-  });
-
-
-  window.addEventListener('beforeunload', ()=> {
-    try {
-      if (window.isOnline && typeof setOnline === 'function') {
-        setOnline(false);
-      }
-    } catch(e){}
-  });
+if (isNative && window.TxpBackground) {
+  document.addEventListener('DOMContentLoaded', () => TxpBackground.init('conductor'), { once: true });
 }
 </script>
 

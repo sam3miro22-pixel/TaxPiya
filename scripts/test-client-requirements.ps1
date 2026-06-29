@@ -48,6 +48,8 @@ $pSess = Login-Role 'pasajero' '3009001001'
 $homePage = Invoke-WebRequest -Uri "$base/home" -WebSession $pSess -UseBasicParsing -TimeoutSec 120
 Test-Ok 'Pasajero home' ($homePage.StatusCode -eq 200)
 Test-Ok 'Menu pasajero (hamburguesa)' ($homePage.Content -match 'id="qmToggle"')
+Test-Ok 'Micrófono pasajero (TaxpiyaVoice)' ($homePage.Content -match 'taxpiya-voice\.js' -and $homePage.Content -match 'TaxpiyaVoice\.bind')
+Test-Ok 'Segundo plano pasajero JS' ($homePage.Content -match 'taxpiya-background\.js')
 Test-Ok 'Bootstrap viaje activo JS' ($homePage.Content -match '__txpActiveTrip')
 Test-Ok 'Modal codigo llegada' ($homePage.Content -match 'txp-code-modal')
 
@@ -65,6 +67,8 @@ $cSess = Login-Role 'conductor' '3109001001'
 $cHome = Invoke-WebRequest -Uri "$base/home" -WebSession $cSess -UseBasicParsing -TimeoutSec 120
 Test-Ok 'Conductor home' ($cHome.StatusCode -eq 200)
 Test-Ok 'Conductor resume viaje JS' ($cHome.Content -match '__txpActiveTrip')
+Test-Ok 'Conductor sin offline en pagehide' ($cHome.Content -notmatch "addEventListener\('pagehide',\s*markDriverOfflineOnLeave\)")
+Test-Ok 'Conductor background JS' ($cHome.Content -match 'taxpiya-background\.js')
 Test-Ok 'Conductor codigo input grande' ($cHome.Content -match 'txp-drv-code-input')
 
 try {

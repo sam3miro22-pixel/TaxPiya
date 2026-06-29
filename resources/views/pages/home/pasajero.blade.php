@@ -375,7 +375,9 @@ body#main #page-content {
 .mic-btn{
     border:0; border-radius:999px; padding:10px 12px;
     background: linear-gradient(180deg, rgba(255,209,102,.32), rgba(255,159,28,.28));
-    color:#111;
+    color:#111; cursor:pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 .mic-btn:hover{ filter:brightness(1.03); }
 .mic-btn.listening{
@@ -865,6 +867,8 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
 @endsection
 
 @section('pagejs')
+<script src="{{ asset('js/taxpiya-voice.js') }}?v=1"></script>
+<script src="{{ asset('js/taxpiya-background.js') }}?v=1"></script>
 <script>
 function getCsrf(){
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -2628,14 +2632,14 @@ window.initMap = function(){
   document.getElementById('recenter-btn').addEventListener('click', () => getUserLocation({ forceWatch:true }));
 
 
-  setupVoice('voice-origin', 'origin-input', (txt) => {
+  TaxpiyaVoice.bind('voice-origin', 'origin-input', (txt) => {
     geocodeText(txt, (loc, addr) => {
       originLatLng = loc;
       document.getElementById('origin-input').value = addr;
       centerTo(loc); putOriginMarker(loc); showLabel(loc, addr); tryRoute();
     });
   });
-  setupVoice('voice-dest', 'dest-input', (txt) => {
+  TaxpiyaVoice.bind('voice-dest', 'dest-input', (txt) => {
     geocodeText(txt, (loc, addr) => {
       destLatLng = loc;
       document.getElementById('dest-input').value = addr;
@@ -2643,7 +2647,8 @@ window.initMap = function(){
     });
   });
 
-  
+  if (window.TxpBackground) TxpBackground.init('pasajero');
+
 
  
   map.addListener('idle', scheduleIdleRefresh); 
@@ -2953,84 +2958,6 @@ function reverseGeocode(latLng, cb){
     if(status === 'OK' && res[0]) cb(res[0].formatted_address);
     else cb(null);
   });
-}
-
-
-function setupVoice(btnId, inputId, onText){
-  const btn = document.getElementById(btnId);
-  const input = document.getElementById(inputId);
-  if (!btn || !input) return;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){
-    btn.title = 'Voz no disponible en este navegador';
-    btn.disabled = true;
-    return;
-  }
-  const rec = new SR();
-  rec.lang = 'es-CO';
-  rec.interimResults = false;
-  rec.maxAlternatives = 1;
-  let listening = false;
-
-  const stopListening = () => {
-    listening = false;
-    btn.classList.remove('listening');
-    btn.setAttribute('aria-pressed', 'false');
-  };
-
-  btn.addEventListener('click', async () => {
-    if (listening) {
-      try { rec.stop(); } catch (_) {}
-      stopListening();
-      return;
-    }
-    if (navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(t => t.stop());
-      } catch (_) {
-        alert('Permite el micrófono para dictar la dirección.');
-        return;
-      }
-    }
-    try {
-      rec.start();
-      listening = true;
-      btn.classList.add('listening');
-      btn.setAttribute('aria-pressed', 'true');
-    } catch (e) {
-      stopListening();
-      alert('No se pudo iniciar el micrófono. Intenta de nuevo.');
-    }
-  });
-
-  rec.onend = stopListening;
-  rec.onerror = (ev) => {
-    stopListening();
-    if (ev.error && ev.error !== 'aborted') {
-      console.warn('SpeechRecognition', ev.error);
-    }
-  };
-  rec.onresult = (evt) => {
-    const txt = evt.results[0][0].transcript.trim();
-    if (!txt) return;
-    input.value = txt;
-    onText && onText(txt);
-    if (typeof geocodeText === 'function') {
-      geocodeText(txt, (loc, addr) => {
-        if (btnId === 'voice-origin') {
-          originLatLng = loc;
-          input.value = addr || txt;
-          if (typeof putOriginMarker === 'function') putOriginMarker(loc);
-        } else {
-          destLatLng = loc;
-          input.value = addr || txt;
-          if (typeof putDestinationMarker === 'function') putDestinationMarker(loc, addr);
-        }
-        if (typeof tryRoute === 'function') tryRoute();
-      });
-    }
-  };
 }
 
 
