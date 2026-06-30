@@ -424,7 +424,7 @@ body#main #page-content {
   background:#fff; color:#0f172a;
   border-radius:18px 18px 0 0;
   box-shadow:0 -12px 40px rgba(0,0,0,.25);
-  padding:14px 14px calc(28px + env(safe-area-inset-bottom, 12px));
+  padding:14px 14px calc(52px + env(safe-area-inset-bottom, 16px));
   max-height:86vh; overflow:auto;
 }
 .txp-sheet-handle{
@@ -630,6 +630,12 @@ body.txd-chat-open #txd-trip-cta { display: none !important; }
   .brand-logo{ width: 50px; height: 50px; }
 }
 
+/* Ocultar chatbot cuando el conductor tiene una oferta o viaje activo */
+#drv-sheet-solicitud[aria-hidden="false"] ~ * #txp-assistant-root,
+body:has(#drv-sheet-solicitud[aria-hidden="false"]) #txp-assistant-root,
+body:has(#txd-trip-cta:not([style*="display:none"]):not([style*="display: none"])) #txp-assistant-root {
+  display: none !important;
+}
 </style>
 @endsection
 
@@ -1948,9 +1954,29 @@ if (isNative && window.TxpBackground) {
 
 <script>
 function playOfferSound(){
+  // Reproducir mp3 si está disponible
   const el = document.getElementById('snd-offer');
-  if (!el) return;
-  try { el.currentTime = 0; el.play(); } catch (e) {}
+  if (el) { try { el.currentTime = 0; el.play(); } catch (e) {} }
+
+  // Tono de alerta digital limpio (bip doble) con Web Audio API
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    function bip(freq, t0, dur) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      gain.gain.setValueAtTime(0.22, t0);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      osc.start(t0); osc.stop(t0 + dur);
+    }
+    const t = ctx.currentTime;
+    bip(987.77, t,       0.13); // Si5
+    bip(1318.51, t+0.16, 0.13); // Mi6
+  } catch (err) {}
 }
 </script>
 
