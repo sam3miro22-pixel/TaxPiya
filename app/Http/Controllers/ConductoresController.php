@@ -21,6 +21,7 @@ use App\Services\TripPaymentService;
 use App\Services\VehiculoConductorService;
 use App\Services\TripGeoService;
 use App\Services\ChatBotService;
+use App\Services\WalletService;
 use Illuminate\Validation\ValidationException;
 use App\Support\TripMatching;
 class ConductoresController extends Controller

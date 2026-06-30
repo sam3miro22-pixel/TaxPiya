@@ -70,9 +70,8 @@
         <i class="fa-solid fa-location-crosshairs"></i>
     </button>
 
-    <button type="button" id="txp-sos-btn" class="txp-sos-fab" title="Emergencia SOS">SOS</button>
-
     
+
   <div class="bottom-cta">
   <button id="solicitar-btn" class="btn btn-brand btn-xxl" style="display:none;">
     <i class="fa-solid fa-taxi me-2"></i> ¡Solicitar Viaje!
@@ -245,6 +244,7 @@
 </div>
 
 
+    <button type="button" id="txp-sos-btn" class="txp-sos-fab" title="Emergencia SOS">SOS</button>
 </div>
 
 <div class="quick-menu" id="quickMenu">
@@ -565,7 +565,7 @@ body#main #page-content {
   position: fixed;
   left: 16px;
   bottom: calc(120px + env(safe-area-inset-bottom));
-  z-index: 850;
+  z-index: 10005;
   width: 52px; height: 52px;
   border-radius: 50%;
   border: none;

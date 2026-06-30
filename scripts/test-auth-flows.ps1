@@ -161,7 +161,7 @@ try {
 # Firebase diag
 try {
     $fb = Invoke-RestMethod -Uri "$base/auth/firebase/diag" -TimeoutSec 60
-    Test-Ok "Firebase diag endpoint" ($fb.ok -eq $true)
+    Test-Ok "Firebase diag endpoint" ($fb.firebase_auth -eq $true -and $fb.sessions_table -eq $true)
 } catch { Test-Ok "Firebase diag endpoint" $false $_.Exception.Message }
 
 Write-Host "`n=== Resultado: $failed fallos ===" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })

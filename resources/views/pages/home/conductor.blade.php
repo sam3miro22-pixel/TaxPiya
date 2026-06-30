@@ -74,8 +74,6 @@
     </nav>
   </div>
 
-  <button type="button" id="txp-sos-btn" class="txp-sos-fab" title="Emergencia SOS">SOS</button>
-
   </div>{{-- /txp-ui-layer --}}
 
 
@@ -193,6 +191,7 @@
   </div>
 </div>
 
+  <button type="button" id="txp-sos-btn" class="txp-sos-fab" title="Emergencia SOS">SOS</button>
 </div>
 
 @endsection
@@ -392,7 +391,7 @@ body#main #page-content {
   position: fixed;
   left: calc(env(safe-area-inset-left, 0px) + 16px);
   bottom: calc(110px + env(safe-area-inset-bottom));
-  z-index: 850;
+  z-index: 10005;
   width: 52px; height: 52px;
   border-radius: 50%;
   border: none;
@@ -425,7 +424,7 @@ body#main #page-content {
   background:#fff; color:#0f172a;
   border-radius:18px 18px 0 0;
   box-shadow:0 -12px 40px rgba(0,0,0,.25);
-  padding:14px 14px 16px;
+  padding:14px 14px calc(28px + env(safe-area-inset-bottom, 12px));
   max-height:86vh; overflow:auto;
 }
 .txp-sheet-handle{
