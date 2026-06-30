@@ -81,7 +81,7 @@ try {
 $aSess = Login-Role 'admin' '3001001001'
 $admin = Invoke-WebRequest -Uri "$base/home" -WebSession $aSess -UseBasicParsing -TimeoutSec 120
 Test-Ok 'Admin dashboard' ($admin.StatusCode -eq 200)
-Test-Ok 'Admin boton cerrar sesion' ($admin.Content -match 'Cerrar sesión')
+Test-Ok 'Admin boton cerrar sesion' ($admin.Content -match 'auth/logout' -and $admin.Content -match 'Cerrar')
 
 $tarifas = Invoke-WebRequest -Uri "$base/tarifas" -WebSession $aSess -UseBasicParsing -TimeoutSec 120
 Test-Ok 'Admin tarifas list' ($tarifas.StatusCode -eq 200)

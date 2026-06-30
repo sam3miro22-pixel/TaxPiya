@@ -214,6 +214,14 @@ class HomeController extends Controller{
 			}
 		}
 
+		$emailTaken = DB::table('users')
+			->where('email', $data['email'])
+			->when($exists, fn ($q) => $q->where('id', '!=', $exists->id))
+			->exists();
+		if ($emailTaken) {
+			return back()->withInput()->with('error', 'Este correo ya está registrado en otra cuenta.');
+		}
+
 		$now = now()->format('Y-m-d H:i:s');
 		$userId = $exists ? (int) $exists->id : null;
 

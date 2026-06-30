@@ -8,6 +8,8 @@ $can_edit   = $user->canAccess("conductores/edit");
 $can_view   = $user->canAccess("conductores/view");
 $can_delete = $user->canAccess("conductores/delete");
 
+$pendientes = DB::table('conductores')->where('estado_operitivo', 0)->count();
+
 $field_name    = request()->segment(3);
 $field_value   = request()->segment(4);
 $total_records = $records->total();
@@ -47,6 +49,9 @@ if (!empty($userIds)) {
                     </div>
                 </div>
                 <div class="col-auto d-flex align-items-center gap-2">
+                    <a href="{{ url('conductores/index/estado_operitivo/0') }}" class="btn btn-sm btn-warning">
+                        Pendientes ({{ $pendientes }})
+                    </a>
                     @if($can_add)
                         <a class="btn btn-conductores-primary" href="<?php print_link("conductores/add", true) ?>">
                             <i class="fa fa-plus me-1"></i> Agregar nuevo

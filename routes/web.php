@@ -388,8 +388,12 @@ Route::middleware(['auth'])->group(function () {
 					if (!\Illuminate\Support\Facades\Schema::hasTable('empresas')) {
 						return $fail('El portal de empresas no está disponible en este momento.');
 					}
-					if (!\Illuminate\Support\Facades\DB::table('empresas')->where('user_id', $user->id)->exists()) {
+					$empresa = \Illuminate\Support\Facades\DB::table('empresas')->where('user_id', $user->id)->first();
+					if (!$empresa) {
 						return $fail('Tu cuenta no tiene una empresa vinculada.');
+					}
+					if ((string) ($empresa->estado ?? '') !== 'activa') {
+						return $fail('Tu empresa está pendiente de aprobación. Comunícate con el Equipo de Taxpiya.');
 					}
 				}
 			}
@@ -493,9 +497,15 @@ Route::middleware(['auth'])->group(function () {
 				}
 			}
 			if ($app === 'empresa') {
-				if (!\Illuminate\Support\Facades\Schema::hasTable('empresas')
-					|| !\Illuminate\Support\Facades\DB::table('empresas')->where('user_id', $user->id)->exists()) {
+				if (!\Illuminate\Support\Facades\Schema::hasTable('empresas')) {
+					return response()->json(['ok' => false, 'message' => 'Portal de empresas no disponible.'], 403);
+				}
+				$empresa = \Illuminate\Support\Facades\DB::table('empresas')->where('user_id', $user->id)->first();
+				if (!$empresa) {
 					return response()->json(['ok' => false, 'message' => 'Tu cuenta no tiene empresa vinculada.'], 403);
+				}
+				if ((string) ($empresa->estado ?? '') !== 'activa') {
+					return response()->json(['ok' => false, 'message' => 'Tu empresa está pendiente de aprobación.'], 403);
 				}
 			}
 

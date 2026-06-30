@@ -804,12 +804,20 @@ if (Schema::hasTable('viaje_estados_log')) {
 			$modeldata = $this->normalizeFormData($request->validated());
 			$wasActive = (int) ($record->estado_operitivo ?? 0) === 1;
 			$record->update($modeldata);
-			if (!$wasActive && (int) ($record->estado_operitivo ?? 0) === 1) {
-				$userId = (int) DB::table('conductores')->where('id', $rec_id)->value('user_id');
-				if ($userId) {
-					DB::table('users')->where('id', $userId)->update(['estado' => 1]);
-					app(\App\Services\ReferralService::class)->activateReferral($userId, 'conductor');
-				}
+			$isActive = (int) ($record->estado_operitivo ?? 0) === 1;
+			$userId = (int) DB::table('conductores')->where('id', $rec_id)->value('user_id');
+
+			if (!$wasActive && $isActive && $userId) {
+				DB::table('users')->where('id', $userId)->update(['estado' => 1]);
+				DB::table('vehiculos')->where('conductor_id', $rec_id)->update([
+					'estado_vehiculo'     => 'activo',
+					'verificacion_estado' => 'verificado',
+				]);
+				app(\App\Services\ReferralService::class)->activateReferral($userId, 'conductor');
+			} elseif ($wasActive && !$isActive && $userId) {
+				DB::table('users')->where('id', $userId)->update(['estado' => 0]);
+				DB::table('conductores')->where('id', $rec_id)->update(['disponible' => 0]);
+				DB::table('vehiculos')->where('conductor_id', $rec_id)->update(['estado_vehiculo' => 'inactivo']);
 			}
 			return $this->redirect("conductores", "Registro actualizado con éxito");
 		}
