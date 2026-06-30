@@ -820,6 +820,21 @@ if (Schema::hasTable('viaje_estados_log')) {
 				DB::table('conductores')->where('id', $rec_id)->update(['disponible' => 0]);
 				DB::table('vehiculos')->where('conductor_id', $rec_id)->update(['estado_vehiculo' => 'inactivo']);
 			}
+
+			if ($isActive && $userId) {
+				try {
+					$walletService = app(\App\Services\WalletService::class);
+					$walletService->ensureSaldoRow((int) $rec_id);
+					$saldoObj = $walletService->getSaldo((int) $rec_id);
+					$saldoActual = (float) ($saldoObj->saldo_actual ?? 0);
+					if ($saldoActual < 5000) {
+						$walletService->recargaInicial((int) $rec_id, 100000, 'Saldo inicial de cortesía para pruebas');
+					}
+				} catch (\Throwable $e) {
+					\Log::error('Error al recargar saldo inicial del conductor: ' . $e->getMessage());
+				}
+			}
+
 			return $this->redirect("conductores", "Registro actualizado con éxito");
 		}
 		return $this->renderView("pages.conductores.edit", ["data" => $record, "rec_id" => $rec_id]);

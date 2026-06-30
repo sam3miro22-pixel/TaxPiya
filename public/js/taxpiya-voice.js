@@ -185,7 +185,8 @@
       setListening(btn, true);
 
       try {
-        const txt = await listen();
+        const useNative = isNative() && !!speechPlugin();
+        const txt = useNative ? await listenNative() : await listenWeb();
         if (!txt) {
           toast('No escuché nada. Intenta de nuevo.');
           return;

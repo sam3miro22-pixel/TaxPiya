@@ -30,40 +30,46 @@ class AssistantController extends Controller
 
     public function send(Request $request)
     {
-        $user = auth()->user();
-        if (!$user) {
-            return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
-        }
-
-        $message = trim((string) $request->input('message', ''));
-        if ($message === '') {
-            return response()->json(['ok' => false, 'message' => 'Mensaje requerido'], 422);
-        }
-
-        $reply = $this->buildReply($message, $user);
-
         try {
-            if (Schema::hasTable('assistant_mensajes')) {
-                $now = now()->toDateTimeString();
-                $uid = (int) $user->id;
-                DB::table('assistant_mensajes')->insert([
-                    'user_id'    => $uid,
-                    'rol'        => 'user',
-                    'mensaje'    => $message,
-                    'created_at' => $now,
-                ]);
-                DB::table('assistant_mensajes')->insert([
-                    'user_id'    => $uid,
-                    'rol'        => 'assistant',
-                    'mensaje'    => $reply,
-                    'created_at' => $now,
-                ]);
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
             }
+
+            $message = trim((string) $request->input('message', ''));
+            if ($message === '') {
+                return response()->json(['ok' => false, 'message' => 'Mensaje requerido'], 422);
+            }
+
+            $reply = $this->buildReply($message, $user);
+
+            try {
+                if (Schema::hasTable('assistant_mensajes')) {
+                    $now = now()->toDateTimeString();
+                    $uid = (int) $user->id;
+                    DB::table('assistant_mensajes')->insert([
+                        'user_id'    => $uid,
+                        'rol'        => 'user',
+                        'mensaje'    => $message,
+                        'created_at' => $now,
+                    ]);
+                    DB::table('assistant_mensajes')->insert([
+                        'user_id'    => $uid,
+                        'rol'        => 'assistant',
+                        'mensaje'    => $reply,
+                        'created_at' => $now,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            return response()->json(['ok' => true, 'reply' => $reply]);
         } catch (\Throwable $e) {
             report($e);
+            $msg = isset($message) ? $message : '';
+            return response()->json(['ok' => true, 'reply' => $this->fallbackReply($msg)]);
         }
-
-        return response()->json(['ok' => true, 'reply' => $reply]);
     }
 
     /** @param object $user */
@@ -112,6 +118,15 @@ class AssistantController extends Controller
         $key = (string) config('services.groq.api_key', '');
         if ($key === '') {
             $key = (string) config('taxpiya.assistant.groq_api_key', '');
+        }
+        if ($key === '') {
+            $key = (string) getenv('GROQ_API_KEY');
+        }
+        if ($key === '') {
+            $key = (string) ($_ENV['GROQ_API_KEY'] ?? '');
+        }
+        if ($key === '') {
+            $key = (string) ($_SERVER['GROQ_API_KEY'] ?? '');
         }
 
         return $key;
