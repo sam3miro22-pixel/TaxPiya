@@ -148,6 +148,6 @@ app.post('/logout', async (req, res) => {
 });
 
 const port = process.env.WHATSAPP_PORT || 8051;
-app.listen(port, () => {
-    console.log(`[WhatsApp] Baileys service listening on port ${port}`);
+app.listen(port, '127.0.0.1', () => {
+    console.log(`[WhatsApp] Baileys service listening on port ${port} (localhost only)`);
 });
