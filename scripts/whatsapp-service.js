@@ -4,6 +4,7 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
+const https = require('https');
 
 const app = express();
 app.use(express.json());
@@ -22,71 +23,190 @@ let currentQr = null;
 let myNumber = null;
 let reconnectDelay = 4000;
 let retryTimer = null;
+let sessionBackupTimer = null;
 
-// Load GROQ_API_KEY from .env
-let groqApiKey = '';
-function loadGroqKey() {
+// ─── ENV helpers ────────────────────────────────────────────────────────────
+let _envCache = null;
+function loadEnv() {
+    if (_envCache) return _envCache;
+    _envCache = {};
     try {
         const envPath = path.join(__dirname, '../.env');
         if (fs.existsSync(envPath)) {
-            const envContent = fs.readFileSync(envPath, 'utf8');
-            const match = envContent.match(/^GROQ_API_KEY=(.*)$/m);
-            if (match) {
-                groqApiKey = match[1].trim().replace(/^["']|["']$/g, '');
-            }
+            fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+                const m = line.match(/^([^#=]+)=(.*)$/);
+                if (m) _envCache[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
+            });
         }
-    } catch (e) {
-        console.error('[WhatsApp AI] Error loading GROQ_API_KEY:', e.message);
-    }
+    } catch (e) { /* ignore */ }
+    // overlay actual process env (Render sets them at runtime)
+    Object.assign(_envCache, process.env);
+    return _envCache;
 }
-loadGroqKey();
 
-async function askGroqForWhatsApp(userMessage) {
-    if (!groqApiKey) {
-        loadGroqKey();
-    }
-    if (!groqApiKey) {
-        console.warn('[WhatsApp AI] No GROQ_API_KEY found, cannot answer.');
-        return null;
-    }
+function env(key, fallback = '') {
+    return (loadEnv()[key] ?? process.env[key] ?? fallback).toString().trim();
+}
 
+// ─── GROQ ───────────────────────────────────────────────────────────────────
+async function askGroq(userMessage) {
+    const apiKey = env('GROQ_API_KEY');
+    if (!apiKey) { console.warn('[WhatsApp AI] No GROQ_API_KEY'); return null; }
     try {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${groqApiKey}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: 'llama-3.1-8b-instant',
                 messages: [
                     {
                         role: 'system',
-                        content: 'Eres TaxPiya Assistant, el chatbot oficial de la aplicación de taxis TaxPiya en Colombia. Responde en español, de forma muy concisa, servicial y concreta (máximo 3 o 4 oraciones). Ayuda al usuario con: cómo solicitar viajes en la app/mapa, tarifas estimadas por distancia, recargas de billetera mediante Nequi/Aprobar Depósitos, soporte técnico, y uso de códigos de seguridad. Si te preguntan precio de un viaje sin origen/destino específico, indícales amablemente que pueden calcular la tarifa exacta dentro de la aplicación móvil de TaxPiya antes de confirmar.'
+                        content: 'Eres TaxPiya Assistant, el chatbot oficial de la app de taxis TaxPiya en Colombia. Responde en español, muy conciso y servicial (máximo 4 oraciones). Ayuda con: cómo pedir viajes en el mapa, tarifas por distancia, recarga de billetera (Nequi), código de llegada, estado del viaje y soporte técnico. Si preguntan precio sin destino específico, indícales que lo calculen en la app antes de confirmar.'
                     },
-                    {
-                        role: 'user',
-                        content: userMessage
-                    }
+                    { role: 'user', content: userMessage }
                 ],
                 temperature: 0.35,
                 max_tokens: 350
             })
         });
-
-        if (!response.ok) {
-            console.error('[WhatsApp AI] Groq API returned status:', response.status);
-            return null;
-        }
-
-        const data = await response.json();
+        if (!res.ok) { console.error('[WhatsApp AI] Groq status:', res.status); return null; }
+        const data = await res.json();
         return data.choices?.[0]?.message?.content?.trim() || null;
     } catch (e) {
-        console.error('[WhatsApp AI] Error calling Groq:', e.message);
+        console.error('[WhatsApp AI] Groq error:', e.message);
         return null;
     }
 }
 
+// ─── GITHUB SESSION BACKUP ──────────────────────────────────────────────────
+function githubHeaders() {
+    return {
+        'Authorization': `Bearer ${env('GITHUB_BACKUP_TOKEN')}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'TaxPiya-WhatsApp-Session',
+        'Content-Type': 'application/json'
+    };
+}
+
+function sessionContentsUrl() {
+    const owner = env('GITHUB_BACKUP_OWNER', 'sam3miro22-pixel');
+    const repo  = env('GITHUB_BACKUP_REPO',  'taxpiya-db-backup');
+    return `https://api.github.com/repos/${owner}/${repo}/contents/whatsapp-session.tar.gz.b64`;
+}
+
+async function githubRequest(method, url, body) {
+    return new Promise((resolve, reject) => {
+        const u = new URL(url);
+        const opts = {
+            hostname: u.hostname,
+            path: u.pathname + u.search,
+            method,
+            headers: githubHeaders()
+        };
+        const req = https.request(opts, res => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => resolve({ status: res.statusCode, body: data }));
+        });
+        req.on('error', reject);
+        if (body) req.write(typeof body === 'string' ? body : JSON.stringify(body));
+        req.end();
+    });
+}
+
+async function backupSessionToGithub() {
+    const token = env('GITHUB_BACKUP_TOKEN');
+    if (!token) return;
+
+    try {
+        // Tar all session files into a single buffer
+        const files = fs.readdirSync(sessionDir);
+        if (files.length === 0) return;
+
+        // Pack files as a JSON map: { filename: base64content }
+        const sessionMap = {};
+        for (const f of files) {
+            const fp = path.join(sessionDir, f);
+            if (fs.statSync(fp).isFile()) {
+                sessionMap[f] = fs.readFileSync(fp).toString('base64');
+            }
+        }
+        const packed = Buffer.from(JSON.stringify(sessionMap)).toString('base64');
+
+        // Get current SHA if file exists
+        let sha = null;
+        const getMeta = await githubRequest('GET', sessionContentsUrl(), null);
+        if (getMeta.status === 200) {
+            try { sha = JSON.parse(getMeta.body).sha; } catch {}
+        }
+
+        const payload = {
+            message: `WhatsApp session backup ${new Date().toISOString()}`,
+            content: packed
+        };
+        if (sha) payload.sha = sha;
+
+        const put = await githubRequest('PUT', sessionContentsUrl(), payload);
+        if (put.status < 300) {
+            console.log('[WhatsApp Session] Backed up to GitHub successfully.');
+        } else {
+            console.error('[WhatsApp Session] GitHub backup failed:', put.status, put.body.slice(0, 200));
+        }
+    } catch (e) {
+        console.error('[WhatsApp Session] Backup error:', e.message);
+    }
+}
+
+async function restoreSessionFromGithub() {
+    const token = env('GITHUB_BACKUP_TOKEN');
+    if (!token) {
+        console.log('[WhatsApp Session] No GitHub token, skipping restore.');
+        return false;
+    }
+
+    try {
+        const getMeta = await githubRequest('GET', sessionContentsUrl(), null);
+        if (getMeta.status === 404) {
+            console.log('[WhatsApp Session] No backup found on GitHub (first run).');
+            return false;
+        }
+        if (getMeta.status >= 300) {
+            console.error('[WhatsApp Session] GitHub restore GET failed:', getMeta.status);
+            return false;
+        }
+
+        const meta = JSON.parse(getMeta.body);
+        const packed = Buffer.from(meta.content.replace(/\s/g, ''), 'base64').toString('utf8');
+        const sessionMap = JSON.parse(packed);
+
+        // Wipe existing session dir and restore files
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+        fs.mkdirSync(sessionDir, { recursive: true });
+
+        for (const [filename, b64] of Object.entries(sessionMap)) {
+            fs.writeFileSync(path.join(sessionDir, filename), Buffer.from(b64, 'base64'));
+        }
+
+        console.log(`[WhatsApp Session] Restored ${Object.keys(sessionMap).length} files from GitHub.`);
+        return true;
+    } catch (e) {
+        console.error('[WhatsApp Session] Restore error:', e.message);
+        return false;
+    }
+}
+
+// Schedule periodic session backup every 3 minutes while connected
+function scheduleSessionBackup() {
+    if (sessionBackupTimer) clearInterval(sessionBackupTimer);
+    sessionBackupTimer = setInterval(async () => {
+        if (connectionStatus === 'connected') {
+            await backupSessionToGithub();
+        }
+    }, 3 * 60 * 1000);
+}
+
+// ─── WHATSAPP CONNECTION ─────────────────────────────────────────────────────
 async function startWhatsApp() {
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     connectionStatus = 'connecting';
@@ -94,7 +214,6 @@ async function startWhatsApp() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         const { version } = await fetchLatestBaileysVersion();
-        
         const logger = pino({ level: 'silent' });
 
         sock = makeWASocket({
@@ -108,42 +227,36 @@ async function startWhatsApp() {
             browser: ['Taxpiya', 'Chrome', '125.0.0'],
         });
 
-        sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('creds.update', async (creds) => {
+            await saveCreds(creds);
+            // Backup immediately on credential update (login/re-auth)
+            await backupSessionToGithub();
+        });
 
-        // Listen for incoming messages to respond via Groq AI
+        // ── Incoming message auto-responder ──────────────────────────────────
         sock.ev.on('messages.upsert', async (m) => {
             if (m.type !== 'notify') return;
             for (const msg of m.messages) {
-                // Ignore messages sent by ourselves or group messages
                 if (msg.key.fromMe) continue;
                 const from = msg.key.remoteJid;
                 if (!from || from.endsWith('@g.us')) continue;
 
-                // Extract text content
-                const text = msg.message?.conversation || 
+                const text = msg.message?.conversation ||
                              msg.message?.extendedTextMessage?.text;
-
                 if (!text || text.trim() === '') continue;
 
-                console.log(`[WhatsApp AI] Received message from ${from}: "${text}"`);
+                console.log(`[WhatsApp AI] Msg from ${from}: "${text.slice(0,80)}"`);
 
-                // Mark read and show typing indicator
-                try {
-                    await sock.readMessages([msg.key]);
-                    await sock.sendPresenceUpdate('composing', from);
-                } catch (e) {}
+                try { await sock.readMessages([msg.key]); } catch {}
+                try { await sock.sendPresenceUpdate('composing', from); } catch {}
 
-                // Call Groq
-                const reply = await askGroqForWhatsApp(text);
-                
-                // Stop typing indicator
-                try {
-                    await sock.sendPresenceUpdate('paused', from);
-                } catch (e) {}
+                const reply = await askGroq(text);
+
+                try { await sock.sendPresenceUpdate('paused', from); } catch {}
 
                 if (reply) {
                     await sock.sendMessage(from, { text: reply });
-                    console.log(`[WhatsApp AI] Replied to ${from}: "${reply}"`);
+                    console.log(`[WhatsApp AI] Replied to ${from}`);
                 }
             }
         });
@@ -155,7 +268,7 @@ async function startWhatsApp() {
                 connectionStatus = 'qr';
                 currentQr = qr;
                 reconnectDelay = 4000;
-                try { fs.writeFileSync(qrFilePath, qr); } catch(e) {}
+                try { fs.writeFileSync(qrFilePath, qr); } catch {}
                 console.log('[WhatsApp] QR code ready. Waiting for scan...');
             }
 
@@ -164,14 +277,26 @@ async function startWhatsApp() {
                 sock = null;
                 const code = lastDisconnect?.error?.output?.statusCode;
                 const loggedOut = code === DisconnectReason.loggedOut;
-
                 console.log(`[WhatsApp] Connection closed (code=${code}). LoggedOut=${loggedOut}`);
                 connectionStatus = 'disconnected';
 
                 if (loggedOut) {
-                    try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch(e) {}
-                    try { fs.unlinkSync(qrFilePath); } catch(e) {}
+                    // Session invalidated — wipe local + GitHub backup so fresh QR is generated
+                    try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+                    try { fs.unlinkSync(qrFilePath); } catch {}
                     reconnectDelay = 4000;
+                    console.log('[WhatsApp Session] Session invalidated. Clearing GitHub backup...');
+                    // Clear GitHub backup by uploading empty marker
+                    try {
+                        const getMeta = await githubRequest('GET', sessionContentsUrl(), null);
+                        if (getMeta.status === 200) {
+                            const sha = JSON.parse(getMeta.body).sha;
+                            await githubRequest('DELETE', sessionContentsUrl(), {
+                                message: 'WhatsApp session cleared (logged out)',
+                                sha
+                            });
+                        }
+                    } catch {}
                 }
 
                 reconnectDelay = Math.min(reconnectDelay * 1.5, 60000);
@@ -182,10 +307,12 @@ async function startWhatsApp() {
                 connectionStatus = 'connected';
                 currentQr = null;
                 reconnectDelay = 4000;
-                try { fs.unlinkSync(qrFilePath); } catch(e) {}
+                try { fs.unlinkSync(qrFilePath); } catch {}
                 const user = sock.user;
                 myNumber = user?.id?.split(':')[0] ?? 'unknown';
                 console.log(`[WhatsApp] Connected as: ${myNumber}`);
+                // Backup session right after connecting
+                await backupSessionToGithub();
             }
         });
 
@@ -197,14 +324,21 @@ async function startWhatsApp() {
     }
 }
 
-// Kick off connection
-startWhatsApp();
+// ─── BOOTSTRAP ───────────────────────────────────────────────────────────────
+async function bootstrap() {
+    console.log('[WhatsApp] Attempting to restore session from GitHub...');
+    await restoreSessionFromGithub();
+    scheduleSessionBackup();
+    await startWhatsApp();
+}
 
-// API Endpoints
+bootstrap();
+
+// ─── API ENDPOINTS ────────────────────────────────────────────────────────────
 app.get('/status', async (req, res) => {
     let qrImage = null;
     if (currentQr) {
-        try { qrImage = await qrcode.toDataURL(currentQr); } catch (e) {}
+        try { qrImage = await qrcode.toDataURL(currentQr); } catch {}
     }
     res.json({ ok: true, status: connectionStatus, qr: currentQr, qrImage, user: myNumber });
 });
@@ -212,9 +346,7 @@ app.get('/status', async (req, res) => {
 app.post('/send', async (req, res) => {
     try {
         const { phone, message } = req.body;
-        if (!phone || !message) {
-            return res.status(400).json({ ok: false, message: 'Phone and message are required' });
-        }
+        if (!phone || !message) return res.status(400).json({ ok: false, message: 'Phone and message are required' });
         if (connectionStatus !== 'connected' || !sock) {
             return res.status(503).json({ ok: false, message: 'WhatsApp not connected (status: ' + connectionStatus + ')' });
         }
@@ -234,11 +366,11 @@ app.post('/logout', async (req, res) => {
         connectionStatus = 'disconnected';
         if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
         if (sock) {
-            try { await sock.logout(); } catch(e) {}
+            try { await sock.logout(); } catch {}
             sock = null;
         }
-        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch(e) {}
-        try { fs.unlinkSync(qrFilePath); } catch(e) {}
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+        try { fs.unlinkSync(qrFilePath); } catch {}
         reconnectDelay = 4000;
         retryTimer = setTimeout(startWhatsApp, 2000);
         res.json({ ok: true, message: 'Logged out. Generating new QR...' });
