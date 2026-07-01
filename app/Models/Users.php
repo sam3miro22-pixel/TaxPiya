@@ -382,6 +382,9 @@ class Users extends Authenticatable
      * @return bool
      */
 	public function canAccess($path){
+		if (strtolower(trim($path, '/')) === 'admin/whatsapp') {
+			return (int) $this->user_role_id === 1;
+		}
 		$userPages = $this->getUserPages();
 		$arrPaths = explode("/", strtolower($path));
 		$page = $arrPaths[0] ?? "home";

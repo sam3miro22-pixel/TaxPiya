@@ -1740,7 +1740,7 @@ body{
     top: 50px;
     left: 0;
     height: calc(100vh - 50px);
-    z-index: 999;
+    z-index: 1050;
 	transition: all 0.3s;
 	overflow-y: auto;
 	padding-bottom: 40px;
