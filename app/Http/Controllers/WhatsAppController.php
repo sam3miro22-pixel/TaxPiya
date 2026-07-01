@@ -24,9 +24,17 @@ class WhatsAppController extends Controller
         $wa = app(WhatsAppService::class);
         $status = $wa->getStatus();
 
-        $supportPhone = DB::table('settings')
-            ->where('key', 'whatsapp_support_phone')
-            ->value('value');
+        $supportPhone = '';
+        if (\Illuminate\Support\Facades\Schema::hasTable('settings')) {
+            $supportPhone = DB::table('settings')
+                ->where('key', 'whatsapp_support_phone')
+                ->value('value');
+        } else {
+            $path = storage_path('app/whatsapp-support-phone.txt');
+            if (file_exists($path)) {
+                $supportPhone = trim(file_get_contents($path));
+            }
+        }
 
         return view('pages.admin.whatsapp', [
             'status'       => $status,
