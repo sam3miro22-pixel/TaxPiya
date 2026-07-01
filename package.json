@@ -8,7 +8,11 @@
     "firebase:deploy": "firebase deploy --config firebase/firebase.json"
   },
   "dependencies": {
-    "firebase": "^11.6.0"
+    "firebase": "^11.6.0",
+    "@whiskeysockets/baileys": "^6.7.3",
+    "qrcode": "^1.5.3",
+    "express": "^4.19.2",
+    "pino": "^9.0.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

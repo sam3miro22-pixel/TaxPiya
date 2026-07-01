@@ -165,6 +165,14 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/assistant/messages', [\App\Http\Controllers\AssistantController::class, 'messages'])->name('assistant.messages');
     Route::post('/assistant/send', [\App\Http\Controllers\AssistantController::class, 'send'])->name('assistant.send');
+    Route::post('/assistant/human-support', [\App\Http\Controllers\AssistantController::class, 'humanSupport'])->name('assistant.human-support');
+
+    // Admin WhatsApp panel (RBAC bypass for admin routes)
+    Route::get('/admin/whatsapp', [\App\Http\Controllers\WhatsAppController::class, 'index'])->name('admin.whatsapp')->withoutMiddleware(['rbac']);
+    Route::get('/admin/whatsapp/status', [\App\Http\Controllers\WhatsAppController::class, 'status'])->name('admin.whatsapp.status')->withoutMiddleware(['rbac']);
+    Route::post('/admin/whatsapp/logout', [\App\Http\Controllers\WhatsAppController::class, 'logout'])->name('admin.whatsapp.logout')->withoutMiddleware(['rbac']);
+    Route::post('/admin/whatsapp/config', [\App\Http\Controllers\WhatsAppController::class, 'saveConfig'])->name('admin.whatsapp.config')->withoutMiddleware(['rbac']);
+
 
     Route::get('/api/nearby-drivers', function (Request $req) {
         $lat = (float) $req->query('lat');

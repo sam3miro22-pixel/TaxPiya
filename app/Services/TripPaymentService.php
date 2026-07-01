@@ -52,7 +52,8 @@ class TripPaymentService
         $pct = $this->commissionPercent($conductorId);
 
         DB::transaction(function () use ($viajeId, $tarifa, $neto, $fee, $pct, $moneda, $pasajeroId, $conductorId) {
-            $this->ledger->debitoPagoViaje($pasajeroId, $viajeId, $tarifa, $moneda);
+            // El viaje es gratis para el pasajero, por lo tanto se debita 0 COP
+            $this->ledger->debitoPagoViaje($pasajeroId, $viajeId, 0, $moneda);
 
             if ($neto > 0) {
                 $this->ledger->creditoIngresoViaje($conductorId, $viajeId, $neto, $moneda, "Ingreso neto viaje #{$viajeId} (comisión {$pct}%)");
@@ -83,6 +84,6 @@ class TripPaymentService
 
     public function passengerCanAfford(int $pasajeroUserId, float $monto): bool
     {
-        return $this->ledger->getSaldoPasajero($pasajeroUserId) >= $monto;
+        return true;
     }
 }

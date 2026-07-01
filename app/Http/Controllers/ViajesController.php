@@ -73,6 +73,8 @@ class ViajesController extends Controller
 
     $ledger = app(WalletLedgerService::class);
     $ledger->ensureCuenta('pasajero', (int) $pasajeroId);
+    // Viaje gratis: no se requiere saldo en la billetera para viajar
+    /*
     $saldoPasajero = $ledger->getSaldoPasajero((int) $pasajeroId);
     if ($saldoPasajero < $tarifaMonto) {
         return response()->json([
@@ -82,6 +84,7 @@ class ViajesController extends Controller
             'requerido' => $tarifaMonto,
         ], 402);
     }
+    */
 
     TripMatching::expireStaleSearchingTrips();
     TripMatching::cancelPassengerOpenSearches((int) $pasajeroId);

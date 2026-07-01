@@ -59,6 +59,11 @@ class Menu{
             'label' => "Saldos conductores",
             'icon' => '<i class="fa fa-credit-card"></i>'
         ],
+        [
+            'path' => 'admin/whatsapp',
+            'label' => "WhatsApp",
+            'icon' => '<i class="fa-brands fa-whatsapp" style="color:#25D366"></i>'
+        ],
     ];
 }
 

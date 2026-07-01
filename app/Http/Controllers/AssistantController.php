@@ -72,6 +72,70 @@ class AssistantController extends Controller
         }
     }
 
+    /**
+     * Forward a message to the human support WhatsApp number configured in admin.
+     */
+    public function humanSupport(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['ok' => false, 'message' => 'No autenticado'], 401);
+            }
+
+            $message = trim((string) $request->input('message', ''));
+            if ($message === '') {
+                return response()->json(['ok' => false, 'message' => 'Mensaje requerido'], 422);
+            }
+
+            // Read configured support phone
+            $phone = null;
+            if (Schema::hasTable('settings')) {
+                $phone = DB::table('settings')
+                    ->where('key', 'whatsapp_support_phone')
+                    ->value('value');
+            }
+            if (!$phone) {
+                $filePath = storage_path('app/whatsapp-support-phone.txt');
+                if (file_exists($filePath)) {
+                    $phone = trim(file_get_contents($filePath));
+                }
+            }
+
+            if (!$phone) {
+                return response()->json([
+                    'ok'    => true,
+                    'reply' => '⚠️ No hay un número de soporte configurado. Contacta al administrador.',
+                ]);
+            }
+
+            $userName = $user->name ?? 'Usuario';
+            $userRole = $user->tipo ?? 'usuario';
+            $fullMessage = "🆘 *Soporte Humano - Taxpiya*\n\n👤 *Usuario:* {$userName}\n🏷️ *Rol:* {$userRole}\n\n💬 *Mensaje:*\n{$message}";
+
+            $wa = app(\App\Services\WhatsAppService::class);
+            $result = $wa->sendMessage($phone, $fullMessage);
+
+            if ($result['ok'] ?? false) {
+                return response()->json([
+                    'ok'    => true,
+                    'reply' => "✅ Tu mensaje ha sido enviado a nuestro equipo de soporte por WhatsApp. Te responderemos a la brevedad posible.",
+                ]);
+            } else {
+                return response()->json([
+                    'ok'    => true,
+                    'reply' => "⚠️ No pudimos enviar tu mensaje en este momento. Intenta de nuevo o contáctanos directamente.",
+                ]);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json([
+                'ok'    => true,
+                'reply' => "⚠️ Error al contactar soporte. Intenta de nuevo en unos minutos.",
+            ]);
+        }
+    }
+
     /** @param object $user */
     private function buildReply(string $message, object $user): string
     {
