@@ -8,6 +8,17 @@ use App\Services\WhatsAppService;
 
 class WhatsAppController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $user = auth()->user();
+            if (!$user || (int) $user->user_role_id !== 1) {
+                abort(403, 'Acceso denegado.');
+            }
+            return $next($request);
+        });
+    }
+
     public function index()
     {
         $wa = app(WhatsAppService::class);

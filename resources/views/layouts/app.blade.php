@@ -97,8 +97,10 @@
 		$is_auth_page = request()->routeIs($auth_routes)
 			|| ($page_name === 'index' && in_array($page_action, ['login', 'register'], true));
 		$body_extra = $is_auth_page ? ' txp-auth-page' : '';
+		$isAdmin = auth()->check() && ((int) auth()->user()->user_role_id === 1);
+		$withLoginClass = $isAdmin ? '' : 'with-login';
 	?>
-	<body id="<?php echo $body_id ?>" class="with-login <?php echo $body_class ?><?php echo $body_extra ?>">
+	<body id="<?php echo $body_id ?>" class="<?php echo $withLoginClass ?> <?php echo $body_class ?><?php echo $body_extra ?>">
 
 		<div id="page-wrapper">
 			
