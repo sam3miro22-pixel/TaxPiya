@@ -332,28 +332,24 @@ class AccountPurgeService
                 ->withServiceAccount($credentials)
                 ->createAuth();
 
-            $pageToken = null;
-            do {
-                $result = $auth->listUsers(1000, $pageToken);
-                foreach ($result as $user) {
-                    $email = strtolower((string) ($user->email ?? ''));
-                    $uid = (string) $user->uid;
-                    if (in_array($uid, $keepUids, true)) {
-                        continue;
-                    }
-                    if ($email !== '' && in_array($email, $keepEmails, true)) {
-                        continue;
-                    }
-                    try {
-                        $auth->deleteUser($user->uid);
-                        $this->deleteFirestoreUser($user->uid);
-                        $deleted++;
-                    } catch (\Throwable $e) {
-                        Log::warning('No se pudo borrar usuario Firebase', ['email' => $email, 'err' => $e->getMessage()]);
-                    }
+            $users = $auth->listUsers(1000, 1000);
+            foreach ($users as $user) {
+                $email = strtolower((string) ($user->email ?? ''));
+                $uid = (string) $user->uid;
+                if (in_array($uid, $keepUids, true)) {
+                    continue;
                 }
-                $pageToken = $result->getNextPageToken();
-            } while ($pageToken);
+                if ($email !== '' && in_array($email, $keepEmails, true)) {
+                    continue;
+                }
+                try {
+                    $auth->deleteUser($user->uid);
+                    $this->deleteFirestoreUser($user->uid);
+                    $deleted++;
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo borrar usuario Firebase', ['email' => $email, 'err' => $e->getMessage()]);
+                }
+            }
         } catch (\Throwable $e) {
             Log::error('Firebase purge falló', ['err' => $e->getMessage()]);
             throw $e;
