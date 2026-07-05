@@ -233,6 +233,75 @@ async function startWhatsApp() {
             await backupSessionToGithub();
         });
 
+        // ── Anti-ban state ────────────────────────────────────────────────────
+        // Per-user processing queue to avoid race conditions and flooding
+        const userQueues   = new Map(); // jid -> Promise (current processing chain)
+        const lastReplied  = new Map(); // jid -> timestamp (rate limit: 1 reply per 10s)
+        const lastMsgHash  = new Map(); // jid -> {hash, ts} (dedup: 15s window)
+
+        function msgHash(text) {
+            // Simple hash for deduplication
+            let h = 0;
+            for (let i = 0; i < text.length; i++) { h = (Math.imul(31, h) + text.charCodeAt(i)) | 0; }
+            return h;
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function humanReadDelay()    { return 1000 + Math.random() * 1500; }   // 1 – 2.5 s
+        function humanPrepareDelay() { return 500  + Math.random() * 1000; }   // 0.5 – 1.5 s
+        function humanTypingDelay(text) {
+            // 20 ms per character, clamped [3000, 8000]
+            return Math.min(8000, Math.max(3000, text.length * 20));
+        }
+
+        async function processMessage(from, text, msgKey) {
+            const now = Date.now();
+
+            // 1) Deduplication: ignore identical message within 15 seconds
+            const prev = lastMsgHash.get(from);
+            const hash = msgHash(text.trim().toLowerCase());
+            if (prev && prev.hash === hash && (now - prev.ts) < 15000) {
+                console.log(`[WhatsApp AI] Dedup – skipping duplicate from ${from}`);
+                return;
+            }
+            lastMsgHash.set(from, { hash, ts: now });
+
+            // 2) Rate limit: at most one reply per 10 seconds per user
+            const lastTs = lastReplied.get(from) || 0;
+            if ((now - lastTs) < 10000) {
+                console.log(`[WhatsApp AI] Rate-limit – skipping reply to ${from}`);
+                return;
+            }
+
+            // 3) Human-like: wait before marking as read
+            await sleep(humanReadDelay());
+            if (!sock) return;
+            try { await sock.readMessages([msgKey]); } catch {}
+
+            // 4) Human-like: brief pause before showing typing
+            await sleep(humanPrepareDelay());
+            if (!sock) return;
+            try { await sock.sendPresenceUpdate('composing', from); } catch {}
+
+            // 5) Call Groq
+            const reply = await askGroq(text);
+
+            // 6) Human-like: simulate typing duration based on reply length
+            const typingMs = reply ? humanTypingDelay(reply) : 2000;
+            await sleep(typingMs);
+            if (!sock) return;
+            try { await sock.sendPresenceUpdate('paused', from); } catch {}
+
+            if (!reply) return;
+
+            // 7) Update rate-limit timestamp BEFORE sending
+            lastReplied.set(from, Date.now());
+
+            await sock.sendMessage(from, { text: reply });
+            console.log(`[WhatsApp AI] Replied to ${from} (${reply.length} chars)`);
+        }
+
         // ── Incoming message auto-responder ──────────────────────────────────
         sock.ev.on('messages.upsert', async (m) => {
             if (m.type !== 'notify') return;
@@ -247,17 +316,11 @@ async function startWhatsApp() {
 
                 console.log(`[WhatsApp AI] Msg from ${from}: "${text.slice(0,80)}"`);
 
-                try { await sock.readMessages([msg.key]); } catch {}
-                try { await sock.sendPresenceUpdate('composing', from); } catch {}
-
-                const reply = await askGroq(text);
-
-                try { await sock.sendPresenceUpdate('paused', from); } catch {}
-
-                if (reply) {
-                    await sock.sendMessage(from, { text: reply });
-                    console.log(`[WhatsApp AI] Replied to ${from}`);
-                }
+                // Chain onto the per-user queue so messages are processed
+                // sequentially for each sender (prevents race conditions)
+                const prev = userQueues.get(from) || Promise.resolve();
+                const next = prev.then(() => processMessage(from, text, msg.key)).catch(() => {});
+                userQueues.set(from, next);
             }
         });
 

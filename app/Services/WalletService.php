@@ -53,13 +53,16 @@ class WalletService
             return ['ok' => false, 'message' => 'Tu wallet está bloqueada. Contacta soporte.'];
         }
 
-        $min = (float) ($saldo->min_operativo ?? config('taxpiya.wallet.default_min_operativo', 5000));
+        $minConfig  = (float) ($saldo->min_operativo ?? config('taxpiya.wallet.default_min_operativo', 5000));
+        // Mínimo absoluto: siempre al menos $200 COP (cargo por viaje de plataforma)
+        $minPlatform = 200.0;
+        $min    = max($minConfig, $minPlatform);
         $actual = (float) ($saldo->saldo_actual ?? 0);
 
         if ($actual < $min) {
             return [
                 'ok'      => false,
-                'message' => 'Saldo insuficiente en wallet ($' . number_format($actual, 0, ',', '.') . '). Mínimo: $' . number_format($min, 0, ',', '.'),
+                'message' => 'Saldo insuficiente. Necesitas al menos $' . number_format($min, 0, ',', '.') . ' COP para operar. Saldo actual: $' . number_format($actual, 0, ',', '.'),
                 'saldo'   => $actual,
                 'min'     => $min,
             ];

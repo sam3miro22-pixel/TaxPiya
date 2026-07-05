@@ -2447,8 +2447,8 @@ const CAR_RATIO = 184 / 424;
 
 function carSizeByZoom(zoom = 15) {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const baseH = 86; 
-  const h = clamp(Math.round(baseH * Math.pow(1.12, (zoom - 15))), 72, 148);
+  const baseH = 52; // reducido de 86 a 52 (~40% más pequeño)
+  const h = clamp(Math.round(baseH * Math.pow(1.12, (zoom - 15))), 40, 96);
   const w = Math.round(h * CAR_RATIO);
   return { w, h };
 }
