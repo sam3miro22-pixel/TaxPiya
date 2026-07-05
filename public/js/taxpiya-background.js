@@ -157,7 +157,7 @@
     s.id = 'txp-bg-bubble-style';
     s.textContent = `
 #txp-bg-bubble{
-  position:fixed; left:16px; top:calc(85px + env(safe-area-inset-top, 0px));
+  position:fixed; left:16px; top:calc(160px + env(safe-area-inset-top, 0px));
   z-index:10002; display:none; align-items:center; gap:10px;
   padding:10px 14px; border-radius:999px;
   background:linear-gradient(135deg,#1c2541,#0b132b);

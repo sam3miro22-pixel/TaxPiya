@@ -867,7 +867,7 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
 @endsection
 
 @section('pagejs')
-<script src="{{ asset('js/taxpiya-voice.js') }}?v=1"></script>
+<script src="{{ asset('js/taxpiya-voice.js') }}?v=3"></script>
 <script src="{{ asset('js/taxpiya-background.js') }}?v=1"></script>
 <script>
 function getCsrf(){
@@ -2633,16 +2633,29 @@ window.initMap = function(){
 
 
   TaxpiyaVoice.bind('voice-origin', 'origin-input', (txt) => {
+    // 1) Escribe el texto dictado de inmediato en la barra
+    const inp = document.getElementById('origin-input');
+    inp.value = txt;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    // 2) Luego geocodifica y actualiza con la dirección formateada + marcador
     geocodeText(txt, (loc, addr) => {
       originLatLng = loc;
-      document.getElementById('origin-input').value = addr;
+      inp.value = addr;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
       centerTo(loc); putOriginMarker(loc); showLabel(loc, addr); tryRoute();
     });
   });
+
   TaxpiyaVoice.bind('voice-dest', 'dest-input', (txt) => {
+    // 1) Escribe el texto dictado de inmediato en la barra
+    const inp = document.getElementById('dest-input');
+    inp.value = txt;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    // 2) Luego geocodifica y actualiza con la dirección formateada + marcador
     geocodeText(txt, (loc, addr) => {
       destLatLng = loc;
-      document.getElementById('dest-input').value = addr;
+      inp.value = addr;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
       centerTo(loc); putDestinationMarker(loc, addr); tryRoute();
     });
   });
