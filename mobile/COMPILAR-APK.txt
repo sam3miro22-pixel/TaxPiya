@@ -1,0 +1,114 @@
+================================================================================
+  TaxPiya — Compilar APK en Android Studio (Windows)
+================================================================================
+
+REQUISITOS
+----------
+1. Android Studio (última versión estable) — incluye Android SDK
+2. JDK 21 (Android Studio suele instalarlo solo; si falla, instala
+   "Microsoft OpenJDK 21" desde https://learn.microsoft.com/java/openjdk)
+3. Node.js 18+ (https://nodejs.org)
+
+La app carga el servidor en producción:
+  https://taxpiya.onrender.com
+(no hace falta Laravel local para probar la APK)
+
+
+PASO 1 — Sincronizar plugins Capacitor (solo la primera vez o tras cambios)
+--------------------------------------------------------------------------
+Abre PowerShell en esta carpeta (mobile):
+
+  cd C:\Users\Usuario\Desktop\Taxi\Taxpiya\mobile
+  npm install --legacy-peer-deps
+  npx cap sync android
+
+O ejecuta:  .\prepare-android.ps1
+
+
+PASO 2 — Abrir proyecto en Android Studio
+-----------------------------------------
+  Archivo → Open → selecciona esta carpeta:
+
+  C:\Users\Usuario\Desktop\Taxi\Taxpiya\mobile\android
+
+  (NO abras la carpeta Taxpiya raíz, solo mobile\android)
+
+Android Studio creará solo el archivo local.properties con la ruta de tu SDK.
+Si te lo pide manualmente, copia local.properties.example → local.properties
+y cambia sdk.dir a tu ruta, por ejemplo:
+  sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
+
+
+PASO 3 — Gradle sync
+--------------------
+Espera a que termine "Gradle Sync". Si pide JDK 21:
+  File → Settings → Build → Build Tools → Gradle
+  → Gradle JDK → selecciona "jbr-21" o JDK 21
+
+
+PASO 4 — Compilar APK
+---------------------
+Menú: Build → Build Bundle(s) / APK(s) → Build APK(s)
+
+APK generada en:
+  mobile\android\app\build\outputs\apk\debug\app-debug.apk
+
+Para release firmada: Build → Generate Signed Bundle / APK
+
+
+PASO 5 — Instalar en el teléfono
+---------------------------------
+1. Activa "Opciones de desarrollador" + "Depuración USB"
+2. Conecta el teléfono por USB, o copia app-debug.apk al teléfono
+3. Al abrir la app, acepta permisos: Ubicación, Micrófono, Notificaciones
+
+
+QUÉ PROBAR EN LA APK
+--------------------
+Pasajero:
+  - Login: 3009001001 / Taxpiya2026!
+  - Micrófono junto a origen/destino (dictar dirección)
+  - Pedir viaje con saldo en billetera
+
+Conductor:
+  - Login: 3109001001 / Taxpiya2026!
+  - Ponerse EN LÍNEA → minimizar → debe quedar notificación "TaxPiya activo"
+  - Debe seguir recibiendo solicitudes (ya no se apaga al minimizar)
+
+Empresa:
+  - Login: 3209002001 / Taxpiya2026!
+
+Registros (web o APK):
+  - Pasajero: /pasajero/registro (activo al instante)
+  - Conductor: /conductor/aplicar (pendiente hasta aprobación admin)
+  - Empresa: /empresa/afiliarse (pendiente hasta aprobación admin)
+
+Admin (solo web recomendado):
+  - Login: 3001001001 / Taxpiya2026!
+  - Conductores → botón "Pendientes" → activar estado operativo
+  - Empresas → "Pendientes" → estado "activa"
+
+
+PLUGINS INCLUIDOS EN ESTA VERSIÓN
+----------------------------------
+- @capacitor-community/speech-recognition (micrófono nativo)
+- @capacitor-community/background-geolocation (segundo plano / burbuja)
+- Firebase (push, auth Google)
+- Permiso RECORD_AUDIO en AndroidManifest
+
+
+PROBLEMAS FRECUENTES
+--------------------
+"SDK location not found"
+  → Crea local.properties con sdk.dir (ver PASO 2)
+
+"Java 21 required"
+  → En Gradle JDK elige JDK 21 / jbr-21
+
+Gradle muy lento la primera vez
+  → Normal: descarga dependencias (~10-20 min). No cierres Android Studio.
+
+Micrófono no funciona
+  → Ajustes del teléfono → Apps → Taxpiya → Permisos → Micrófono → Permitir
+
+================================================================================

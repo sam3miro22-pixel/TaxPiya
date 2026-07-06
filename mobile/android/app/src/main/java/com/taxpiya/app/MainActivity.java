@@ -55,7 +55,14 @@ public class MainActivity extends BridgeActivity {
                     String origin, GeolocationPermissions.Callback callback) {
                 callback.invoke(origin, true, false);
             }
+
+            // Audio / Microphone — required for Web Speech API (dictation buttons)
+            @Override
+            public void onPermissionRequest(android.webkit.PermissionRequest request) {
+                request.grant(request.getResources());
+            }
         });
+
 
         webView.setWebViewClient(new BridgeWebViewClient(bridge) {
             private boolean isGoogleOAuth(Uri uri) {

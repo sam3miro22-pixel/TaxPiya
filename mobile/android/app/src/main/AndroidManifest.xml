@@ -49,4 +49,10 @@
         </provider>
     </application>
 
+    <!-- Android 11+ Queries for speech recognition service -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 </manifest>
