@@ -640,7 +640,7 @@ body:has(#txd-trip-cta:not([style*="display:none"]):not([style*="display: none"]
 @endsection
 
 @section('pagejs')
-<script src="{{ asset('js/taxpiya-background.js') }}?v=1"></script>
+<script src="{{ asset('js/taxpiya-background.js') }}?v=3"></script>
 <script>
 
 function getCsrf(){
