@@ -24,6 +24,7 @@ let myNumber = null;
 let reconnectDelay = 4000;
 let retryTimer = null;
 let sessionBackupTimer = null;
+let heartbeatTimer = null;
 
 // ─── ENV helpers ────────────────────────────────────────────────────────────
 let _envCache = null;
@@ -206,6 +207,25 @@ function scheduleSessionBackup() {
     }, 3 * 60 * 1000);
 }
 
+function startHeartbeat() {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(async () => {
+        if (connectionStatus !== 'connected' || !sock) return;
+        try {
+            await sock.sendPresenceUpdate('available');
+        } catch (e) {
+            console.warn('[WhatsApp] Heartbeat failed:', e.message);
+        }
+    }, 4 * 60 * 1000);
+}
+
+function stopHeartbeat() {
+    if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+    }
+}
+
 // ─── WHATSAPP CONNECTION ─────────────────────────────────────────────────────
 async function startWhatsApp() {
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
@@ -222,9 +242,11 @@ async function startWhatsApp() {
             logger,
             printQRInTerminal: false,
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 25000,
+            keepAliveIntervalMs: 20000,
             retryRequestDelayMs: 500,
             browser: ['Taxpiya', 'Chrome', '125.0.0'],
+            syncFullHistory: false,
+            markOnlineOnConnect: true,
         });
 
         sock.ev.on('creds.update', async (creds) => {
@@ -338,18 +360,18 @@ async function startWhatsApp() {
             if (connection === 'close') {
                 currentQr = null;
                 sock = null;
+                connectionStatus = 'disconnected';
+                stopHeartbeat();
                 const code = lastDisconnect?.error?.output?.statusCode;
                 const loggedOut = code === DisconnectReason.loggedOut;
+                const restartRequired = code === DisconnectReason.restartRequired;
                 console.log(`[WhatsApp] Connection closed (code=${code}). LoggedOut=${loggedOut}`);
-                connectionStatus = 'disconnected';
 
                 if (loggedOut) {
-                    // Session invalidated — wipe local + GitHub backup so fresh QR is generated
                     try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
                     try { fs.unlinkSync(qrFilePath); } catch {}
                     reconnectDelay = 4000;
                     console.log('[WhatsApp Session] Session invalidated. Clearing GitHub backup...');
-                    // Clear GitHub backup by uploading empty marker
                     try {
                         const getMeta = await githubRequest('GET', sessionContentsUrl(), null);
                         if (getMeta.status === 200) {
@@ -360,9 +382,10 @@ async function startWhatsApp() {
                             });
                         }
                     } catch {}
+                } else {
+                    reconnectDelay = restartRequired ? 3000 : 5000;
                 }
 
-                reconnectDelay = Math.min(reconnectDelay * 1.5, 60000);
                 console.log(`[WhatsApp] Reconnecting in ${Math.round(reconnectDelay / 1000)}s...`);
                 retryTimer = setTimeout(startWhatsApp, reconnectDelay);
 
@@ -374,7 +397,7 @@ async function startWhatsApp() {
                 const user = sock.user;
                 myNumber = user?.id?.split(':')[0] ?? 'unknown';
                 console.log(`[WhatsApp] Connected as: ${myNumber}`);
-                // Backup session right after connecting
+                startHeartbeat();
                 await backupSessionToGithub();
             }
         });

@@ -176,15 +176,16 @@
   }
 
   async function listen() {
-    // Intento 1: plugin nativo Capacitor (mejor en apps Android)
     if (isNative() && speechPlugin()) {
-      try {
-        const nativeText = await listenNative();
-        if (nativeText) return nativeText;
-      } catch (_) {}
+      const nativeText = await listenNative();
+      if (nativeText) return nativeText;
     }
-    // Intento 2: Web Speech API (WebView o navegador)
-    return listenWeb();
+    const webText = await listenWeb();
+    if (webText) return webText;
+    if (isNative() && !speechPlugin()) {
+      toast('Micrófono nativo no disponible. Recompila la APK con prepare-android.bat');
+    }
+    return null;
   }
 
   /**
@@ -223,11 +224,10 @@
       toast('🎤 Escuchando… Di la dirección');
 
       try {
-        const useNative = isNative() && !!speechPlugin();
-        const txt = useNative ? await listenNative() : await listenWeb();
+        const txt = await listen();
 
         if (!txt) {
-          toast('No escuché nada. Intenta de nuevo.');
+          toast('No escuché nada. Intenta de nuevo o escribe la dirección.');
           return;
         }
 

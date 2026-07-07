@@ -27,6 +27,8 @@
   }
 
   function showBubble(label) {
+    /* Solo en segundo plano: no tapar los campos de dirección en pantalla */
+    if (!document.hidden) return;
     const el = ensureBubble();
     if (!el) return;
     const txt = el.querySelector('.txp-bg-bubble__txt');
@@ -38,12 +40,21 @@
     if (bubbleEl) bubbleEl.setAttribute('aria-hidden', 'true');
   }
 
+  function syncBubbleLabel() {
+    if (document.hidden) {
+      if (activeMode === 'conductor') showBubble('TaxPiya — disponible');
+      else if (activeMode === 'pasajero') showBubble('TaxPiya — viaje activo');
+    } else {
+      hideBubble();
+    }
+  }
+
   async function startWatcher(mode, title, message) {
     const BG = bgPlugin();
     if (!isNative() || !BG) return false;
 
     activeMode = mode;
-    showBubble(title || 'TaxPiya activo');
+    syncBubbleLabel();
 
     if (watcherId) return true;
 
@@ -110,11 +121,17 @@
 
     App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
-        showBubble(activeMode === 'conductor' ? 'TaxPiya — disponible' : 'TaxPiya — viaje activo');
+        hideBubble();
         if (activeMode === 'conductor' && global.isOnline) syncConductor();
         if (activeMode === 'pasajero') syncPasajero();
+      } else {
+        syncBubbleLabel();
       }
-      /* No marcar offline al minimizar */
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) syncBubbleLabel();
+      else hideBubble();
     });
   }
 
@@ -157,13 +174,13 @@
     s.id = 'txp-bg-bubble-style';
     s.textContent = `
 #txp-bg-bubble{
-  position:fixed; left:16px; top:calc(160px + env(safe-area-inset-top, 0px));
-  z-index:10002; display:none; align-items:center; gap:10px;
-  padding:10px 14px; border-radius:999px;
+  position:fixed; right:16px; bottom:calc(100px + env(safe-area-inset-bottom));
+  left:auto; top:auto; z-index:10002; display:none; align-items:center; gap:8px;
+  padding:8px 12px; border-radius:999px; max-width:min(220px, 55vw);
   background:linear-gradient(135deg,#1c2541,#0b132b);
   border:2px solid rgba(255,209,102,.45);
-  color:#fff; font-size:13px; font-weight:700;
-  box-shadow:0 12px 32px rgba(0,0,0,.45);
+  color:#fff; font-size:12px; font-weight:700;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
   pointer-events:none;
 }
 #txp-bg-bubble[aria-hidden="false"]{ display:flex; }

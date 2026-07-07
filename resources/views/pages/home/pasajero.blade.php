@@ -712,7 +712,9 @@ body#main #page-content {
 
 .txp-banner{
   position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: 88px; background: rgba(17,24,39,.92); color:#fff;
+  top: calc(72px + env(safe-area-inset-top, 0px));
+  bottom: auto;
+  background: rgba(17,24,39,.92); color:#fff;
   padding: 10px 14px; border-radius: 12px; font-size:14px;
   display: flex; align-items: center; gap: 6px;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
@@ -867,8 +869,8 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
 @endsection
 
 @section('pagejs')
-<script src="{{ asset('js/taxpiya-voice.js') }}?v=3"></script>
-<script src="{{ asset('js/taxpiya-background.js') }}?v=1"></script>
+<script src="{{ asset('js/taxpiya-voice.js') }}?v=4"></script>
+<script src="{{ asset('js/taxpiya-background.js') }}?v=3"></script>
 <script>
 function getCsrf(){
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
