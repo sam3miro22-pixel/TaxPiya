@@ -640,11 +640,19 @@ body:has(#txd-trip-cta:not([style*="display:none"]):not([style*="display: none"]
 @endsection
 
 @section('pagejs')
+<script src="{{ asset('js/taxpiya-geolocation.js') }}?v=1"></script>
 <script src="{{ asset('js/taxpiya-background.js') }}?v=3"></script>
 <script>
 
 function getCsrf(){
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
+function txpGetCurrentPosition(opts){
+  if (window.TxpGeo?.getCurrentPosition) return window.TxpGeo.getCurrentPosition(opts);
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) { rej(new Error('no geolocation')); return; }
+    navigator.geolocation.getCurrentPosition(res, rej, opts);
+  });
 }
 </script>
 
@@ -739,20 +747,14 @@ function centerMapNow(){
     try { map._map?.invalidateSize?.(true); } catch (_) {}
   };
   if (window.__lastDriverPos) { go(window.__lastDriverPos); return; }
-  if (!navigator.geolocation) {
-    showBanner?.('Aún sin posición GPS', 'fa-location-crosshairs');
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
+  txpGetCurrentPosition({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 })
+    .then((pos) => {
       const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       window.__lastDriverPos = p;
       putDriverMarker(p.lat, p.lng);
       go(p);
-    },
-    () => showBanner?.('No se pudo obtener ubicación', 'fa-triangle-exclamation'),
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-  );
+    })
+    .catch(() => showBanner?.('No se pudo obtener ubicación', 'fa-triangle-exclamation'));
 }
 document.getElementById('txd-recenter')?.addEventListener('click', centerMapNow);
 
@@ -806,15 +808,22 @@ function putDriverMarker(lat, lng){
 }
 
 function startWatch(){
-  if (!navigator.geolocation) return;
   stopWatch();
-  watchId = navigator.geolocation.watchPosition(
-    (pos) => handlePosition(pos),
-    (err) => console.warn('Geoloc error:', err),
-    { enableHighAccuracy:true, maximumAge:0, timeout:20000 }
-  );
+  const onPos = (pos) => handlePosition(pos);
+  const onErr = (err) => console.warn('Geoloc error:', err);
+  const opts = { enableHighAccuracy:true, maximumAge:0, timeout:20000 };
+  if (window.TxpGeo?.watchPosition) {
+    window.TxpGeo.watchPosition(onPos, onErr, opts).then((id) => { watchId = id; }).catch(onErr);
+  } else if (navigator.geolocation) {
+    watchId = navigator.geolocation.watchPosition(onPos, onErr, opts);
+  }
 }
-function stopWatch(){ if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; }
+function stopWatch(){
+  if (!watchId) return;
+  if (window.TxpGeo?.clearWatch) window.TxpGeo.clearWatch(watchId);
+  else if (navigator.geolocation) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+}
 
 async function handlePosition(pos){
   const { latitude, longitude, accuracy, heading, speed } = pos.coords;
@@ -869,7 +878,8 @@ if (isOnline && window.__lastDriverPos){
 if (isOnline) {
   if (window.Capacitor?.isNativePlatform?.()) { startBgWatcher(); } else { startWatch(); }
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition((pos) => handlePosition(pos), () => {}, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+    txpGetCurrentPosition({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 })
+      .then((pos) => handlePosition(pos)).catch(() => {});
   }
   startOfferPoll();
   window.TxpBackground?.syncConductor?.();
@@ -956,7 +966,7 @@ window.initMap = function(){
     btn.disabled = true;
     btn.textContent = '...';
     try {
-      const pos = await new Promise((res,rej)=> navigator.geolocation?.getCurrentPosition(res, rej, {timeout:8000}) || rej());
+      const pos = await txpGetCurrentPosition({ timeout: 8000, enableHighAccuracy: true });
       const body = new URLSearchParams({
         _token: document.querySelector('meta[name="csrf-token"]')?.content || '',
         lat: pos.coords.latitude,
@@ -1198,9 +1208,7 @@ document.getElementById('drv-act-llego')?.addEventListener('click', async ()=>{
   try{
     let lat = null, lng = null;
     try {
-      const pos = await new Promise((res, rej) =>
-        navigator.geolocation?.getCurrentPosition(res, rej, { timeout: 8000, enableHighAccuracy: true }) || rej()
-      );
+      const pos = await txpGetCurrentPosition({ timeout: 8000, enableHighAccuracy: true });
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
     } catch (_) {}
@@ -1314,13 +1322,8 @@ default:
 document.addEventListener('DOMContentLoaded', ()=>{
   if (window.isOnline) {
     if (window.Capacitor?.isNativePlatform?.()) { startBgWatcher(); } else { startWatch(); }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => handlePosition(pos),
-        () => {},
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-      );
-    }
+    txpGetCurrentPosition({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 })
+      .then((pos) => handlePosition(pos)).catch(() => {});
     startOfferPoll();
   }
 

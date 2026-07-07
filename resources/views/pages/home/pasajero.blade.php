@@ -712,16 +712,17 @@ body#main #page-content {
 
 .txp-banner{
   position: fixed; left: 50%; transform: translateX(-50%);
-  top: calc(72px + env(safe-area-inset-top, 0px));
-  bottom: auto;
+  top: auto;
+  bottom: calc(155px + env(safe-area-inset-bottom, 0px));
   background: rgba(17,24,39,.92); color:#fff;
-  padding: 10px 14px; border-radius: 12px; font-size:14px;
+  padding: 10px 14px; border-radius: 12px; font-size:13px;
   display: flex; align-items: center; gap: 6px;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
   transition: opacity .25s, transform .25s;
   opacity:0; pointer-events:none; z-index: calc(var(--txp-sheet-z) + 2);
+  max-width: min(92vw, 400px);
 }
-.txp-banner.show{ opacity:1; pointer-events:auto; transform: translate(-50%,0); }
+.txp-banner.show{ opacity:1; pointer-events:none; transform: translate(-50%,0); }
 
 .txp-final__head{
   font-weight: 700; font-size: 18px; color: #fff; display:flex; gap:8px; align-items:center;
@@ -869,7 +870,8 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
 @endsection
 
 @section('pagejs')
-<script src="{{ asset('js/taxpiya-voice.js') }}?v=4"></script>
+<script src="{{ asset('js/taxpiya-geolocation.js') }}?v=1"></script>
+<script src="{{ asset('js/taxpiya-voice.js') }}?v=5"></script>
 <script src="{{ asset('js/taxpiya-background.js') }}?v=3"></script>
 <script>
 function getCsrf(){
@@ -1615,7 +1617,9 @@ toggleCTA && toggleCTA(true);
       return fetch(SOS_URL, { method:'POST', headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}, body, credentials:'same-origin' });
     };
     try {
-      const pos = await new Promise((res,rej)=> navigator.geolocation?.getCurrentPosition(res, rej, {timeout:8000}) || rej());
+      const pos = await (window.TxpGeo?.getCurrentPosition
+        ? window.TxpGeo.getCurrentPosition({ timeout: 8000, enableHighAccuracy: true })
+        : new Promise((res,rej)=> navigator.geolocation?.getCurrentPosition(res, rej, {timeout:8000}) || rej()));
       const r = await send(pos.coords.latitude, pos.coords.longitude);
       const j = await r.json();
       alert(j.message || 'SOS enviado. Soporte notificado.');
@@ -2674,31 +2678,46 @@ window.initMap = function(){
 
 
 function getUserLocation(opts = { forceWatch:false }){
-  if(!navigator.geolocation) return;
-  const options = { enableHighAccuracy:true, timeout:12000, maximumAge:0 };
+  const geo = window.TxpGeo?.getCurrentPosition
+    ? (o) => window.TxpGeo.getCurrentPosition(o)
+    : (o) => new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, o));
 
-  navigator.geolocation.getCurrentPosition(
-    (pos) => handlePosition(pos, { from:"single", setOrigin:true }),
-    (err) => {
+  geo({ enableHighAccuracy:true, timeout:15000, maximumAge:0 })
+    .then((pos) => handlePosition(pos, { from:"single", setOrigin:true }))
+    .catch((err) => {
       console.warn('No se pudo obtener ubicación (single)', err);
-      const msg = err?.code === 1
-        ? 'Activa el permiso de ubicación en tu navegador'
-        : 'No pudimos obtener tu ubicación. Intenta de nuevo.';
+      const code = err?.code ?? err?.message;
+      const msg = (code === 1 || /permission/i.test(String(code)))
+        ? 'Activa ubicación en Ajustes → Apps → Taxpiya → Permisos'
+        : 'No pudimos obtener tu ubicación. Toca el botón de centrar mapa.';
       if (typeof showBanner === 'function') showBanner(msg, 'fa-location-crosshairs');
-    },
-    options
-  );
+    });
+
   if (opts.forceWatch) startWatch();
 }
 
 function startWatch(){
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-  watchId = navigator.geolocation.watchPosition(
-    (pos) => handlePosition(pos, { from:"watch", setOrigin:true }),
-    (err) => console.warn('Error geolocalización (watch):', err),
-    { enableHighAccuracy:true, maximumAge:0, timeout:20000 }
-  );
-  setTimeout(() => { if (watchId) { navigator.geolocation.clearWatch(watchId); watchId=null; } }, 15000);
+  if (watchId) {
+    if (window.TxpGeo?.clearWatch) window.TxpGeo.clearWatch(watchId);
+    else navigator.geolocation.clearWatch(watchId);
+  }
+  const onPos = (pos) => handlePosition(pos, { from:"watch", setOrigin:true });
+  const onErr = (err) => console.warn('Error geolocalización (watch):', err);
+  const opts = { enableHighAccuracy:true, maximumAge:0, timeout:20000 };
+  const start = async () => {
+    if (window.TxpGeo?.watchPosition) {
+      watchId = await window.TxpGeo.watchPosition(onPos, onErr, opts);
+    } else if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(onPos, onErr, opts);
+    }
+  };
+  start();
+  setTimeout(() => {
+    if (!watchId) return;
+    if (window.TxpGeo?.clearWatch) window.TxpGeo.clearWatch(watchId);
+    else navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }, 15000);
 }
 
 function handlePosition(pos, meta = {}){

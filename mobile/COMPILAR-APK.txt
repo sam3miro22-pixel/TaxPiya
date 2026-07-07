@@ -16,13 +16,22 @@ La app carga el servidor en producción:
 
 PASO 1 — Sincronizar plugins Capacitor (solo la primera vez o tras cambios)
 --------------------------------------------------------------------------
-Abre PowerShell en esta carpeta (mobile):
+Opcion A — CMD (recomendado si PowerShell bloquea scripts):
 
   cd C:\Users\Usuario\Desktop\Taxi\Taxpiya\mobile
-  npm install --legacy-peer-deps
-  npx cap sync android
+  prepare-android.bat
 
-O ejecuta:  .\prepare-android.ps1
+Opcion B — PowerShell (si da error "ejecucion de scripts deshabilitada"):
+
+  cd C:\Users\Usuario\Desktop\Taxi\Taxpiya\mobile
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+  .\prepare-android.ps1
+
+Opcion C — Comandos directos en CMD (sin .ps1):
+
+  cd C:\Users\Usuario\Desktop\Taxi\Taxpiya\mobile
+  npm.cmd install --legacy-peer-deps
+  npx.cmd cap sync android
 
 
 PASO 2 — Abrir proyecto en Android Studio

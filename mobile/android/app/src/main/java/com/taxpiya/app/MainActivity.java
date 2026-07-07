@@ -1,5 +1,7 @@
 package com.taxpiya.app;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -9,8 +11,11 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
@@ -18,6 +23,10 @@ import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
+
+    private static final int REQ_LOCATION = 9001;
+    private GeolocationPermissions.Callback pendingGeoCallback;
+    private String pendingGeoOrigin;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -35,7 +44,6 @@ public class MainActivity extends BridgeActivity {
         ws.setGeolocationEnabled(true);
         ws.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
-        // UA de Chrome estándar: Google bloquea OAuth en WebView (Error 403 disallowed_useragent).
         String baseUA = ws.getUserAgentString();
         if (baseUA != null && baseUA.contains("; wv)")) {
             ws.setUserAgentString(baseUA.replace("; wv)", ")") + " Taxpiya/Android");
@@ -53,10 +61,23 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onGeolocationPermissionsShowPrompt(
                     String origin, GeolocationPermissions.Callback callback) {
-                callback.invoke(origin, true, false);
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED) {
+                    callback.invoke(origin, true, false);
+                    return;
+                }
+                pendingGeoCallback = callback;
+                pendingGeoOrigin = origin;
+                ActivityCompat.requestPermissions(
+                        MainActivity.this,
+                        new String[]{
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                        },
+                        REQ_LOCATION
+                );
             }
 
-            // Audio / Microphone — required for Web Speech API (dictation buttons)
             @Override
             public void onPermissionRequest(android.webkit.PermissionRequest request) {
                 request.grant(request.getResources());
@@ -115,6 +136,18 @@ public class MainActivity extends BridgeActivity {
                 return true;
             }
         });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_LOCATION && pendingGeoCallback != null) {
+            boolean granted = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            pendingGeoCallback.invoke(pendingGeoOrigin, granted, false);
+            pendingGeoCallback = null;
+            pendingGeoOrigin = null;
+        }
     }
 
     private void openCustomTab(String url) {
