@@ -36,6 +36,14 @@ fix_sqlite_perms() {
 
 fix_sqlite_perms
 
+# Restaurar sesión WhatsApp ANTES de arrancar supervisord (Render borra disco en redeploy)
+mkdir -p storage/app/whatsapp-session
+chmod -R 775 storage/app/whatsapp-session 2>/dev/null || true
+if [ "${TAXPIYA_GITHUB_BACKUP:-true}" != "false" ] && [ -n "${GITHUB_BACKUP_TOKEN:-}" ]; then
+  echo "[taxpiya] Restaurando sesión WhatsApp desde GitHub..."
+  node /var/www/html/scripts/whatsapp-restore-session.js 2>/dev/null || true
+fi
+
 # Restaurar SQLite desde GitHub ANTES de cachear config (Render redeploys borran el disco)
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ] && [ "${TAXPIYA_GITHUB_BACKUP:-true}" != "false" ]; then
   php artisan taxpiya:sqlite-restore --no-interaction 2>/dev/null || true

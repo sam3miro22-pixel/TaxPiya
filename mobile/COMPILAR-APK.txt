@@ -50,9 +50,20 @@ y cambia sdk.dir a tu ruta, por ejemplo:
 
 PASO 3 — Gradle sync
 --------------------
-Espera a que termine "Gradle Sync". Si pide JDK 21:
+IMPORTANTE: Antes de abrir Android Studio, ejecuta prepare-android.bat (PASO 1).
+Sin node_modules, Gradle se queda horas o falla.
+
+Espera a que termine "Gradle Sync" (primera vez: 5-15 min con internet).
+Si pide JDK 21:
   File → Settings → Build → Build Tools → Gradle
   → Gradle JDK → selecciona "jbr-21" o JDK 21
+
+Si Gradle Sync falla de inmediato con "Capacitor no instalado":
+  → Vuelve al PASO 1 (npm install + cap sync android)
+
+Compilar desde CMD (sin Android Studio):
+  cd mobile\android
+  build-apk.cmd
 
 
 PASO 4 — Compilar APK
@@ -115,7 +126,14 @@ PROBLEMAS FRECUENTES
   → En Gradle JDK elige JDK 21 / jbr-21
 
 Gradle muy lento la primera vez
-  → Normal: descarga dependencias (~10-20 min). No cierres Android Studio.
+  → Normal: descarga dependencias (5-15 min). No cierres Android Studio.
+  → Si tarda HORAS: cancela sync, ejecuta prepare-android.bat y reabre el proyecto.
+
+"Capacitor no instalado"
+  → cd mobile && npm install --legacy-peer-deps && npx cap sync android
+
+JAVA_HOME is not set (CMD)
+  → Usa mobile\android\build-apk.cmd (detecta JDK de Android Studio)
 
 Micrófono no funciona
   → Ajustes del teléfono → Apps → Taxpiya → Permisos → Micrófono → Permitir

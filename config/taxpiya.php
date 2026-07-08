@@ -116,4 +116,13 @@ return [
         'dump_key'         => env('TAXPIYA_DUMP_KEY', substr(hash('sha256', (string) env('APP_KEY', '') . 'taxpiya-dump'), 0, 40)),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp (Baileys sidecar en puerto local)
+    |--------------------------------------------------------------------------
+    */
+    'whatsapp' => [
+        'port' => (int) env('WHATSAPP_PORT', 8051),
+    ],
+
 ];
