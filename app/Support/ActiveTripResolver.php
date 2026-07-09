@@ -56,7 +56,6 @@ final class ActiveTripResolver
             'o_lng'           => $viaje->origen_lng ?? null,
             'd_lat'           => $viaje->destino_lat ?? null,
             'd_lng'           => $viaje->destino_lng ?? null,
-            'codigo_llegada'  => $viaje->codigo_llegada ?? null,
             'conductor_id'    => $viaje->conductor_id ?? null,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ColombiaGeo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -38,12 +39,19 @@ class MapProxyController extends Controller
                 return response()->json(['ok' => false, 'message' => 'Geocoder no disponible'], 502);
             }
 
-            $items = collect($res->json())->map(fn ($r) => [
-                'lat'     => (float) $r['lat'],
-                'lng'     => (float) $r['lon'],
-                'label'   => $r['display_name'] ?? $q,
-                'name'    => $r['name'] ?? $q,
-            ])->values();
+            $items = collect($res->json())
+                ->map(fn ($r) => [
+                    'lat'   => (float) $r['lat'],
+                    'lng'   => (float) $r['lon'],
+                    'label' => $r['display_name'] ?? $q,
+                    'name'  => $r['name'] ?? $q,
+                ])
+                ->filter(fn ($r) => ColombiaGeo::contains($r['lat'], $r['lng']))
+                ->values();
+
+            if ($items->isEmpty()) {
+                return response()->json(['ok' => false, 'message' => ColombiaGeo::rejectMessage()], 404);
+            }
 
             return response()->json(['ok' => true, 'results' => $items]);
         } catch (\Throwable $e) {
@@ -58,6 +66,10 @@ class MapProxyController extends Controller
         $lng = (float) $request->query('lng');
         if (!$lat && !$lng) {
             return response()->json(['ok' => false, 'message' => 'Coordenadas inválidas'], 422);
+        }
+
+        if (!ColombiaGeo::contains($lat, $lng)) {
+            return response()->json(['ok' => false, 'message' => ColombiaGeo::rejectMessage()], 422);
         }
 
         try {
@@ -75,6 +87,11 @@ class MapProxyController extends Controller
             }
 
             $data = $res->json();
+            $country = strtolower((string) ($data['address']['country_code'] ?? ''));
+
+            if ($country !== '' && $country !== 'co') {
+                return response()->json(['ok' => false, 'message' => ColombiaGeo::rejectMessage()], 422);
+            }
 
             return response()->json([
                 'ok'    => true,
@@ -95,6 +112,10 @@ class MapProxyController extends Controller
 
         if (!$fromLat || !$fromLng || !$toLat || !$toLng) {
             return response()->json(['ok' => false, 'message' => 'Ruta inválida'], 422);
+        }
+
+        if (!ColombiaGeo::contains($fromLat, $fromLng) || !ColombiaGeo::contains($toLat, $toLng)) {
+            return response()->json(['ok' => false, 'message' => ColombiaGeo::rejectMessage()], 422);
         }
 
         $coords = "{$fromLng},{$fromLat};{$toLng},{$toLat}";

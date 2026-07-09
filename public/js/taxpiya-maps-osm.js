@@ -11,6 +11,14 @@
 
   const CFG = window.TAXPIYA_MAP || {};
   const listeners = new WeakMap();
+  const CO_BOUNDS = L.latLngBounds(
+    L.latLng(-4.3, -82.0),
+    L.latLng(13.5, -66.8)
+  );
+
+  function isInColombia(lat, lng) {
+    return lat >= -4.3 && lat <= 13.5 && lng >= -82.0 && lng <= -66.8;
+  }
 
   function toNum(v) {
     return typeof v === 'function' ? v() : +v;
@@ -56,6 +64,8 @@
     this._map = L.map(el, {
       zoomControl: false,
       attributionControl: true,
+      maxBounds: CO_BOUNDS,
+      maxBoundsViscosity: 0.85,
     }).setView(toLeaflet(center), opts.zoom || 15);
 
     L.tileLayer(CFG.tiles || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -279,10 +289,12 @@
       headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     })
       .then((r) => r.json())
-      .then((j) => {
-        if (!j.ok || !j.results?.length) return finish([], 'ZERO_RESULTS');
-        return finish(
-          j.results.map((r) => ({
+        .then((j) => {
+          if (!j.ok || !j.results?.length) return finish([], 'ZERO_RESULTS');
+          const filtered = j.results.filter((r) => isInColombia(+r.lat, +r.lng));
+          if (!filtered.length) return finish([], 'ZERO_RESULTS');
+          return finish(
+            filtered.map((r) => ({
             formatted_address: r.label,
             geometry: { location: LatLng(r.lat, r.lng) },
           })),
@@ -491,7 +503,12 @@
             this._box.style.display = 'none';
             return;
           }
-          j.results.forEach((r) => {
+          const results = j.results.filter((r) => isInColombia(+r.lat, +r.lng));
+          if (!results.length) {
+            this._box.style.display = 'none';
+            return;
+          }
+          results.forEach((r) => {
             const item = document.createElement('div');
             item.textContent = r.label;
             item.style.cssText = 'padding:10px 12px;cursor:pointer;color:#111;font-size:14px;border-bottom:1px solid #eee;';

@@ -322,12 +322,11 @@ public function aceptarViaje(Request $request)
 
     $viajeId    = (int) $request->viaje_id;
     $vehiculoId = app(VehiculoConductorService::class)->resolveVehiculoId((int) $conductor->id);
-    $codigoLlegada = str_pad((string) random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
 
     $updated     = 0;
     $viajeResult = null;
 
-    DB::transaction(function () use (&$updated, &$viajeResult, $viajeId, $conductor, $vehiculoId, $userId, $request, $codigoLlegada) {
+    DB::transaction(function () use (&$updated, &$viajeResult, $viajeId, $conductor, $vehiculoId, $userId, $request) {
         $viaje = DB::table('viajes')
             ->where('id', $viajeId)
             ->lockForUpdate()
@@ -351,9 +350,6 @@ public function aceptarViaje(Request $request)
             'aceptado_at'  => $now,
             'updated_at'   => $now,
         ];
-        if (Schema::hasColumn('viajes', 'codigo_llegada')) {
-            $tripUpdate['codigo_llegada'] = $codigoLlegada;
-        }
         DB::table('viajes')->where('id', $viajeId)->update($tripUpdate);
 
         DB::table('conductores')
@@ -419,10 +415,7 @@ public function aceptarViaje(Request $request)
     }
 
     try {
-        app(ChatBotService::class)->onTripAssigned(
-            $viajeId,
-            Schema::hasColumn('viajes', 'codigo_llegada') ? $codigoLlegada : null
-        );
+        app(ChatBotService::class)->onTripAssigned($viajeId);
     } catch (\Throwable $e) {
         report($e);
     }
@@ -527,7 +520,6 @@ public function marcarLlegada(Request $req)
             'viaje_id' => 'required|integer|exists:viajes,id',
             'lat'      => 'nullable|numeric',
             'lng'      => 'nullable|numeric',
-            'codigo'   => 'nullable|string|max:8',
         ]);
 
         $userId  = auth()->id();
@@ -560,11 +552,10 @@ public function marcarLlegada(Request $req)
             }
         }
 
-        if (!$geo->canConfirmArrival($v, $lat, $lng, $req->input('codigo'))) {
+        if (!$geo->canConfirmArrival($v, $lat, $lng)) {
             return response()->json([
                 'ok'      => false,
-                'message' => 'Debes estar cerca del pasajero o ingresar el código que te comparta.',
-                'need_code' => true,
+                'message' => 'Debes estar cerca del punto de recogida para marcar llegada.',
             ], 422);
         }
 

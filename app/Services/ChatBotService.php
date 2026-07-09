@@ -23,13 +23,9 @@ class ChatBotService
         ]);
     }
 
-    public function onTripAssigned(int $viajeId, ?string $codigoLlegada = null): void
+    public function onTripAssigned(int $viajeId): void
     {
-        $msg = 'Tu conductor fue asignado. Puedes escribir aqui si necesitas algo.';
-        if ($codigoLlegada) {
-            $msg .= " Cuando llegue, comparte el codigo {$codigoLlegada} si te lo pide.";
-        }
-        $this->postSystemMessage($viajeId, $msg);
+        $this->postSystemMessage($viajeId, 'Tu conductor fue asignado. Puedes escribir aqui si necesitas algo.');
     }
 
     public function onTripStateChange(int $viajeId, string $estado): void
@@ -68,7 +64,7 @@ class ChatBotService
     private function regexReply(int $viajeId, string $text): ?string
     {
         if (preg_match('/\b(ayuda|help|soporte)\b/u', $text)) {
-            return 'Soy el asistente Taxpiya. Puedes preguntar por tarifa, tiempo, codigo o cancelacion.';
+            return 'Soy el asistente Taxpiya. Puedes preguntar por tarifa, tiempo o cancelacion.';
         }
         if (preg_match('/\b(tarifa|precio|cuanto|cuesta|valor)\b/u', $text)) {
             $viaje = DB::table('viajes')->where('id', $viajeId)->first();
@@ -78,13 +74,6 @@ class ChatBotService
                 return "La tarifa estimada de este viaje es \${$monto} {$moneda}.";
             }
             return 'La tarifa se confirmara segun la ruta acordada.';
-        }
-        if (preg_match('/\b(codigo|llegada)\b/u', $text)) {
-            $viaje = DB::table('viajes')->where('id', $viajeId)->first();
-            if ($viaje && !empty($viaje->codigo_llegada)) {
-                return "Tu codigo de llegada es {$viaje->codigo_llegada}.";
-            }
-            return 'El codigo de llegada aparecera cuando se asigne un conductor.';
         }
         if (preg_match('/\b(cancelar|cancel)\b/u', $text)) {
             return 'Para cancelar usa el boton Cancelar servicio en la pantalla del viaje.';

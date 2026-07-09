@@ -4,7 +4,7 @@ namespace App\Services;
 
 class TripGeoService
 {
-    public const ARRIVAL_RADIUS_METERS = 150;
+    public const ARRIVAL_RADIUS_METERS = 250;
 
     public static function haversineMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
@@ -41,21 +41,8 @@ class TripGeoService
         return $dist !== null && $dist <= $maxMeters;
     }
 
-    public function arrivalCodeMatches(object $viaje, ?string $code): bool
+    public function canConfirmArrival(object $viaje, ?float $lat, ?float $lng): bool
     {
-        if ($code === null || $code === '') {
-            return false;
-        }
-        if (!isset($viaje->codigo_llegada) || $viaje->codigo_llegada === null || $viaje->codigo_llegada === '') {
-            return false;
-        }
-
-        return trim($code) === trim((string) $viaje->codigo_llegada);
-    }
-
-    public function canConfirmArrival(object $viaje, ?float $lat, ?float $lng, ?string $code): bool
-    {
-        return $this->isNearPickup($viaje, $lat, $lng)
-            || $this->arrivalCodeMatches($viaje, $code);
+        return $this->isNearPickup($viaje, $lat, $lng);
     }
 }

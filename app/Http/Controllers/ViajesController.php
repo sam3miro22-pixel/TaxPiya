@@ -16,6 +16,7 @@ use App\Exports\ViajesViewExport;
 use Illuminate\Support\Facades\Validator;
 use Exception;
 use App\Support\ActiveTripResolver;
+use App\Support\ColombiaGeo;
 use App\Support\DatabaseGeometry;
 use App\Support\GeoDistance;
 use App\Support\TripMatching;
@@ -62,6 +63,13 @@ class ViajesController extends Controller
     $oLng = (float)$req->input('o_lng');
     $dLat = $req->filled('d_lat') ? (float)$req->input('d_lat') : null;
     $dLng = $req->filled('d_lng') ? (float)$req->input('d_lng') : null;
+
+    if (!ColombiaGeo::contains($oLat, $oLng)) {
+        return response()->json(['ok' => false, 'message' => ColombiaGeo::rejectMessage()], 422);
+    }
+    if ($dLat !== null && $dLng !== null && !ColombiaGeo::contains($dLat, $dLng)) {
+        return response()->json(['ok' => false, 'message' => ColombiaGeo::rejectMessage()], 422);
+    }
 
     $porKm = (float) ($tarifa->tarifa_por_km ?? 0);
     if ($porKm > 0 && ($dLat === null || $dLng === null)) {
@@ -297,10 +305,6 @@ public function estado($id)
 
     $uid = auth()->id();
     [$isPasajero, $isConductor] = $this->resolveTripRoles($rawViaje, $uid);
-    $codigoLlegada = null;
-    if ($isPasajero && Schema::hasColumn('viajes', 'codigo_llegada') && !empty($rawViaje->codigo_llegada)) {
-        $codigoLlegada = (string) $rawViaje->codigo_llegada;
-    }
 
     return response()->json([
         'ok' => true,
@@ -320,8 +324,7 @@ public function estado($id)
             'lat' => (float)$viaje->driver_lat,
             'lng' => (float)$viaje->driver_lng,
         ] : null,
-        'codigo_llegada' => $codigoLlegada,
-		
+
         'monto'  => $viaje->tarifa_aplicada !== null ? (float)$viaje->tarifa_aplicada : null,
         'moneda' => $viaje->moneda,
         'calificacion' => $calificacion,

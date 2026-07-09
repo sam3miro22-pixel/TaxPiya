@@ -38,7 +38,6 @@
                 <li>En el mapa: origen, destino (texto, pin o micrófono).</li>
                 <li>Confirma tarifa → busca conductor → ves burbuja GPS del taxi.</li>
                 <li>Chat con conductor + asistente automático.</li>
-                <li>Código de llegada de 4 dígitos cuando el conductor está en camino.</li>
                 <li>Cancelar servicio, SOS, billetera NEQUI, historial de viajes.</li>
             </ol>
 
@@ -47,7 +46,7 @@
             <ol>
                 <li>Firebase login → activar <strong>DISPONIBLE</strong>.</li>
                 <li>Recibe solicitudes → Aceptar o Rechazar (solo antes de aceptar).</li>
-                <li>Tras aceptar: no puede cancelar hasta llegar (GPS o código del pasajero).</li>
+                <li>Tras aceptar: no puede cancelar hasta llegar al punto de recogida (GPS).</li>
                 <li>Botón ubicación (derecha) y SOS (izquierda, separados).</li>
                 <li>Marcar llegada → pasajero abordo → terminar viaje.</li>
                 <li>Wallet, historial, chat.</li>

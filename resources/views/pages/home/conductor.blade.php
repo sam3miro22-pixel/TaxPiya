@@ -1175,9 +1175,6 @@ document.getElementById('drv-btn-aceptar')?.addEventListener('click', async ()=>
           <i class="fa-solid fa-flag-checkered me-1"></i> Terminar viaje
         </button>
       </div>
-      <input id="drv-codigo-llegada" type="text" maxlength="6"
-        class="form-control text-center txp-drv-code-input"
-        placeholder="Código del pasajero (si GPS falla)" autocomplete="off" inputmode="numeric">
     </div>
   `;
   document.body.appendChild(wrap);
@@ -1213,11 +1210,10 @@ document.getElementById('drv-act-llego')?.addEventListener('click', async ()=>{
       lng = pos.coords.longitude;
     } catch (_) {}
 
-    const codigo = document.getElementById('drv-codigo-llegada')?.value?.trim() || '';
     const r = await fetch(VIAJE_LLEGO_URL, {
       method: 'POST',
       headers: { 'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN': getCsrf() },
-      body: JSON.stringify({ viaje_id: window.currentViajeId, lat, lng, codigo })
+      body: JSON.stringify({ viaje_id: window.currentViajeId, lat, lng })
     });
     const j = await r.json();
     if (!r.ok || !j?.ok) throw new Error(j?.message || 'Error');

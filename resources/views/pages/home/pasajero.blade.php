@@ -185,10 +185,6 @@
           <div class="txp-ride-title" id="txp-asignado-nombre">—</div>
           <div class="txp-ride-sub" id="txp-asignado-vehiculo">—</div>
           <div class="txp-ride-sub" id="txp-asignado-placa">—</div>
-          <div class="txp-ride-sub txp-arrival-code" id="txp-asignado-codigo-wrap" style="display:none">
-            Código llegada: <strong id="txp-codigo-llegada">----</strong>
-            <span class="d-block small text-muted">Compártelo con el conductor si te lo pide</span>
-          </div>
         </div>
       </div>
       <div class="txp-ride-right">
@@ -209,20 +205,6 @@
 <div id="txp-banner" class="txp-banner" aria-hidden="true">
   <i id="txp-banner-ico" class="fa-solid fa-circle-info me-2"></i>
   <span id="txp-banner-txt">Estado</span>
-</div>
-
-<div id="txp-code-modal" class="txp-code-modal" aria-hidden="true">
-  <div class="txp-code-modal__backdrop" data-close-code-modal></div>
-  <div class="txp-code-modal__card" role="dialog" aria-modal="true" aria-labelledby="txp-code-title">
-    <div class="txp-code-modal__head">
-      <i class="fa-solid fa-shield-halved"></i>
-      <span id="txp-code-title">Código de llegada</span>
-      <button type="button" class="txp-code-modal__close" data-close-code-modal aria-label="Cerrar">&times;</button>
-    </div>
-    <p class="txp-code-modal__hint">Comparte este código con el conductor cuando llegue a recogerte.</p>
-    <div id="txp-codigo-llegada-display" class="txp-code-modal__digits">----</div>
-    <button type="button" class="btn btn-brand w-100 mt-3" data-close-code-modal>Entendido</button>
-  </div>
 </div>
 
 
@@ -857,14 +839,6 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
   .txp-btn-cancel{ color:#fff !important; background:rgba(255,255,255,.06) !important; }
 }
 
-.txp-code-modal{position:fixed;inset:0;z-index:calc(var(--txp-sheet-z) + 5);display:none;align-items:center;justify-content:center;padding:16px}
-.txp-code-modal[aria-hidden="false"]{display:flex}
-.txp-code-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px)}
-.txp-code-modal__card{position:relative;width:min(380px,92vw);background:#1c2541;border:1px solid rgba(255,209,102,.35);border-radius:20px;padding:22px 20px;box-shadow:0 24px 60px rgba(0,0,0,.55);color:#fff;text-align:center}
-.txp-code-modal__head{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:1.05rem;margin-bottom:8px}
-.txp-code-modal__close{position:absolute;right:12px;top:10px;background:none;border:none;color:#fff;font-size:1.6rem;line-height:1;cursor:pointer}
-.txp-code-modal__hint{font-size:.9rem;color:#cbd5e1;margin:0 0 14px}
-.txp-code-modal__digits{font-size:2.6rem;font-weight:900;letter-spacing:.35em;padding:18px 12px;border-radius:16px;background:rgba(255,209,102,.12);border:2px dashed rgba(255,209,102,.55);color:#ffd166;font-family:ui-monospace,Consolas,monospace}
 
 </style>
 @endsection
@@ -1223,36 +1197,12 @@ async function onDriverAccepted(detail){
   $asVehic.textContent  = vehTxt || 'Taxi';
   $asPlaca.textContent  = `Placa ${placa}`;
 
-  if (detail.codigo_llegada) {
-    showArrivalCode(detail.codigo_llegada);
-  }
-
   
   showAsignado();
   focusAssignedDriver();
   startETALoop();
   startAssignmentWatcher();
 }
-
-function showArrivalCode(code){
-  const wrap = document.getElementById('txp-asignado-codigo-wrap');
-  const el = document.getElementById('txp-codigo-llegada');
-  const modal = document.getElementById('txp-code-modal');
-  const big = document.getElementById('txp-codigo-llegada-display');
-  if (!code) return;
-  if (el) el.textContent = code;
-  if (big) big.textContent = code;
-  if (wrap) wrap.style.display = 'block';
-  if (modal) modal.setAttribute('aria-hidden', 'false');
-}
-
-document.querySelectorAll('[data-close-code-modal]').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.getElementById('txp-code-modal')?.setAttribute('aria-hidden', 'true');
-  });
-});
-
-
 
 </script>
 
@@ -1336,7 +1286,6 @@ async function solicitarViajeThenSearch(){
     if (!t || !t.id) return;
     window.currentViajeId = t.id;
     if (['asignado','en_camino','llego','iniciado'].includes(t.estado)) {
-      if (t.codigo_llegada) showArrivalCode(t.codigo_llegada);
       showAsignado?.();
       startETALoop?.();
       startTripStateLoop?.();
@@ -1421,9 +1370,6 @@ async function checkTripStateOnce(){
     if (j.conductor_id && j.driver_pos) {
       updateDriverPositionBubble(j.conductor_id, j.driver_pos);
     }
-    if (j.codigo_llegada) {
-      showArrivalCode(j.codigo_llegada);
-    }
 
     const est = j.estado;
     if (est === lastEstado) return;
@@ -1442,7 +1388,6 @@ async function checkTripStateOnce(){
     placa:  j.vehiculo?.placa,
     marca:  j.vehiculo?.marca,
     linea:  j.vehiculo?.linea,
-    codigo_llegada: j.codigo_llegada
   });
   if ($sheetAsignado.getAttribute('aria-hidden') === 'true') showAsignado();
   showBanner('Conductor asignado', 'fa-taxi');
@@ -1657,9 +1602,6 @@ async function checkAssignmentOnce(){
 
     if (j.conductor_id && j.driver_pos) {
       updateDriverPositionBubble(j.conductor_id, j.driver_pos);
-    }
-    if (j.codigo_llegada) {
-      showArrivalCode(j.codigo_llegada);
     }
 
     switch (j.estado) {

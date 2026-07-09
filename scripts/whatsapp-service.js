@@ -1,7 +1,8 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const express = require('express');
 const qrcode = require('qrcode');
 const fs = require('fs');
+const path = require('path');
 const pino = require('pino');
 const {
     sessionDir,
@@ -30,6 +31,36 @@ let heartbeatTimer = null;
 let watchDebounce = null;
 let isStarting = false;
 let reconnectAttempts = 0;
+let lastConnectedAt = 0;
+let lastDisconnectedAt = Date.now();
+let watchdogTimer = null;
+const lockFile = path.join(sessionDir, '.service.lock');
+
+function pathExists(p) {
+    try { return fs.existsSync(p); } catch (_) { return false; }
+}
+
+function acquireServiceLock() {
+    ensureDirs();
+    if (pathExists(lockFile)) {
+        try {
+            const pid = parseInt(fs.readFileSync(lockFile, 'utf8'), 10);
+            if (pid && pid !== process.pid) {
+                try { process.kill(pid, 0); return false; } catch (_) { /* stale */ }
+            }
+        } catch (_) { /* ignore */ }
+    }
+    fs.writeFileSync(lockFile, String(process.pid));
+    return true;
+}
+
+function releaseServiceLock() {
+    try { if (pathExists(lockFile)) fs.unlinkSync(lockFile); } catch (_) { /* ignore */ }
+}
+
+process.on('exit', releaseServiceLock);
+process.on('SIGTERM', () => { releaseServiceLock(); process.exit(0); });
+process.on('SIGINT', () => { releaseServiceLock(); process.exit(0); });
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
@@ -58,7 +89,24 @@ function scheduleSessionBackup() {
         if (connectionStatus === 'connected') {
             await backupSessionToGithub();
         }
-    }, 60 * 1000);
+    }, 30 * 1000);
+}
+
+function startWatchdog() {
+    if (watchdogTimer) clearInterval(watchdogTimer);
+    watchdogTimer = setInterval(() => {
+        if (connectionStatus === 'connected') {
+            lastConnectedAt = Date.now();
+            return;
+        }
+        if (connectionStatus === 'connecting' || isStarting) return;
+        const downFor = Date.now() - (lastDisconnectedAt || 0);
+        if (downFor > 90000) {
+            console.warn('[WhatsApp] Watchdog: desconectado >90s, forzando reconexión...');
+            reconnectAttempts = 0;
+            startWhatsApp().catch(() => {});
+        }
+    }, 30000);
 }
 
 function watchSessionFiles() {
@@ -85,7 +133,7 @@ function startHeartbeat() {
         } catch (e) {
             console.warn('[WhatsApp] Heartbeat failed:', e.message);
         }
-    }, 2 * 60 * 1000);
+    }, 60 * 1000);
 }
 
 function stopHeartbeat() {
@@ -110,7 +158,7 @@ async function askGroq(userMessage) {
                 messages: [
                     {
                         role: 'system',
-                        content: 'Eres TaxPiya Assistant, el chatbot oficial de la app de taxis TaxPiya en Colombia. Responde en español, muy conciso y servicial (máximo 4 oraciones). Ayuda con: cómo pedir viajes en el mapa, tarifas por distancia, recarga de billetera (Nequi), código de llegada, estado del viaje y soporte técnico.',
+                        content: 'Eres TaxPiya Assistant, el chatbot oficial de la app de taxis TaxPiya en Colombia. Responde en español, muy conciso y servicial (máximo 4 oraciones). Ayuda con: cómo pedir viajes en el mapa, tarifas por distancia, recarga de billetera (Nequi), estado del viaje y soporte técnico.',
                     },
                     { role: 'user', content: userMessage },
                 ],
@@ -154,16 +202,19 @@ async function startWhatsApp() {
 
         sock = makeWASocket({
             version,
-            auth: state,
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(state.keys, logger),
+            },
             logger,
             printQRInTerminal: false,
-            connectTimeoutMs: 90000,
-            defaultQueryTimeoutMs: 60000,
-            keepAliveIntervalMs: 15000,
-            retryRequestDelayMs: 500,
+            connectTimeoutMs: 120000,
+            defaultQueryTimeoutMs: 90000,
+            keepAliveIntervalMs: 10000,
+            retryRequestDelayMs: 250,
             browser: ['Taxpiya', 'Chrome', '125.0.0'],
             syncFullHistory: false,
-            markOnlineOnConnect: true,
+            markOnlineOnConnect: false,
             generateHighQualityLinkPreview: false,
             shouldIgnoreJid: jid => jid.endsWith('@broadcast'),
             getMessage: async () => undefined,
@@ -253,6 +304,7 @@ async function startWhatsApp() {
                 const oldSock = sock;
                 sock = null;
                 connectionStatus = 'disconnected';
+                lastDisconnectedAt = Date.now();
                 stopHeartbeat();
 
                 const code = lastDisconnect?.error?.output?.statusCode;
@@ -279,6 +331,8 @@ async function startWhatsApp() {
                 currentQr = null;
                 reconnectAttempts = 0;
                 reconnectDelay = 3000;
+                lastConnectedAt = Date.now();
+                lastDisconnectedAt = 0;
                 try { fs.unlinkSync(qrFilePath); } catch (_) { /* ignore */ }
                 const user = sock.user;
                 myNumber = user?.id?.split(':')[0] ?? 'unknown';
@@ -299,12 +353,18 @@ async function startWhatsApp() {
 }
 
 async function bootstrap() {
+    if (!acquireServiceLock()) {
+        console.error('[WhatsApp] Otra instancia ya está corriendo. Saliendo.');
+        process.exit(0);
+    }
+
     console.log('[WhatsApp] Bootstrapping service...');
     console.log('[WhatsApp] GitHub token:', env('GITHUB_BACKUP_TOKEN') ? 'present' : 'MISSING');
 
     await restoreSessionFromGithub();
     scheduleSessionBackup();
     watchSessionFiles();
+    startWatchdog();
     await startWhatsApp();
 }
 

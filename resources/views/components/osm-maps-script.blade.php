@@ -11,4 +11,4 @@
   window.__txpInitMap = {{ $callback ?? 'initMap' }};
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="{{ secure_asset('js/taxpiya-maps-osm.js') }}?v=5"></script>
+<script src="{{ secure_asset('js/taxpiya-maps-osm.js') }}?v=6"></script>
