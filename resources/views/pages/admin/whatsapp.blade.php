@@ -30,6 +30,9 @@
                 <button onclick="refreshStatus()" id="btn-refresh" style="background:#334155;border:none;border-radius:8px;padding:8px 14px;color:#cbd5e1;cursor:pointer;font-size:13px;">
                     🔄 Actualizar
                 </button>
+                <button onclick="doReconnect()" id="btn-reconnect" style="background:#1e3a5f;border:none;border-radius:8px;padding:8px 14px;color:#93c5fd;cursor:pointer;font-size:13px;">
+                    🔌 Reconectar
+                </button>
                 <button onclick="doLogout()" id="btn-logout" style="background:#7f1d1d;border:none;border-radius:8px;padding:8px 14px;color:#fca5a5;cursor:pointer;font-size:13px;display:none;">
                     🚪 Desconectar
                 </button>
@@ -101,6 +104,7 @@
 <script>
 const statusUrl = @json(route('admin.whatsapp.status'));
 const logoutUrl = @json(route('admin.whatsapp.logout'));
+const reconnectUrl = @json(route('admin.whatsapp.reconnect'));
 
 const dot = document.getElementById('wa-dot');
 const label = document.getElementById('wa-status-label');
@@ -151,6 +155,17 @@ function applyStatus(data) {
         dot.style.background = '#64748b';
         label.textContent = '❌ Servicio no disponible';
         sub.textContent = data.error || 'No se puede contactar el servicio de WhatsApp.';
+    }
+}
+
+async function doReconnect() {
+    try {
+        label.textContent = 'Reconectando...';
+        dot.style.background = '#3b82f6';
+        await fetch(reconnectUrl, {method:'POST', credentials:'same-origin', headers:{'Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content,'X-Requested-With':'XMLHttpRequest'}});
+        setTimeout(refreshStatus, 3000);
+    } catch(e) {
+        refreshStatus();
     }
 }
 

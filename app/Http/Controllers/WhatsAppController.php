@@ -55,6 +55,17 @@ class WhatsAppController extends Controller
         return response()->json($result);
     }
 
+    public function reconnect()
+    {
+        $wa = app(WhatsAppService::class);
+        $status = $wa->getStatus();
+        if (($status['status'] ?? '') === 'unavailable') {
+            return response()->json($wa->restartProcess());
+        }
+
+        return response()->json($wa->reconnect());
+    }
+
     public function saveConfig(Request $request)
     {
         $phone = trim((string) $request->input('support_phone', ''));

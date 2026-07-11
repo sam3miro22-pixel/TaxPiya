@@ -13,40 +13,17 @@ use App\Http\Controllers\MapProxyController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SosController;
 use App\Http\Controllers\EmpresaPortalController;
+use App\Http\Controllers\SystemKeepaliveController;
 use App\Support\GeoDistance;
 
 
-Route::get('/api/system/keepalive', function (Request $request) {
-    $expected = (string) config('taxpiya.keepalive_key', '');
-    $provided = (string) $request->query('key', '');
-    if ($expected === '' || !hash_equals($expected, $provided)) {
-        abort(403);
-    }
+Route::get('/api/system/keepalive', SystemKeepaliveController::class)
+    ->middleware('throttle:30,1')
+    ->name('api.system.keepalive');
 
-    $wa = app(\App\Services\WhatsAppService::class);
-    $before = $wa->getStatus();
-    $reconnect = null;
-
-    if (($before['status'] ?? '') !== 'connected') {
-        $reconnect = $wa->reconnect();
-    }
-
-    $after = $wa->getStatus();
-    $groq = (string) config('services.groq.api_key', '') !== ''
-        || (string) config('taxpiya.assistant.groq_api_key', '') !== '';
-
-    return response()->json([
-        'ok'        => true,
-        'ts'        => now()->toIso8601String(),
-        'whatsapp'  => [
-            'before'    => $before['status'] ?? 'unknown',
-            'after'     => $after['status'] ?? 'unknown',
-            'user'      => $after['user'] ?? null,
-            'reconnect' => $reconnect,
-        ],
-        'assistant' => ['groq' => $groq],
-    ]);
-})->middleware('throttle:30,1')->name('api.system.keepalive');
+Route::get('/taxpiya/keepalive', SystemKeepaliveController::class)
+    ->middleware('throttle:30,1')
+    ->name('taxpiya.keepalive');
 
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
 Route::get('/api/referral/validate', [\App\Http\Controllers\ReferidosController::class, 'validateCode'])->name('api.referral.validate');
@@ -203,6 +180,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/whatsapp', [\App\Http\Controllers\WhatsAppController::class, 'index'])->name('admin.whatsapp')->withoutMiddleware(['rbac']);
     Route::get('/admin/whatsapp/status', [\App\Http\Controllers\WhatsAppController::class, 'status'])->name('admin.whatsapp.status')->withoutMiddleware(['rbac']);
     Route::post('/admin/whatsapp/logout', [\App\Http\Controllers\WhatsAppController::class, 'logout'])->name('admin.whatsapp.logout')->withoutMiddleware(['rbac']);
+    Route::post('/admin/whatsapp/reconnect', [\App\Http\Controllers\WhatsAppController::class, 'reconnect'])->name('admin.whatsapp.reconnect')->withoutMiddleware(['rbac']);
     Route::post('/admin/whatsapp/config', [\App\Http\Controllers\WhatsAppController::class, 'saveConfig'])->name('admin.whatsapp.config')->withoutMiddleware(['rbac']);
 
 

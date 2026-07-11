@@ -23,6 +23,8 @@ const CONFIG = {
     RECONNECT_BASE_MS: 2500,
     RECONNECT_MAX_MS: 20000,
     RATE_LIMIT_MS: 2500,
+    DEAF_SESSION_MS: 12 * 60 * 1000,
+    PROCESS_RESTART_MS: 4 * 60 * 60 * 1000,
 };
 
 const app = express();
@@ -37,7 +39,9 @@ let lastDisconnectCode = null;
 let lastConnectedAt = 0;
 let lastDisconnectedAt = Date.now();
 let lastMessageAt = 0;
+let lastEventAt = 0;
 let lastHeartbeatAt = 0;
+let processStartedAt = Date.now();
 let reconnectAttempts = 0;
 let retryTimer = null;
 let sessionBackupTimer = null;
@@ -174,21 +178,47 @@ function scheduleSessionBackup() {
     }, CONFIG.BACKUP_MS);
 }
 
+function touchEvent(source) {
+    lastEventAt = Date.now();
+    if (source === 'message') lastMessageAt = lastEventAt;
+}
+
+function requestProcessRestart(reason) {
+    console.warn(`[WhatsApp] Process restart requested: ${reason}`);
+    releaseServiceLock();
+    setTimeout(() => process.exit(0), 500);
+}
+
 function startWatchdog() {
     if (watchdogTimer) clearInterval(watchdogTimer);
     watchdogTimer = setInterval(() => {
+        const now = Date.now();
+
+        if (now - processStartedAt > CONFIG.PROCESS_RESTART_MS && connectionStatus === 'connected') {
+            requestProcessRestart('scheduled-maintenance');
+            return;
+        }
+
         if (connectionStatus === 'connected') {
-            lastConnectedAt = Date.now();
-            const idle = Date.now() - (lastHeartbeatAt || lastConnectedAt);
+            lastConnectedAt = now;
+            const idle = now - (lastHeartbeatAt || lastConnectedAt);
             if (idle > CONFIG.HEARTBEAT_MS - 60000 && sock) {
                 sock.sendPresenceUpdate('available').then(() => {
                     lastHeartbeatAt = Date.now();
+                    touchEvent('heartbeat');
                 }).catch(() => {});
+            }
+
+            const silentFor = now - (lastEventAt || lastConnectedAt || processStartedAt);
+            if (silentFor > CONFIG.DEAF_SESSION_MS) {
+                console.warn(`[WhatsApp] Deaf session detected (${Math.round(silentFor / 60000)}m silence)`);
+                requestProcessRestart('deaf-session');
             }
             return;
         }
+
         if (connectionStatus === 'connecting' || isStarting) return;
-        const downFor = Date.now() - (lastDisconnectedAt || 0);
+        const downFor = now - (lastDisconnectedAt || 0);
         if (downFor > 60000) {
             console.warn('[WhatsApp] Watchdog: forcing reconnect');
             reconnectAttempts = 0;
@@ -250,6 +280,7 @@ async function startWhatsApp() {
         });
 
         sock.ev.on('creds.update', async () => {
+            touchEvent('creds');
             await saveCreds();
             await backupSessionToGithub();
         });
@@ -278,6 +309,7 @@ async function startWhatsApp() {
         }
 
         sock.ev.on('messages.upsert', async (m) => {
+            touchEvent('message');
             if (m.type !== 'notify') return;
             for (const msg of m.messages) {
                 if (msg.key.fromMe) continue;
@@ -295,6 +327,7 @@ async function startWhatsApp() {
         });
 
         sock.ev.on('connection.update', async (update) => {
+            touchEvent('connection');
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
@@ -338,6 +371,7 @@ async function startWhatsApp() {
                 lastConnectedAt = Date.now();
                 lastDisconnectedAt = 0;
                 lastHeartbeatAt = Date.now();
+                touchEvent('open');
                 try { fs.unlinkSync(qrFilePath); } catch (_) { /* ignore */ }
                 myNumber = sock?.user?.id?.split(':')[0] ?? 'unknown';
                 console.log(`[WhatsApp] Connected as ${myNumber}`);
@@ -360,7 +394,7 @@ async function bootstrap() {
         process.exit(0);
     }
 
-    console.log('[WhatsApp] v2 stable boot');
+    console.log('[WhatsApp] v3 stable boot (deaf-session watchdog + process restart)');
     console.log('[WhatsApp] GitHub token:', env('GITHUB_BACKUP_TOKEN') ? 'yes' : 'NO');
 
     await restoreSessionFromGithub();
@@ -387,6 +421,8 @@ app.get('/status', async (req, res) => {
         lastDisconnectCode,
         lastConnectedAt,
         lastMessageAt,
+        lastEventAt,
+        processStartedAt,
         sessionFiles: pathExists(sessionDir) ? fs.readdirSync(sessionDir).length : 0,
         githubBackup: !!env('GITHUB_BACKUP_TOKEN'),
     });
@@ -443,6 +479,11 @@ app.post('/reconnect', async (req, res) => {
     } catch (e) {
         res.status(500).json({ ok: false, error: e.message });
     }
+});
+
+app.post('/restart', (req, res) => {
+    res.json({ ok: true, message: 'Process restart scheduled' });
+    requestProcessRestart('api-restart');
 });
 
 const port = process.env.WHATSAPP_PORT || 8051;

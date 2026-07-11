@@ -119,6 +119,34 @@ class WhatsAppService
     }
 
     /**
+     * Reinicia el proceso Node (supervisor lo levanta de nuevo). Útil para sesiones "sordas".
+     */
+    public function restartProcess(): array
+    {
+        try {
+            $ch = curl_init($this->baseUrl . '/restart');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 8,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => '{}',
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($body === false || $code < 200 || $code >= 300) {
+                return ['ok' => false, 'message' => 'Restart failed HTTP ' . $code];
+            }
+
+            return json_decode($body, true) ?? ['ok' => false];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Envía mensaje; si WhatsApp está caído intenta reconectar una vez.
      */
     public function sendMessageResilient(string $phone, string $message): array

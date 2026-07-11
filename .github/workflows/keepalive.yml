@@ -27,9 +27,15 @@ jobs:
           fi
           KEY=$(php -r "echo substr(hash('sha256', getenv('TAXPIYA_APP_KEY').'taxpiya-keepalive'), 0, 40);")
           echo "Keepalive key computed"
-          curl -fsS --retry 5 --retry-delay 25 --max-time 180 \
-            "https://taxpiya.onrender.com/api/system/keepalive?key=${KEY}" | tee keepalive.json
+          for URL in \
+            "https://taxpiya.onrender.com/taxpiya/keepalive?key=${KEY}" \
+            "https://taxpiya.onrender.com/api/system/keepalive?key=${KEY}"; do
+            echo "Ping $URL"
+            if curl -fsS --retry 5 --retry-delay 25 --max-time 180 "$URL" | tee keepalive.json; then
+              break
+            fi
+          done
           echo ""
           cat keepalive.json
           curl -fsS --retry 2 --max-time 90 \
-            "https://app.taxpiya.com/api/system/keepalive?key=${KEY}" -o /dev/null || true
+            "https://app.taxpiya.com/taxpiya/keepalive?key=${KEY}" -o /dev/null || true
