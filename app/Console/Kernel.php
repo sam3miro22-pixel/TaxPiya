@@ -19,6 +19,11 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(10)
             ->when(fn () => config('database.default') === 'sqlite'
                 && config('taxpiya.persistence.enabled', true));
+
+        $schedule->command('taxpiya:whatsapp-health --reconnect')
+            ->everyMinute()
+            ->withoutOverlapping(2)
+            ->runInBackground();
     }
 
     /**

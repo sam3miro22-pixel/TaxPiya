@@ -16,6 +16,38 @@ use App\Http\Controllers\EmpresaPortalController;
 use App\Support\GeoDistance;
 
 
+Route::get('/api/system/keepalive', function (Request $request) {
+    $expected = (string) config('taxpiya.keepalive_key', '');
+    $provided = (string) $request->query('key', '');
+    if ($expected === '' || !hash_equals($expected, $provided)) {
+        abort(403);
+    }
+
+    $wa = app(\App\Services\WhatsAppService::class);
+    $before = $wa->getStatus();
+    $reconnect = null;
+
+    if (($before['status'] ?? '') !== 'connected') {
+        $reconnect = $wa->reconnect();
+    }
+
+    $after = $wa->getStatus();
+    $groq = (string) config('services.groq.api_key', '') !== ''
+        || (string) config('taxpiya.assistant.groq_api_key', '') !== '';
+
+    return response()->json([
+        'ok'        => true,
+        'ts'        => now()->toIso8601String(),
+        'whatsapp'  => [
+            'before'    => $before['status'] ?? 'unknown',
+            'after'     => $after['status'] ?? 'unknown',
+            'user'      => $after['user'] ?? null,
+            'reconnect' => $reconnect,
+        ],
+        'assistant' => ['groq' => $groq],
+    ]);
+})->middleware('throttle:30,1')->name('api.system.keepalive');
+
 Route::get('/tarifa-fija', [TarifasController::class, 'fija'])->name('tarifa.fija');
 Route::get('/api/referral/validate', [\App\Http\Controllers\ReferidosController::class, 'validateCode'])->name('api.referral.validate');
 Route::get('/api/referral/user-status', function (Request $request) {

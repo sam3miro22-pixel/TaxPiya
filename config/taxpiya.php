@@ -125,4 +125,6 @@ return [
         'port' => (int) env('WHATSAPP_PORT', 8051),
     ],
 
+    'keepalive_key' => env('TAXPIYA_KEEPALIVE_KEY', substr(hash('sha256', (string) env('APP_KEY', '') . 'taxpiya-keepalive'), 0, 40)),
+
 ];

@@ -114,7 +114,7 @@ class AssistantController extends Controller
             $fullMessage = "🆘 *Soporte Humano - Taxpiya*\n\n👤 *Usuario:* {$userName}\n🏷️ *Rol:* {$userRole}\n\n💬 *Mensaje:*\n{$message}";
 
             $wa = app(\App\Services\WhatsAppService::class);
-            $result = $wa->sendMessage($phone, $fullMessage);
+            $result = $wa->sendMessageResilient($phone, $fullMessage);
 
             if ($result['ok'] ?? false) {
                 return response()->json([
@@ -234,7 +234,7 @@ class AssistantController extends Controller
 
         return 'Eres TaxPiya Assistant, asistente oficial de la app de taxis TaxPiya en Colombia. '
             . 'Responde en español, concreto y útil (máximo 4 oraciones). '
-            . 'Ayuda con: pedir viaje en el mapa, tarifas por distancia, billetera/recargas Nequi, código de llegada, estado del viaje y soporte. '
+            . 'Ayuda con: pedir viaje en el mapa, tarifas por distancia, billetera/recargas Nequi, estado del viaje y soporte. '
             . 'Si preguntan precio sin viaje activo, indica que la tarifa se calcula por km en el mapa antes de confirmar. '
             . 'No inventes montos ni prometas conductores si no hay viaje. Contexto usuario: ' . $extra;
     }

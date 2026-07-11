@@ -15,26 +15,41 @@ const {
     clearLocalSession,
 } = require('./whatsapp-session-store');
 
+const CONFIG = {
+    KEEP_ALIVE_MS: 60000,
+    HEARTBEAT_MS: 8 * 60 * 1000,
+    WATCHDOG_MS: 45000,
+    BACKUP_MS: 45 * 1000,
+    RECONNECT_BASE_MS: 2500,
+    RECONNECT_MAX_MS: 20000,
+    RATE_LIMIT_MS: 2500,
+};
+
 const app = express();
 app.use(express.json());
-
 ensureDirs();
 
 let sock = null;
 let connectionStatus = 'disconnected';
 let currentQr = null;
 let myNumber = null;
-let reconnectDelay = 3000;
+let lastDisconnectCode = null;
+let lastConnectedAt = 0;
+let lastDisconnectedAt = Date.now();
+let lastMessageAt = 0;
+let lastHeartbeatAt = 0;
+let reconnectAttempts = 0;
 let retryTimer = null;
 let sessionBackupTimer = null;
 let heartbeatTimer = null;
+let watchdogTimer = null;
 let watchDebounce = null;
 let isStarting = false;
-let reconnectAttempts = 0;
-let lastConnectedAt = 0;
-let lastDisconnectedAt = Date.now();
-let watchdogTimer = null;
 const lockFile = path.join(sessionDir, '.service.lock');
+
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
 
 function pathExists(p) {
     try { return fs.existsSync(p); } catch (_) { return false; }
@@ -62,93 +77,65 @@ process.on('exit', releaseServiceLock);
 process.on('SIGTERM', () => { releaseServiceLock(); process.exit(0); });
 process.on('SIGINT', () => { releaseServiceLock(); process.exit(0); });
 
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
+function disconnectCode(lastDisconnect) {
+    return lastDisconnect?.error?.output?.statusCode ?? null;
 }
 
 function shouldClearSession(code) {
-    return code === DisconnectReason.loggedOut || code === DisconnectReason.badSession;
+    return code === DisconnectReason.loggedOut;
 }
 
-function nextReconnectDelay(code) {
-    if (code === DisconnectReason.restartRequired) return 2000;
-    if (code === DisconnectReason.timedOut) return 4000;
+function reconnectDelayFor(code) {
+    if (code === DisconnectReason.restartRequired) return 1500;
+    if (code === DisconnectReason.timedOut || code === 408) return 2000;
+    if (code === DisconnectReason.connectionClosed || code === 428) return 3000;
+    if (code === DisconnectReason.connectionReplaced || code === 440) return 10000;
+    if (code === DisconnectReason.badSession) return 5000;
     reconnectAttempts += 1;
-    return Math.min(30000, 3000 + reconnectAttempts * 2000);
+    return Math.min(CONFIG.RECONNECT_MAX_MS, CONFIG.RECONNECT_BASE_MS + reconnectAttempts * 1500);
 }
 
 function scheduleReconnect(delayMs, reason) {
     if (retryTimer) clearTimeout(retryTimer);
-    console.log(`[WhatsApp] Reconnecting in ${Math.round(delayMs / 1000)}s (${reason})...`);
-    retryTimer = setTimeout(() => startWhatsApp(), delayMs);
+    console.log(`[WhatsApp] Reconnect in ${Math.round(delayMs / 1000)}s (${reason})`);
+    retryTimer = setTimeout(() => startWhatsApp().catch(() => {}), delayMs);
 }
 
-function scheduleSessionBackup() {
-    if (sessionBackupTimer) clearInterval(sessionBackupTimer);
-    sessionBackupTimer = setInterval(async () => {
-        if (connectionStatus === 'connected') {
-            await backupSessionToGithub();
-        }
-    }, 30 * 1000);
+async function destroySocket(oldSock) {
+    if (!oldSock) return;
+    try { oldSock.ev.removeAllListeners(); } catch (_) { /* ignore */ }
+    try { oldSock.ws?.close(); } catch (_) { /* ignore */ }
+    try { oldSock.end?.(); } catch (_) { /* ignore */ }
 }
 
-function startWatchdog() {
-    if (watchdogTimer) clearInterval(watchdogTimer);
-    watchdogTimer = setInterval(() => {
-        if (connectionStatus === 'connected') {
-            lastConnectedAt = Date.now();
-            return;
-        }
-        if (connectionStatus === 'connecting' || isStarting) return;
-        const downFor = Date.now() - (lastDisconnectedAt || 0);
-        if (downFor > 90000) {
-            console.warn('[WhatsApp] Watchdog: desconectado >90s, forzando reconexión...');
-            reconnectAttempts = 0;
-            startWhatsApp().catch(() => {});
-        }
-    }, 30000);
+function extractText(msg) {
+    if (!msg?.message) return '';
+    const m = msg.message;
+    return (
+        m.conversation
+        || m.extendedTextMessage?.text
+        || m.imageMessage?.caption
+        || m.videoMessage?.caption
+        || m.buttonsResponseMessage?.selectedDisplayText
+        || m.listResponseMessage?.title
+        || ''
+    ).trim();
 }
 
-function watchSessionFiles() {
-    try {
-        fs.watch(sessionDir, { persistent: false }, () => {
-            if (watchDebounce) clearTimeout(watchDebounce);
-            watchDebounce = setTimeout(() => {
-                if (connectionStatus === 'connected') {
-                    backupSessionToGithub().catch(() => {});
-                }
-            }, 5000);
-        });
-    } catch (e) {
-        console.warn('[WhatsApp Session] fs.watch unavailable:', e.message);
+function fallbackReply(text) {
+    const t = text.toLowerCase();
+    if (/\b(hola|buenas|ayuda|help)\b/.test(t)) {
+        return 'Hola, soy TaxPiya Assistant. Puedo ayudarte con viajes, tarifas, billetera Nequi y soporte.';
     }
-}
-
-function startHeartbeat() {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    heartbeatTimer = setInterval(async () => {
-        if (connectionStatus !== 'connected' || !sock) return;
-        try {
-            await sock.sendPresenceUpdate('available');
-        } catch (e) {
-            console.warn('[WhatsApp] Heartbeat failed:', e.message);
-        }
-    }, 60 * 1000);
-}
-
-function stopHeartbeat() {
-    if (heartbeatTimer) {
-        clearInterval(heartbeatTimer);
-        heartbeatTimer = null;
+    if (/\b(viaje|taxi|precio|tarifa)\b/.test(t)) {
+        return 'Abre TaxPiya, marca origen y destino en el mapa y confirma la tarifa antes de solicitar el taxi.';
     }
+    return 'Gracias por escribir a TaxPiya. Si necesitas un taxi, usa la app en taxpiya.onrender.com o app.taxpiya.com';
 }
 
 async function askGroq(userMessage) {
     const apiKey = env('GROQ_API_KEY');
-    if (!apiKey) {
-        console.warn('[WhatsApp AI] No GROQ_API_KEY');
-        return null;
-    }
+    if (!apiKey) return fallbackReply(userMessage);
     try {
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
@@ -158,23 +145,68 @@ async function askGroq(userMessage) {
                 messages: [
                     {
                         role: 'system',
-                        content: 'Eres TaxPiya Assistant, el chatbot oficial de la app de taxis TaxPiya en Colombia. Responde en español, muy conciso y servicial (máximo 4 oraciones). Ayuda con: cómo pedir viajes en el mapa, tarifas por distancia, recarga de billetera (Nequi), estado del viaje y soporte técnico.',
+                        content: 'Eres TaxPiya Assistant en Colombia. Español, máximo 3 oraciones. Ayuda con viajes, tarifas, Nequi y soporte.',
                     },
                     { role: 'user', content: userMessage },
                 ],
                 temperature: 0.35,
-                max_tokens: 350,
+                max_tokens: 280,
             }),
         });
         if (!res.ok) {
-            console.error('[WhatsApp AI] Groq status:', res.status);
-            return null;
+            console.error('[WhatsApp AI] Groq HTTP', res.status);
+            return fallbackReply(userMessage);
         }
         const data = await res.json();
-        return data.choices?.[0]?.message?.content?.trim() || null;
+        return data.choices?.[0]?.message?.content?.trim() || fallbackReply(userMessage);
     } catch (e) {
         console.error('[WhatsApp AI] Groq error:', e.message);
-        return null;
+        return fallbackReply(userMessage);
+    }
+}
+
+function scheduleSessionBackup() {
+    if (sessionBackupTimer) clearInterval(sessionBackupTimer);
+    sessionBackupTimer = setInterval(() => {
+        if (connectionStatus === 'connected') {
+            backupSessionToGithub().catch(() => {});
+        }
+    }, CONFIG.BACKUP_MS);
+}
+
+function startWatchdog() {
+    if (watchdogTimer) clearInterval(watchdogTimer);
+    watchdogTimer = setInterval(() => {
+        if (connectionStatus === 'connected') {
+            lastConnectedAt = Date.now();
+            const idle = Date.now() - (lastHeartbeatAt || lastConnectedAt);
+            if (idle > CONFIG.HEARTBEAT_MS - 60000 && sock) {
+                sock.sendPresenceUpdate('available').then(() => {
+                    lastHeartbeatAt = Date.now();
+                }).catch(() => {});
+            }
+            return;
+        }
+        if (connectionStatus === 'connecting' || isStarting) return;
+        const downFor = Date.now() - (lastDisconnectedAt || 0);
+        if (downFor > 60000) {
+            console.warn('[WhatsApp] Watchdog: forcing reconnect');
+            reconnectAttempts = 0;
+            startWhatsApp().catch(() => {});
+        }
+    }, CONFIG.WATCHDOG_MS);
+}
+
+function watchSessionFiles() {
+    try {
+        fs.watch(sessionDir, { persistent: false }, () => {
+            if (watchDebounce) clearTimeout(watchDebounce);
+            watchDebounce = setTimeout(() => {
+                if (connectionStatus === 'connected') backupSessionToGithub().catch(() => {});
+            }, 4000);
+        });
+    } catch (e) {
+        console.warn('[WhatsApp Session] fs.watch unavailable:', e.message);
     }
 }
 
@@ -190,11 +222,8 @@ async function startWhatsApp() {
     connectionStatus = 'connecting';
 
     try {
-        if (sock) {
-            try { sock.ev.removeAllListeners(); } catch (_) { /* ignore */ }
-            try { sock.ws?.close(); } catch (_) { /* ignore */ }
-            sock = null;
-        }
+        await destroySocket(sock);
+        sock = null;
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         const { version } = await fetchLatestBaileysVersion();
@@ -210,13 +239,13 @@ async function startWhatsApp() {
             printQRInTerminal: false,
             connectTimeoutMs: 120000,
             defaultQueryTimeoutMs: 90000,
-            keepAliveIntervalMs: 10000,
-            retryRequestDelayMs: 250,
+            keepAliveIntervalMs: CONFIG.KEEP_ALIVE_MS,
+            retryRequestDelayMs: 500,
             browser: ['Taxpiya', 'Chrome', '125.0.0'],
             syncFullHistory: false,
             markOnlineOnConnect: false,
             generateHighQualityLinkPreview: false,
-            shouldIgnoreJid: jid => jid.endsWith('@broadcast'),
+            shouldIgnoreJid: jid => jid.endsWith('@broadcast') || jid.endsWith('@g.us'),
             getMessage: async () => undefined,
         });
 
@@ -227,48 +256,24 @@ async function startWhatsApp() {
 
         const userQueues = new Map();
         const lastReplied = new Map();
-        const lastMsgHash = new Map();
-
-        function msgHash(text) {
-            let h = 0;
-            for (let i = 0; i < text.length; i++) {
-                h = (Math.imul(31, h) + text.charCodeAt(i)) | 0;
-            }
-            return h;
-        }
-
-        function humanReadDelay() { return 1000 + Math.random() * 1500; }
-        function humanPrepareDelay() { return 500 + Math.random() * 1000; }
-        function humanTypingDelay(text) {
-            return Math.min(8000, Math.max(3000, text.length * 20));
-        }
 
         async function processMessage(from, text, msgKey) {
             const now = Date.now();
-            const prev = lastMsgHash.get(from);
-            const hash = msgHash(text.trim().toLowerCase());
-            if (prev && prev.hash === hash && (now - prev.ts) < 15000) return;
-            lastMsgHash.set(from, { hash, ts: now });
-
             const lastTs = lastReplied.get(from) || 0;
-            if ((now - lastTs) < 10000) return;
+            if (now - lastTs < CONFIG.RATE_LIMIT_MS) return;
 
-            await sleep(humanReadDelay());
-            if (!sock) return;
-            try { await sock.readMessages([msgKey]); } catch (_) { /* ignore */ }
-
-            await sleep(humanPrepareDelay());
-            if (!sock) return;
-            try { await sock.sendPresenceUpdate('composing', from); } catch (_) { /* ignore */ }
-
+            lastMessageAt = now;
             const reply = await askGroq(text);
-            await sleep(reply ? humanTypingDelay(reply) : 2000);
-            if (!sock) return;
-            try { await sock.sendPresenceUpdate('paused', from); } catch (_) { /* ignore */ }
-            if (!reply) return;
+            if (!sock || connectionStatus !== 'connected') return;
 
-            lastReplied.set(from, Date.now());
+            try { await sock.readMessages([msgKey]); } catch (_) { /* ignore */ }
+            try { await sock.sendPresenceUpdate('composing', from); } catch (_) { /* ignore */ }
+            await sleep(Math.min(2500, 800 + text.length * 15));
+            if (!sock || connectionStatus !== 'connected') return;
+            try { await sock.sendPresenceUpdate('paused', from); } catch (_) { /* ignore */ }
+
             await sock.sendMessage(from, { text: reply });
+            lastReplied.set(from, Date.now());
             console.log(`[WhatsApp AI] Replied to ${from}`);
         }
 
@@ -278,12 +283,13 @@ async function startWhatsApp() {
                 if (msg.key.fromMe) continue;
                 const from = msg.key.remoteJid;
                 if (!from || from.endsWith('@g.us')) continue;
-
-                const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-                if (!text || text.trim() === '') continue;
+                const text = extractText(msg);
+                if (!text) continue;
 
                 const prev = userQueues.get(from) || Promise.resolve();
-                const next = prev.then(() => processMessage(from, text, msg.key)).catch(() => {});
+                const next = prev.then(() => processMessage(from, text, msg.key)).catch(err => {
+                    console.error('[WhatsApp AI] process error:', err.message);
+                });
                 userQueues.set(from, next);
             }
         });
@@ -296,7 +302,7 @@ async function startWhatsApp() {
                 currentQr = qr;
                 reconnectAttempts = 0;
                 try { fs.writeFileSync(qrFilePath, qr); } catch (_) { /* ignore */ }
-                console.log('[WhatsApp] QR code ready. Waiting for scan...');
+                console.log('[WhatsApp] QR ready — scan from admin panel');
             }
 
             if (connection === 'close') {
@@ -305,48 +311,44 @@ async function startWhatsApp() {
                 sock = null;
                 connectionStatus = 'disconnected';
                 lastDisconnectedAt = Date.now();
-                stopHeartbeat();
 
-                const code = lastDisconnect?.error?.output?.statusCode;
-                const loggedOut = shouldClearSession(code);
-                console.log(`[WhatsApp] Connection closed (code=${code}).`);
+                const code = disconnectCode(lastDisconnect);
+                lastDisconnectCode = code;
+                console.log(`[WhatsApp] Closed code=${code}`);
 
-                if (loggedOut) {
+                if (shouldClearSession(code)) {
                     clearLocalSession();
                     reconnectAttempts = 0;
-                    reconnectDelay = 4000;
                     await clearGithubSessionBackup();
-                } else if (code === DisconnectReason.connectionReplaced) {
-                    console.warn('[WhatsApp] Otra instancia tomó la sesión — esperando y reconectando.');
-                    reconnectDelay = 8000;
+                    scheduleReconnect(4000, 'loggedOut');
+                } else if (code === DisconnectReason.badSession) {
+                    console.warn('[WhatsApp] badSession — restoring from GitHub');
+                    clearLocalSession();
+                    await restoreSessionFromGithub({ force: true });
+                    scheduleReconnect(5000, 'badSession-restore');
                 } else {
-                    reconnectDelay = nextReconnectDelay(code);
+                    scheduleReconnect(reconnectDelayFor(code), `code=${code}`);
                 }
 
-                try { oldSock?.ev?.removeAllListeners(); } catch (_) { /* ignore */ }
-                scheduleReconnect(reconnectDelay, `code=${code ?? 'unknown'}`);
-
+                await destroySocket(oldSock);
             } else if (connection === 'open') {
                 connectionStatus = 'connected';
                 currentQr = null;
                 reconnectAttempts = 0;
-                reconnectDelay = 3000;
                 lastConnectedAt = Date.now();
                 lastDisconnectedAt = 0;
+                lastHeartbeatAt = Date.now();
                 try { fs.unlinkSync(qrFilePath); } catch (_) { /* ignore */ }
-                const user = sock.user;
-                myNumber = user?.id?.split(':')[0] ?? 'unknown';
-                console.log(`[WhatsApp] Connected as: ${myNumber}`);
-                startHeartbeat();
+                myNumber = sock?.user?.id?.split(':')[0] ?? 'unknown';
+                console.log(`[WhatsApp] Connected as ${myNumber}`);
                 await backupSessionToGithub();
             }
         });
     } catch (err) {
-        console.error('[WhatsApp] Fatal startup error:', err.message);
+        console.error('[WhatsApp] Startup error:', err.message);
         connectionStatus = 'disconnected';
         sock = null;
-        reconnectDelay = nextReconnectDelay(null);
-        scheduleReconnect(reconnectDelay, 'startup-error');
+        scheduleReconnect(reconnectDelayFor(null), 'startup-error');
     } finally {
         isStarting = false;
     }
@@ -354,12 +356,12 @@ async function startWhatsApp() {
 
 async function bootstrap() {
     if (!acquireServiceLock()) {
-        console.error('[WhatsApp] Otra instancia ya está corriendo. Saliendo.');
+        console.error('[WhatsApp] Another instance running — exit');
         process.exit(0);
     }
 
-    console.log('[WhatsApp] Bootstrapping service...');
-    console.log('[WhatsApp] GitHub token:', env('GITHUB_BACKUP_TOKEN') ? 'present' : 'MISSING');
+    console.log('[WhatsApp] v2 stable boot');
+    console.log('[WhatsApp] GitHub token:', env('GITHUB_BACKUP_TOKEN') ? 'yes' : 'NO');
 
     await restoreSessionFromGithub();
     scheduleSessionBackup();
@@ -382,7 +384,10 @@ app.get('/status', async (req, res) => {
         qrImage,
         user: myNumber,
         reconnectAttempts,
-        sessionFiles: fs.existsSync(sessionDir) ? fs.readdirSync(sessionDir).length : 0,
+        lastDisconnectCode,
+        lastConnectedAt,
+        lastMessageAt,
+        sessionFiles: pathExists(sessionDir) ? fs.readdirSync(sessionDir).length : 0,
         githubBackup: !!env('GITHUB_BACKUP_TOKEN'),
     });
 });
@@ -395,12 +400,12 @@ app.post('/send', async (req, res) => {
     try {
         const { phone, message } = req.body;
         if (!phone || !message) {
-            return res.status(400).json({ ok: false, message: 'Phone and message are required' });
+            return res.status(400).json({ ok: false, message: 'Phone and message required' });
         }
         if (connectionStatus !== 'connected' || !sock) {
-            return res.status(503).json({ ok: false, message: 'WhatsApp not connected (status: ' + connectionStatus + ')' });
+            return res.status(503).json({ ok: false, message: 'WhatsApp not connected: ' + connectionStatus });
         }
-        const jid = phone.replace(/\D/g, '') + '@s.whatsapp.net';
+        const jid = String(phone).replace(/\D/g, '') + '@s.whatsapp.net';
         await sock.sendMessage(jid, { text: message });
         res.json({ ok: true, message: 'Sent' });
     } catch (e) {
@@ -415,16 +420,13 @@ app.post('/logout', async (req, res) => {
         myNumber = null;
         connectionStatus = 'disconnected';
         if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-        if (sock) {
-            try { await sock.logout(); } catch (_) { /* ignore */ }
-            sock = null;
-        }
+        await destroySocket(sock);
+        sock = null;
         clearLocalSession();
         await clearGithubSessionBackup();
         reconnectAttempts = 0;
-        reconnectDelay = 4000;
-        retryTimer = setTimeout(startWhatsApp, 2000);
-        res.json({ ok: true, message: 'Logged out. Generating new QR...' });
+        scheduleReconnect(3000, 'logout');
+        res.json({ ok: true, message: 'Logged out' });
     } catch (e) {
         res.status(500).json({ ok: false, error: e.message });
     }
@@ -433,8 +435,9 @@ app.post('/logout', async (req, res) => {
 app.post('/reconnect', async (req, res) => {
     try {
         if (connectionStatus === 'connected') {
-            return res.json({ ok: true, message: 'Already connected' });
+            return res.json({ ok: true, message: 'Already connected', status: connectionStatus });
         }
+        reconnectAttempts = 0;
         await startWhatsApp();
         res.json({ ok: true, message: 'Reconnect triggered', status: connectionStatus });
     } catch (e) {
@@ -444,5 +447,5 @@ app.post('/reconnect', async (req, res) => {
 
 const port = process.env.WHATSAPP_PORT || 8051;
 app.listen(port, '127.0.0.1', () => {
-    console.log(`[WhatsApp] Baileys service listening on port ${port} (localhost only)`);
+    console.log(`[WhatsApp] Listening on ${port}`);
 });
