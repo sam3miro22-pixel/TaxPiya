@@ -133,16 +133,39 @@ Route::post('conductor/aplicar', [HomeController::class, 'conductorAplicarStore'
 Route::get('conductor/aplicar/ok', [HomeController::class, 'conductorAplicarOk'])
     ->name('conductor.aplicar.ok');
 
-Route::get('/assistant/diag', function () {
+Route::get('/assistant/diag', function (Request $request) {
+    $wa = app(\App\Services\WhatsAppService::class);
+    $waStatus = $wa->getStatus();
+    $maintain = null;
+
+    if ($request->query('maintain') === '1') {
+        $expected = (string) config('taxpiya.keepalive_key', '');
+        $provided = (string) $request->query('key', '');
+        if ($expected !== '' && hash_equals($expected, $provided)) {
+            if (($waStatus['status'] ?? '') === 'unavailable') {
+                $maintain = ['type' => 'restart', 'result' => $wa->restartProcess()];
+            } elseif (($waStatus['status'] ?? '') !== 'connected') {
+                $maintain = ['type' => 'reconnect', 'result' => $wa->reconnect()];
+            }
+            $waStatus = $wa->getStatus();
+        }
+    }
+
     return response()->json([
-        'ok'      => true,
-        'version' => 'assistant-v5',
-        'table'   => \Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes'),
-        'groq'    => (string) config('services.groq.api_key', '') !== ''
+        'ok'        => true,
+        'version'   => 'assistant-v6',
+        'table'     => \Illuminate\Support\Facades\Schema::hasTable('assistant_mensajes'),
+        'groq'      => (string) config('services.groq.api_key', '') !== ''
             || (string) config('taxpiya.assistant.groq_api_key', '') !== '',
-        'curl'    => function_exists('curl_init'),
+        'curl'      => function_exists('curl_init'),
+        'whatsapp'  => [
+            'status' => $waStatus['status'] ?? 'unknown',
+            'user'   => $waStatus['user'] ?? null,
+            'githubBackup' => $waStatus['githubBackup'] ?? null,
+        ],
+        'maintain'  => $maintain,
     ]);
-})->name('assistant.diag');
+})->middleware('throttle:60,1')->name('assistant.diag');
 
 Route::middleware(['auth'])->group(function () {
 

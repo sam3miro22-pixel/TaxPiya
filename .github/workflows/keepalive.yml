@@ -27,15 +27,15 @@ jobs:
           fi
           KEY=$(php -r "echo substr(hash('sha256', getenv('TAXPIYA_APP_KEY').'taxpiya-keepalive'), 0, 40);")
           echo "Keepalive key computed"
-          for URL in \
-            "https://taxpiya.onrender.com/taxpiya/keepalive?key=${KEY}" \
-            "https://taxpiya.onrender.com/api/system/keepalive?key=${KEY}"; do
-            echo "Ping $URL"
-            if curl -fsS --retry 5 --retry-delay 25 --max-time 180 "$URL" | tee keepalive.json; then
-              break
-            fi
-          done
-          echo ""
-          cat keepalive.json
+          curl -fsS --retry 5 --retry-delay 25 --max-time 180 \
+            "https://taxpiya.onrender.com/assistant/diag?maintain=1&key=${KEY}" | tee keepalive.json || \
+          curl -fsS --retry 3 --retry-delay 20 --max-time 120 \
+            "https://taxpiya.onrender.com/taxpiya/keepalive?key=${KEY}" | tee keepalive.json || \
+          curl -fsS --retry 3 --retry-delay 20 --max-time 120 \
+            "https://taxpiya.onrender.com/api/system/keepalive?key=${KEY}" | tee keepalive.json || \
           curl -fsS --retry 2 --max-time 90 \
-            "https://app.taxpiya.com/taxpiya/keepalive?key=${KEY}" -o /dev/null || true
+            "https://taxpiya.onrender.com/pasajero/login" -o /dev/null
+          echo ""
+          cat keepalive.json 2>/dev/null || true
+          curl -fsS --retry 2 --max-time 90 \
+            "https://app.taxpiya.com/assistant/diag?maintain=1&key=${KEY}" -o /dev/null || true
