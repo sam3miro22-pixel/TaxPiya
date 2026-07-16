@@ -90,7 +90,7 @@
         return null;
       }
 
-      await SR.start({
+      const res = await SR.start({
         language: 'es-CO',
         maxResults: 1,
         prompt: 'Di la dirección',
@@ -98,18 +98,8 @@
         popup: true,
       });
 
-      await new Promise((r) => setTimeout(r, 400));
-
-      let text = '';
-      if (SR.getResults) {
-        try {
-          const res = await SR.getResults();
-          text = res?.matches?.[0] || '';
-        } catch (_) {}
-      }
-
       try { await SR.stop(); } catch (_) {}
-      return (text || '').trim() || null;
+      return (res?.matches?.[0] || '').trim() || null;
     } catch (e) {
       console.warn('[TaxpiyaVoice] native', e);
       try { await SR.stop(); } catch (_) {}
