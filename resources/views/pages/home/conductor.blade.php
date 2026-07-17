@@ -668,6 +668,7 @@ const VIAJE_RECHAZAR_URL       = "{{ route('viaje.rechazar') }}";
 const VIAJE_ESTADO_BASE        = "{{ url('/viaje/estado') }}";   
 const VIAJE_LLEGO_URL          = "{{ route('viaje.llego') }}";   
 const VIAJE_TERMINAR_URL       = "{{ route('viaje.terminar') }}";
+const VIAJE_VERIFICAR_URL      = "{{ route('viaje.verificar.codigo') }}";
 
 
 window.currentViajeId = window.__txpActiveTrip?.id ?? window.currentViajeId ?? null;
@@ -1162,18 +1163,35 @@ document.getElementById('drv-btn-aceptar')?.addEventListener('click', async ()=>
   const wrap = document.createElement('div');
   wrap.id = 'drv-actions';
   wrap.style.cssText = `
-    position:fixed; left:0; right:0; bottom:86px; z-index:4;
+    position:fixed; left:0; right:0; bottom:130px; z-index:4;
     display:none; padding:0 16px;
   `;
   wrap.innerHTML = `
     <div class="d-flex flex-column gap-2 justify-content-center" style="max-width:720px;margin:0 auto;">
       <div class="d-flex gap-2">
         <button id="drv-act-llego" class="btn btn-warning flex-fill">
-          <i class="fa-solid fa-flag me-1"></i> Llegué al origen
+          <i class="fa-solid fa-flag me-1"></i> Llegé al origen
         </button>
         <button id="drv-act-terminar" class="btn btn-danger flex-fill">
           <i class="fa-solid fa-flag-checkered me-1"></i> Terminar viaje
         </button>
+      </div>
+      <div id="drv-code-block" style="display:none;">
+        <div style="background:rgba(15,23,42,.97); border:2px solid rgba(255,209,102,.4); border-radius:16px; padding:12px 14px;">
+          <div style="font-size:0.75rem; color:#ffd166; font-weight:700; text-align:center; margin-bottom:8px;">
+            <i class="fa-solid fa-shield-halved me-1"></i>INGRESA EL CÓDIGO DEL PASAJERO
+          </div>
+          <div class="d-flex gap-2">
+            <input id="drv-code-input" type="number" inputmode="numeric" maxlength="4" placeholder="0000"
+              class="form-control text-center fw-bold"
+              style="font-size:1.6rem; letter-spacing:.2em; border-radius:12px; border:2px solid rgba(255,209,102,.5); background:#0b0f19; color:#fff; padding:10px 8px;"
+            >
+            <button id="drv-code-verify" class="btn btn-warning" style="white-space:nowrap; min-width:100px; border-radius:12px;">
+              <i class="fa-solid fa-check me-1"></i>Verificar
+            </button>
+          </div>
+          <div id="drv-code-error" style="font-size:0.75rem; color:#f87171; margin-top:6px; display:none;"></div>
+        </div>
       </div>
     </div>
   `;
@@ -1188,11 +1206,14 @@ function showDrvActions(show){
 function setDrvActionsState(estado){
   const bLlegue = document.getElementById('drv-act-llego');
   const bTerm   = document.getElementById('drv-act-terminar');
+  const codeBlock = document.getElementById('drv-code-block');
   if (!bLlegue || !bTerm) return;
   const llegaOk = (estado === 'asignado' || estado === 'en_camino');
-  const termOk  = (estado === 'llego' || estado === 'iniciado');
+  const termOk  = (estado === 'iniciado');   // solo activado DESPUÉS del código
+  const codeOk  = (estado === 'llego');       // mostrar input de código cuando llego
   bLlegue.disabled = !llegaOk;
   bTerm.disabled   = !termOk;
+  if (codeBlock) codeBlock.style.display = codeOk ? 'block' : 'none';
 }
 
 
@@ -1246,6 +1267,62 @@ document.getElementById('drv-act-terminar')?.addEventListener('click', async ()=
   }catch(e){
     showBanner('No se pudo terminar el viaje', 'fa-triangle-exclamation');
   }finally{ btn.innerHTML = old; }
+});
+</script>
+
+<script>
+// ── Verificación del código de recogida ────────────────────────────────────
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest('#drv-code-verify')) return;
+  const btn     = document.getElementById('drv-code-verify');
+  const input   = document.getElementById('drv-code-input');
+  const errEl   = document.getElementById('drv-code-error');
+  if (!btn || !input || !window.currentViajeId) return;
+
+  const codigo = (input.value || '').trim();
+  if (codigo.length < 4) {
+    if (errEl) { errEl.textContent = 'El código debe tener 4 dígitos.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  const old = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    const r = await fetch(VIAJE_VERIFICAR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN': getCsrf() },
+      body: JSON.stringify({ viaje_id: window.currentViajeId, codigo })
+    });
+    const j = await r.json();
+    if (!r.ok || !j?.ok) {
+      const msg = j?.message || 'Código incorrecto.';
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+      btn.innerHTML = old;
+      btn.disabled = false;
+      return;
+    }
+    // Código correcto: ocultar bloque y habilitar "Terminar viaje"
+    showBanner('¡Código verificado! Viaje iniciado.', 'fa-check-circle');
+    const codeBlock = document.getElementById('drv-code-block');
+    if (codeBlock) codeBlock.style.display = 'none';
+    const bTerm = document.getElementById('drv-act-terminar');
+    if (bTerm) bTerm.disabled = false;
+    if (typeof checkDrvStateOnce === 'function') checkDrvStateOnce();
+  } catch(err) {
+    if (errEl) { errEl.textContent = 'Error de red. Reintenta.'; errEl.style.display = 'block'; }
+    btn.innerHTML = old;
+    btn.disabled = false;
+  }
+});
+
+// Limitar input a 4 dígitos
+document.addEventListener('input', (e) => {
+  if (!e.target.matches('#drv-code-input')) return;
+  const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+  e.target.value = v;
 });
 </script>
 

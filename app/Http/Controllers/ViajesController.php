@@ -131,6 +131,11 @@ class ViajesController extends Controller
         $insert['updated_at'] = now()->format('Y-m-d H:i:s');
     }
 
+    // Generar código de recogida de 4 dígitos
+    if (Schema::hasColumn('viajes', 'pickup_code')) {
+        $insert['pickup_code'] = str_pad((string)random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
+    }
+
     $viajeId = DB::table('viajes')->insertGetId($insert);
 
     DB::table('viaje_estados_log')->insert([
@@ -306,6 +311,12 @@ public function estado($id)
     $uid = auth()->id();
     [$isPasajero, $isConductor] = $this->resolveTripRoles($rawViaje, $uid);
 
+    // Incluir el código de recogida para el pasajero cuando el conductor llegó
+    $pickupCode = null;
+    if ($isPasajero && $viaje->estado === 'llego' && Schema::hasColumn('viajes', 'pickup_code')) {
+        $pickupCode = $rawViaje->pickup_code ?? null;
+    }
+
     return response()->json([
         'ok' => true,
         'viaje_id' => (int)$viaje->viaje_id,
@@ -328,6 +339,7 @@ public function estado($id)
         'monto'  => $viaje->tarifa_aplicada !== null ? (float)$viaje->tarifa_aplicada : null,
         'moneda' => $viaje->moneda,
         'calificacion' => $calificacion,
+        'pickup_code' => $pickupCode,
     ]);
 }
 
@@ -521,6 +533,84 @@ public function pasajeroAbordo(Request $req)
        
         return response()->json(['ok'=>false,'message'=>'No se pudo marcar abordo'], 500);
     }
+}
+
+
+/**
+ * Conductor ingresa el código de recogida para desbloquear el inicio del viaje.
+ */
+public function verificarCodigoRecogida(Request $req)
+{
+    $req->validate([
+        'viaje_id' => 'required|integer|exists:viajes,id',
+        'codigo'   => 'required|string|size:4',
+    ]);
+
+    $userId    = auth()->id();
+    $viajeId   = (int) $req->input('viaje_id');
+    $codigoIngresado = strtoupper(trim($req->input('codigo')));
+
+    $viaje = DB::table('viajes')->where('id', $viajeId)->first();
+
+    if (!$viaje) {
+        return response()->json(['ok'=>false,'message'=>'Viaje no encontrado'], 404);
+    }
+
+    // Solo el conductor asignado puede verificar
+    $conductor = DB::table('conductores')->where('user_id', $userId)->first();
+    if (!$conductor || (int)$viaje->conductor_id !== (int)$conductor->id) {
+        return response()->json(['ok'=>false,'message'=>'No autorizado'], 403);
+    }
+
+    // Solo en estado 'llego'
+    if ($viaje->estado !== 'llego') {
+        return response()->json(['ok'=>false,'message'=>'El viaje no está en estado de llegada'], 422);
+    }
+
+    // Verificar código
+    $codigoCorrecto = strtoupper(trim($viaje->pickup_code ?? ''));
+    if ($codigoIngresado !== $codigoCorrecto) {
+        return response()->json(['ok'=>false,'message'=>'Código incorrecto. Pídeselo al pasajero.'], 422);
+    }
+
+    // Marcar verificado y cambiar estado a 'iniciado'
+    $now = now()->format('Y-m-d H:i:s');
+    $update = ['estado' => 'iniciado', 'updated_at' => $now];
+    if (Schema::hasColumn('viajes', 'pickup_code_verified')) {
+        $update['pickup_code_verified'] = true;
+    }
+    DB::table('viajes')->where('id', $viajeId)->update($update);
+
+    if (Schema::hasTable('viaje_estados_log')) {
+        DB::table('viaje_estados_log')->insert([
+            'viaje_id'      => $viajeId,
+            'from_estado'   => 'llego',
+            'to_estado'     => 'iniciado',
+            'actor_tipo'    => 'conductor',
+            'actor_id'      => $userId,
+            'motivo_codigo' => 'codigo_recogida',
+            'motivo_texto'  => 'Conductor verificó código de recogida',
+            'app_origen'    => 'app_conductor',
+            'ip'            => $req->ip(),
+            'created_at'    => $now,
+        ]);
+    }
+
+    // Notificar al pasajero que el viaje inició
+    try {
+        if (!empty($viaje->pasajero_id)) {
+            app(\App\Services\PushService::class)->notifyUsers(
+                [(int) $viaje->pasajero_id],
+                '¡El viaje ha comenzado!',
+                'El conductor verificó el código y el viaje está en curso.',
+                ['t' => 'started', 'viaje_id' => (string) $viajeId]
+            );
+        }
+    } catch (\Throwable $e) {
+        \Log::warning('FCM started (pasajero) falló', ['viaje_id' => $viajeId, 'err' => $e->getMessage()]);
+    }
+
+    return response()->json(['ok' => true, 'estado' => 'iniciado']);
 }
 
 

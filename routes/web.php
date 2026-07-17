@@ -266,6 +266,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/viaje/cancelar', [ViajesController::class, 'cancelar'])->name('viaje.cancelar');
     Route::post('/viaje/pasajero/abordo', [ViajesController::class, 'pasajeroAbordo'])->name('viaje.pasajero.abordo');
     Route::post('/viaje/calificar', [ViajesController::class, 'calificar'])->name('viaje.calificar');
+    Route::post('/viaje/verificar-codigo', [ViajesController::class, 'verificarCodigoRecogida'])->name('viaje.verificar.codigo');
 
     Route::get('/viaje/{id}/chat', [ViajesController::class, 'chatList'])->name('viaje.chat.list');
     Route::post('/viaje/chat/send', [ViajesController::class, 'chatSend'])->name('viaje.chat.send');

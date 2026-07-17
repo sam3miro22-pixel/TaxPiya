@@ -193,7 +193,18 @@
       </div>
     </div>
 
-    <div class="txp-acciones">
+    {{-- Bloque de código de recogida: visible solo cuando el conductor llega --}}
+    <div id="txp-pickup-code-block" style="display:none; margin-top:10px;">
+      <div style="background:linear-gradient(135deg,#1a2744,#0f172a); border:2px solid rgba(255,209,102,.4); border-radius:16px; padding:14px 16px; text-align:center;">
+        <div style="font-size:0.78rem; color:#ffd166; font-weight:600; letter-spacing:0.05em; margin-bottom:6px;">
+          <i class="fa-solid fa-shield-halved me-1"></i>CÓDIGO DE VERIFICACIÓN
+        </div>
+        <div style="font-size:2.2rem; font-weight:900; letter-spacing:0.3em; color:#fff; font-family:monospace;" id="txp-pickup-code-display">????</div>
+        <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Dáselo al conductor al subir al vehículo</div>
+      </div>
+    </div>
+
+    <div class="txp-acciones" style="margin-top:10px;">
       <button id="txp-cancelar-asignado" class="btn btn-light w-100">
         <i class="fa-solid fa-xmark me-1"></i> Cancelar servicio
       </button>
@@ -1395,8 +1406,17 @@ async function checkTripStateOnce(){
   break;
 
       case 'llego':
-  showBanner('El conductor ha llegado', 'fa-flag-checkered');
-  showAbordoAction(true);     
+  showBanner('El conductor ha llegado 🚦', 'fa-flag-checkered');
+  showAbordoAction(true);
+  // Mostrar el código de recogida si vino en la respuesta del API
+  if (j.pickup_code) {
+    const codeBlock = document.getElementById('txp-pickup-code-block');
+    const codeDisplay = document.getElementById('txp-pickup-code-display');
+    if (codeBlock && codeDisplay) {
+      codeDisplay.textContent = j.pickup_code;
+      codeBlock.style.display = 'block';
+    }
+  }
   break;
 
 case 'en_camino':
