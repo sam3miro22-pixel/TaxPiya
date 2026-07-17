@@ -1,5 +1,6 @@
 /**
  * TaxPiya — dictado por voz (Web Speech API + Capacitor SpeechRecognition).
+ * v6 — usa addListener('partialResults') en nativo para máxima compatibilidad Android.
  */
 (function (global) {
   'use strict';
@@ -53,10 +54,6 @@
     else activeButtons.delete(btn);
     btn.classList.toggle('listening', on);
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    const ico = btn.querySelector('i');
-    if (ico) {
-      ico.className = on ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone';
-    }
   }
 
   function resetAllMicButtons() {
@@ -65,6 +62,7 @@
     document.querySelectorAll('.mic-btn.listening').forEach((btn) => setListening(btn, false));
     const SR = speechPlugin();
     if (SR?.stop) SR.stop().catch(() => {});
+    if (SR?.removeAllListeners) SR.removeAllListeners().catch(() => {});
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -73,6 +71,13 @@
   window.addEventListener('focus', resetAllMicButtons);
   window.addEventListener('pageshow', resetAllMicButtons);
 
+  /**
+   * Escucha con el plugin nativo de Capacitor.
+   * Estrategia dual:
+   *   1) addListener('partialResults') → captura el texto en tiempo real (Android principal).
+   *   2) promesa de start()            → respaldo para dispositivos que resuelven al terminar.
+   * El primero que traiga texto gana; un timer de silencio confirma el resultado parcial.
+   */
   async function listenNative() {
     const SR = speechPlugin();
     if (!SR) return null;
@@ -90,19 +95,57 @@
         return null;
       }
 
-      const res = await SR.start({
-        language: 'es-CO',
-        maxResults: 1,
-        prompt: 'Di la dirección',
-        partialResults: false,
-        popup: true,
+      // Limpiar listeners previos para evitar duplicados
+      try { await SR.removeAllListeners(); } catch (_) {}
+
+      return await new Promise((resolve) => {
+        let done = false;
+        let lastPartial = '';
+        let silenceTimer = null;
+
+        const finish = (text) => {
+          if (done) return;
+          done = true;
+          clearTimeout(silenceTimer);
+          // Limpiar listeners del plugin
+          try { SR.removeAllListeners(); } catch (_) {}
+          resolve((text || '').trim() || null);
+        };
+
+        // ── Camino 1: partialResults (el más fiable en Android) ──────────────
+        SR.addListener('partialResults', (data) => {
+          // El plugin puede devolver .matches (array) o .value (string)
+          const text = data?.matches?.[0] || data?.value || '';
+          if (text && text.trim()) {
+            lastPartial = text.trim();
+            // Reiniciamos el timer de silencio: si pasan 1.8s sin nueva entrada, cerramos
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => finish(lastPartial), 1800);
+          }
+        }).catch(() => {});
+
+        // ── Camino 2: promesa directa de start() (respaldo para popup:true) ─
+        SR.start({
+          language: 'es-CO',
+          maxResults: 5,
+          prompt: 'Di la dirección',
+          partialResults: true,   // activamos para que dispare el listener anterior
+          popup: true,
+        }).then((res) => {
+          // La promesa se resuelve al cerrar el popup nativo
+          const text = res?.matches?.[0] || res?.value || lastPartial || '';
+          finish(text);
+        }).catch(() => {
+          finish(lastPartial);
+        });
+
+        // Timeout global: 20 seg máximo
+        setTimeout(() => finish(lastPartial), 20000);
       });
 
-      try { await SR.stop(); } catch (_) {}
-      return (res?.matches?.[0] || '').trim() || null;
     } catch (e) {
       console.warn('[TaxpiyaVoice] native', e);
-      try { await SR.stop(); } catch (_) {}
+      try { SR.removeAllListeners(); } catch (_) {}
       return null;
     }
   }
@@ -173,6 +216,7 @@
 
       busy = true;
       setListening(btn, true);
+      voiceToast('🎙️ Escuchando… habla ahora');
 
       try {
         const txt = await Promise.race([
@@ -185,6 +229,7 @@
           return;
         }
 
+        // Escribir en el campo de texto
         input.value = txt;
         input.dispatchEvent(new Event('input', { bubbles: true }));
         if (typeof onText === 'function') onText(txt);

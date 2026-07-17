@@ -845,7 +845,7 @@ html, body{ background:#0b132b !important; color-scheme: dark; }
 
 @section('pagejs')
 <script src="{{ asset('js/taxpiya-geolocation.js') }}?v=1"></script>
-<script src="{{ asset('js/taxpiya-voice.js') }}?v=5"></script>
+<script src="{{ asset('js/taxpiya-voice.js') }}?v=6"></script>
 <script src="{{ asset('js/taxpiya-background.js') }}?v=3"></script>
 <script>
 function getCsrf(){
