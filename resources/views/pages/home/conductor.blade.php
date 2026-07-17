@@ -159,7 +159,7 @@
       </div>
     </div>
   </div>
-<audio id="snd-offer" src="{{ asset('sounds/solicitudtaxpiya.mp3') }}" preload="auto"></audio>
+<audio id="snd-offer" src="{{ asset('sounds/solicitudtaxpiya.mp3') }}?v=2" preload="auto"></audio>
 
 <div id="bg-consent" class="txp-modal" aria-hidden="true" role="dialog" aria-labelledby="bgc-title" aria-describedby="bgc-desc">
   <div class="txp-modal-backdrop"></div>
