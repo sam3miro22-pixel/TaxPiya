@@ -511,8 +511,8 @@
           results.forEach((r) => {
             const item = document.createElement('div');
             item.textContent = r.label;
-            item.style.cssText = 'padding:10px 12px;cursor:pointer;color:#111;font-size:14px;border-bottom:1px solid #eee;';
-            item.addEventListener('mousedown', (e) => {
+            item.style.cssText = 'padding:10px 16px;cursor:pointer;color:#111;font-size:14px;border-bottom:1px solid #eee;min-height:44px;display:flex;align-items:center;';
+            const selectItem = (e) => {
               e.preventDefault();
               this._place = {
                 formatted_address: r.label,
@@ -522,7 +522,10 @@
               this._input.value = r.label;
               this._box.style.display = 'none';
               (this._listeners.place_changed || []).forEach((fn) => fn());
-            });
+            };
+            // Soportar tanto clic de ratón como toque en móvil
+            item.addEventListener('mousedown', selectItem);
+            item.addEventListener('touchend', selectItem, { passive: false });
             this._box.appendChild(item);
           });
           this._box.style.width = this._input.offsetWidth + 'px';

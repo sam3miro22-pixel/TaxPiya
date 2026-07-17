@@ -2610,6 +2610,22 @@ window.initMap = function(){
 
   if (window.TxpBackground) TxpBackground.init('pasajero');
 
+  // ── Botón de solicitar: también activar por texto en los inputs ─────────────
+  // Si el usuario escribe manualmente sin seleccionar del autocomplete,
+  // mostramos el botón cuando ambos campos tengan texto (aunque no haya ruta).
+  function checkCtaByText() {
+    const oVal = document.getElementById('origin-input')?.value?.trim();
+    const dVal = document.getElementById('dest-input')?.value?.trim();
+    if (oVal && dVal) {
+      // Mostrar botón. Si ya hay coordenadas, tryRoute() las usa;
+      // si no, el botón aparece igual para que el cliente no espere indefinidamente.
+      toggleCTA(true);
+    }
+    // No ocultar aquí: solo tryRoute() oculta cuando faltan coords.
+  }
+  document.getElementById('origin-input')?.addEventListener('input', checkCtaByText);
+  document.getElementById('dest-input')?.addEventListener('input', checkCtaByText);
+
 
  
   map.addListener('idle', scheduleIdleRefresh); 
@@ -2827,6 +2843,9 @@ function tryRoute(){
     clearNeonRoute();
     return;
   }
+  // ── Mostrar el botón inmediatamente en cuanto hay origen+destino ────────────
+  toggleCTA(true);
+
   directionsService.route({
     origin: originLatLng,
     destination: destLatLng,
@@ -2834,14 +2853,14 @@ function tryRoute(){
     provideRouteAlternatives: false
   }, (res, status) => {
     if(status === 'OK' && res.routes && res.routes.length){
-      directionsRenderer.setDirections(res);          
-      const path = res.routes[0].overview_path;       
+      directionsRenderer.setDirections(res);
+      const path = res.routes[0].overview_path;
       renderNeonRoute(path);
-      toggleCTA(true);
-      infoWindow.close(); 
+      infoWindow.close();
     }else{
       console.warn('No se pudo trazar ruta', status);
-      toggleCTA(false);
+      // No ocultar el botón aunque falle la ruta —
+      // el usuario ya tiene origen y destino, puede solicitar igual
       directionsRenderer.set('directions', null);
       clearNeonRoute();
     }
