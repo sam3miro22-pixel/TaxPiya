@@ -1163,7 +1163,7 @@ document.getElementById('drv-btn-aceptar')?.addEventListener('click', async ()=>
   const wrap = document.createElement('div');
   wrap.id = 'drv-actions';
   wrap.style.cssText = `
-    position:fixed; left:0; right:0; bottom:130px; z-index:4;
+    position:fixed; left:0; right:0; bottom:86px; z-index:4;
     display:none; padding:0 16px;
   `;
   wrap.innerHTML = `

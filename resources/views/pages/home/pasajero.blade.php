@@ -737,6 +737,7 @@ body#main #page-content {
 }
 #txp-sheet-asignado .txp-sheet-dialog{
   pointer-events: auto;             
+  padding-bottom: calc(52px + env(safe-area-inset-bottom, 16px)) !important;
 }
 
 
