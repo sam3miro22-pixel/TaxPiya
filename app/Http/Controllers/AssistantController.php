@@ -122,16 +122,20 @@ class AssistantController extends Controller
                     'reply' => "✅ Tu mensaje ha sido enviado a nuestro equipo de soporte por WhatsApp. Te responderemos a la brevedad posible.",
                 ]);
             } else {
+                $waUrl = "https://wa.me/" . $phone . "?text=" . urlencode($fullMessage);
                 return response()->json([
                     'ok'    => true,
-                    'reply' => "⚠️ No pudimos enviar tu mensaje en este momento. Intenta de nuevo o contáctanos directamente.",
+                    'reply' => "⚠️ El sistema de envío automático está desconectado. Por favor, haz clic en el siguiente enlace para enviárnoslo directamente desde tu WhatsApp:\n\n👉 [Enviar Mensaje a Soporte](" . $waUrl . ")",
                 ]);
             }
         } catch (\Throwable $e) {
             report($e);
+            $phone = $phone ?? '573001234567'; // Fallback genérico si no hay teléfono guardado
+            $messagePlaceholder = "Hola, necesito soporte humano con mi app Taxpiya.";
+            $waUrl = "https://wa.me/" . $phone . "?text=" . urlencode($messagePlaceholder);
             return response()->json([
                 'ok'    => true,
-                'reply' => "⚠️ Error al contactar soporte. Intenta de nuevo en unos minutos.",
+                'reply' => "⚠️ Hubo un error de conexión al enviar el mensaje de soporte. Por favor contáctanos directamente haciendo clic aquí:\n\n👉 [Contactar Soporte por WhatsApp](" . $waUrl . ")",
             ]);
         }
     }

@@ -72,7 +72,16 @@
   function bubble(text, who){
     const d = document.createElement('div');
     d.className = 'txp-assistant-bubble ' + (who === 'user' ? 'txp-assistant-bubble--user' : 'txp-assistant-bubble--bot');
-    d.textContent = text;
+    if (who === 'bot' && text.includes('](')) {
+      const html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" style="color:#ffd166;text-decoration:underline;font-weight:bold;">$1</a>');
+      d.innerHTML = html;
+    } else {
+      d.textContent = text;
+    }
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
   }
