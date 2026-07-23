@@ -22,7 +22,7 @@ const CONFIG = {
     BACKUP_MS: 45 * 1000,
     RECONNECT_BASE_MS: 2500,
     RECONNECT_MAX_MS: 20000,
-    RATE_LIMIT_MS: 2500,
+    RATE_LIMIT_MS: 6000,
     DEAF_SESSION_MS: 12 * 60 * 1000,
     PROCESS_RESTART_MS: 4 * 60 * 60 * 1000,
 };
@@ -126,15 +126,38 @@ function extractText(msg) {
     ).trim();
 }
 
+// Elige aleatoriamente entre varias variantes de respuesta para evitar mensajes repetitivos (anti-spam)
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
 function fallbackReply(text) {
     const t = text.toLowerCase();
-    if (/\b(hola|buenas|ayuda|help)\b/.test(t)) {
-        return 'Hola, soy TaxPiya Assistant. Puedo ayudarte con viajes, tarifas, billetera Nequi y soporte.';
+    if (/\b(hola|buenas|buenas|buenos|buen|hey|ey)\b/.test(t)) {
+        return pickRandom([
+            'Hola! Bienvenido a TaxPiya 👋 ¿En qué te puedo ayudar?',
+            'Hola, con gusto te atiendo. Cuéntame qué necesitas.',
+            '¡Buenas! Soy el asistente de TaxPiya. ¿Cómo te puedo ayudar?',
+            'Hola, aquí estoy. ¿En qué te puedo colaborar?',
+        ]);
     }
-    if (/\b(viaje|taxi|precio|tarifa)\b/.test(t)) {
-        return 'Abre TaxPiya, marca origen y destino en el mapa y confirma la tarifa antes de solicitar el taxi.';
+    if (/\b(viaje|taxi|precio|tarifa|cuesta|valor)\b/.test(t)) {
+        return pickRandom([
+            'Para pedir un taxi, abre la app TaxPiya, elige tu origen y destino, y confirma la tarifa. ¡Es muy fácil!',
+            'Desde la app puedes ver la tarifa exacta antes de confirmar el viaje. ¿Ya la tienes instalada?',
+            'El precio lo calcula la app según tu ruta. Descárgala y ponlo a prueba!',
+        ]);
     }
-    return 'Gracias por escribir a TaxPiya. Si necesitas un taxi, usa la app en taxpiya.onrender.com o app.taxpiya.com';
+    if (/\b(ayuda|help|soporte|problema|error)\b/.test(t)) {
+        return pickRandom([
+            'Claro, cuéntame qué pasó y te ayudo a resolverlo.',
+            'Con gusto te ayudo. ¿Qué problema tienes con la app?',
+            'Dime qué está pasando y lo miramos juntos.',
+        ]);
+    }
+    return pickRandom([
+        'Gracias por escribirnos a TaxPiya! Puedes usar la app en taxpiya.onrender.com',
+        '¡Hola! Si necesitas un taxi usa la app TaxPiya. ¿Te puedo ayudar con algo más?',
+        'Recibido. Para servicios de taxi usa la app TaxPiya. ¿Algo más en qué colaborarte?',
+    ]);
 }
 
 async function askGroq(userMessage) {
@@ -149,12 +172,17 @@ async function askGroq(userMessage) {
                 messages: [
                     {
                         role: 'system',
-                        content: 'Eres TaxPiya Assistant en Colombia. Español, máximo 3 oraciones. Ayuda con viajes, tarifas, Nequi y soporte.',
+                        content: `Eres el agente de soporte de TaxPiya, una app de taxis en Colombia. 
+Respondes por WhatsApp como un humano real: usa un tono cálido, informal y cercano. 
+Nunca uses frases robóticas como "Soy un asistente virtual" o "Como IA...". 
+Escribe máximo 2 o 3 oraciones cortas. Usa emojis con moderación (1 o 2 máximo). 
+Variá el inicio de tus respuestas para no sonar repetitivo. 
+Temas que puedes resolver: viajes, tarifas, la app TaxPiya, cancelaciones, Nequi, código de verificación del viaje y soporte general.`,
                     },
                     { role: 'user', content: userMessage },
                 ],
-                temperature: 0.35,
-                max_tokens: 280,
+                temperature: 0.75,
+                max_tokens: 220,
             }),
         });
         if (!res.ok) {
@@ -271,10 +299,13 @@ async function startWhatsApp() {
             defaultQueryTimeoutMs: 90000,
             keepAliveIntervalMs: CONFIG.KEEP_ALIVE_MS,
             retryRequestDelayMs: 500,
-            browser: ['Taxpiya', 'Chrome', '125.0.0'],
+            // Identificarse como un Samsung Galaxy S23 con WhatsApp Web estándar
+            browser: ['Samsung Galaxy S23', 'Chrome', '126.0.6478.126'],
             syncFullHistory: false,
             markOnlineOnConnect: false,
             generateHighQualityLinkPreview: false,
+            // No mostrar presencia "en línea" al conectar
+            shouldSyncHistoryMessage: () => false,
             shouldIgnoreJid: jid => jid.endsWith('@broadcast') || jid.endsWith('@g.us'),
             getMessage: async () => undefined,
         });
@@ -294,18 +325,42 @@ async function startWhatsApp() {
             if (now - lastTs < CONFIG.RATE_LIMIT_MS) return;
 
             lastMessageAt = now;
-            const reply = await askGroq(text);
+
+            // 1. Simular tiempo de lectura (esperar de 2 a 4 segundos antes de "abrir" el chat y marcar azul)
+            const initialDelay = Math.floor(Math.random() * 2000) + 2000;
+            await sleep(initialDelay);
             if (!sock || connectionStatus !== 'connected') return;
 
+            // Marcar mensaje como visto
             try { await sock.readMessages([msgKey]); } catch (_) { /* ignore */ }
-            try { await sock.sendPresenceUpdate('composing', from); } catch (_) { /* ignore */ }
-            await sleep(Math.min(2500, 800 + text.length * 15));
-            if (!sock || connectionStatus !== 'connected') return;
-            try { await sock.sendPresenceUpdate('paused', from); } catch (_) { /* ignore */ }
 
+            // Obtener respuesta de IA (toma unos 1-2 segundos, sirviendo como tiempo de "pensar")
+            const reply = await askGroq(text);
+            if (!sock || connectionStatus !== 'connected' || !reply) return;
+
+            // 2. Simular pausa de "pensamiento" adicional después de leer y antes de escribir (1.2 a 2.5 segundos)
+            const thinkingDelay = Math.floor(Math.random() * 1300) + 1200;
+            await sleep(thinkingDelay);
+            if (!sock || connectionStatus !== 'connected') return;
+
+            // 3. Empezar a escribir ("escribiendo...")
+            try { await sock.sendPresenceUpdate('composing', from); } catch (_) { /* ignore */ }
+
+            // 4. Calcular tiempo de escritura real proporcional a la longitud de la respuesta (velocidad humana móvil: ~50-80ms por caracter)
+            const msPerChar = Math.floor(Math.random() * 30) + 50;
+            let typingDuration = reply.length * msPerChar;
+            // Asegurar que tarde mínimo 3 segundos y máximo 12 segundos escribiendo
+            typingDuration = Math.max(3000, Math.min(12000, typingDuration));
+
+            await sleep(typingDuration);
+            if (!sock || connectionStatus !== 'connected') return;
+
+            // 5. Detener estado de escritura y enviar
+            try { await sock.sendPresenceUpdate('paused', from); } catch (_) { /* ignore */ }
             await sock.sendMessage(from, { text: reply });
+
             lastReplied.set(from, Date.now());
-            console.log(`[WhatsApp AI] Replied to ${from}`);
+            console.log(`[WhatsApp AI] Replied to ${from} (Typing duration: ${typingDuration}ms)`);
         }
 
         sock.ev.on('messages.upsert', async (m) => {
