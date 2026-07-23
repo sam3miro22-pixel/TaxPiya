@@ -326,41 +326,43 @@ async function startWhatsApp() {
 
             lastMessageAt = now;
 
-            // 1. Simular tiempo de lectura (esperar de 2 a 4 segundos antes de "abrir" el chat y marcar azul)
-            const initialDelay = Math.floor(Math.random() * 2000) + 2000;
+            // 1. Tiempo de lectura: el humano no abre el chat de inmediato (4 a 8 segundos)
+            const initialDelay = Math.floor(Math.random() * 4000) + 4000;
             await sleep(initialDelay);
             if (!sock || connectionStatus !== 'connected') return;
 
-            // Marcar mensaje como visto
+            // Marcar mensaje como visto (check azul aparece aquí)
             try { await sock.readMessages([msgKey]); } catch (_) { /* ignore */ }
 
-            // Obtener respuesta de IA (toma unos 1-2 segundos, sirviendo como tiempo de "pensar")
+            // Llamar a Groq para obtener la respuesta (1-2s de latencia natural de red)
             const reply = await askGroq(text);
             if (!sock || connectionStatus !== 'connected' || !reply) return;
 
-            // 2. Simular pausa de "pensamiento" adicional después de leer y antes de escribir (1.2 a 2.5 segundos)
-            const thinkingDelay = Math.floor(Math.random() * 1300) + 1200;
+            // 2. Pausa de "reflexión" antes de empezar a escribir (2 a 5 segundos)
+            const thinkingDelay = Math.floor(Math.random() * 3000) + 2000;
             await sleep(thinkingDelay);
             if (!sock || connectionStatus !== 'connected') return;
 
-            // 3. Empezar a escribir ("escribiendo...")
+            // 3. Activar estado "escribiendo..." visible en el chat del usuario
             try { await sock.sendPresenceUpdate('composing', from); } catch (_) { /* ignore */ }
 
-            // 4. Calcular tiempo de escritura real proporcional a la longitud de la respuesta (velocidad humana móvil: ~50-80ms por caracter)
-            const msPerChar = Math.floor(Math.random() * 30) + 50;
+            // 4. Velocidad de escritura realista: 60-90ms por carácter (humano lento en móvil)
+            const msPerChar = Math.floor(Math.random() * 30) + 60;
             let typingDuration = reply.length * msPerChar;
-            // Asegurar que tarde mínimo 3 segundos y máximo 12 segundos escribiendo
-            typingDuration = Math.max(3000, Math.min(12000, typingDuration));
+            // Mínimo 5 segundos escribiendo, máximo 20 segundos
+            typingDuration = Math.max(5000, Math.min(20000, typingDuration));
 
+            console.log(`[WhatsApp AI] Escribiendo por ${typingDuration}ms para ${from}...`);
             await sleep(typingDuration);
             if (!sock || connectionStatus !== 'connected') return;
 
-            // 5. Detener estado de escritura y enviar
+            // 5. Parar "escribiendo..." y enviar el mensaje
             try { await sock.sendPresenceUpdate('paused', from); } catch (_) { /* ignore */ }
             await sock.sendMessage(from, { text: reply });
 
             lastReplied.set(from, Date.now());
-            console.log(`[WhatsApp AI] Replied to ${from} (Typing duration: ${typingDuration}ms)`);
+            const totalTime = Math.round((initialDelay + thinkingDelay + typingDuration) / 1000);
+            console.log(`[WhatsApp AI] ✅ Respondido a ${from} — tiempo total ~${totalTime}s`);
         }
 
         sock.ev.on('messages.upsert', async (m) => {
